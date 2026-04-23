@@ -1,0 +1,126 @@
+import { Button } from "@/components/ui/button"
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
+import {
+  Field,
+  FieldDescription,
+  FieldGroup,
+  FieldLabel,
+} from "@/components/ui/field"
+import { Input } from "@/components/ui/input"
+import { useForm } from "react-hook-form"
+import { standardSchemaResolver } from "@hookform/resolvers/standard-schema"
+import { changePasswordSchema } from "@base-dashboard/shared"
+import { z } from "zod/v4"
+import { useState } from "react"
+import { toast } from "sonner"
+import { changePasswordApi } from "@/lib/profile"
+
+const changePasswordFormSchema = changePasswordSchema
+  .extend({
+    confirmPassword: z.string().min(1, "Please confirm your new password"),
+  })
+  .refine((data) => data.newPassword === data.confirmPassword, {
+    message: "Passwords do not match",
+    path: ["confirmPassword"],
+  })
+
+type ChangePasswordFormValues = z.infer<typeof changePasswordFormSchema>
+
+export function ChangePasswordForm() {
+  const [isSubmitting, setIsSubmitting] = useState(false)
+
+  const {
+    register,
+    handleSubmit,
+    reset,
+    formState: { errors },
+  } = useForm<ChangePasswordFormValues>({
+    resolver: standardSchemaResolver(changePasswordFormSchema),
+  })
+
+  async function onSubmit(values: ChangePasswordFormValues) {
+    setIsSubmitting(true)
+    try {
+      await changePasswordApi(values.currentPassword, values.newPassword)
+      toast.success("Password changed successfully")
+      reset()
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Failed to change password",
+      )
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Change Password</CardTitle>
+        <CardDescription>
+          Update your password to keep your account secure
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <form onSubmit={handleSubmit(onSubmit)}>
+          <FieldGroup>
+            <Field>
+              <FieldLabel htmlFor="currentPassword">
+                Current Password
+              </FieldLabel>
+              <Input
+                id="currentPassword"
+                type="password"
+                {...register("currentPassword")}
+              />
+              {errors.currentPassword && (
+                <FieldDescription className="text-destructive">
+                  {errors.currentPassword.message}
+                </FieldDescription>
+              )}
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="newPassword">New Password</FieldLabel>
+              <Input
+                id="newPassword"
+                type="password"
+                {...register("newPassword")}
+              />
+              {errors.newPassword && (
+                <FieldDescription className="text-destructive">
+                  {errors.newPassword.message}
+                </FieldDescription>
+              )}
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="confirmPassword">
+                Confirm New Password
+              </FieldLabel>
+              <Input
+                id="confirmPassword"
+                type="password"
+                {...register("confirmPassword")}
+              />
+              {errors.confirmPassword && (
+                <FieldDescription className="text-destructive">
+                  {errors.confirmPassword.message}
+                </FieldDescription>
+              )}
+            </Field>
+            <Field>
+              <Button type="submit" disabled={isSubmitting}>
+                {isSubmitting ? "Changing..." : "Change Password"}
+              </Button>
+            </Field>
+          </FieldGroup>
+        </form>
+      </CardContent>
+    </Card>
+  )
+}

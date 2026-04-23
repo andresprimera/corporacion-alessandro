@@ -59,7 +59,7 @@ const userNavMain = [
 ]
 
 const navSecondary = [
-  { title: "Settings", url: "#", icon: <Settings2Icon /> },
+  { title: "Settings", url: "/dashboard/settings", icon: <Settings2Icon /> },
   { title: "Get Help", url: "#", icon: <CircleHelpIcon /> },
   { title: "Search", url: "#", icon: <SearchIcon /> },
 ]
@@ -91,12 +91,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       </SidebarHeader>
       <SidebarContent>
         <NavMain items={isAdmin ? adminNavMain : userNavMain} />
-        {isAdmin && (
-          <>
-            <NavDocuments items={documents} />
-            <NavSecondary items={navSecondary} className="mt-auto" />
-          </>
-        )}
+        {isAdmin && <NavDocuments items={documents} />}
+        <NavSecondary items={navSecondary} className="mt-auto" />
       </SidebarContent>
       <SidebarFooter>
         <NavUser />

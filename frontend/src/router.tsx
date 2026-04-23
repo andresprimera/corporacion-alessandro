@@ -6,6 +6,7 @@ import LoginPage from "@/pages/login"
 import SignupPage from "@/pages/signup"
 import ForgotPasswordPage from "@/pages/forgot-password"
 import ResetPasswordPage from "@/pages/reset-password"
+import SettingsPage from "@/pages/settings"
 import { ProtectedRoute } from "@/components/protected-route"
 import { AdminRoute } from "@/components/admin-route"
 import { DashboardLayout } from "@/components/dashboard-layout"
@@ -50,6 +51,10 @@ export const router = createBrowserRouter([
             <UsersPage />
           </AdminRoute>
         ),
+      },
+      {
+        path: "settings",
+        element: <SettingsPage />,
       },
     ],
   },

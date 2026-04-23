@@ -11,6 +11,10 @@ export {
   type ForgotPasswordInput,
   resetPasswordSchema,
   type ResetPasswordInput,
+  updateProfileSchema,
+  type UpdateProfileInput,
+  changePasswordSchema,
+  type ChangePasswordInput,
 } from "./schemas/auth";
 
 export { userSchema, roleEnum, type User, type Role } from "./schemas/user";

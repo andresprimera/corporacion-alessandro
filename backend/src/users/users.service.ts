@@ -87,4 +87,15 @@ export class UsersService {
       password: hashedPassword,
     });
   }
+
+  async updateProfile(
+    userId: string,
+    data: { name: string; email: string },
+  ): Promise<UserDocument | null> {
+    return this.userModel.findByIdAndUpdate(userId, data, { new: true });
+  }
+
+  async findByIdWithPassword(id: string): Promise<UserDocument | null> {
+    return this.userModel.findById(id).select('+password');
+  }
 }
