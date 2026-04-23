@@ -103,6 +103,7 @@ frontend/src/
 - `services/index.ts` is a barrel that re-exports all service modules, services, and types.
 - Service modules are **not globally registered** — consumers import only the modules they need (e.g., `imports: [MailModule]`).
 - **MailService** (`services/mail/`) uses Nodemailer with SMTP config from env vars (`SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM`).
+- **StorageService** (`services/storage/`) uses an adapter pattern for file storage. A `StorageProvider` interface defines `upload`, `download`, `delete`, `exists`, `getUrl`. Three adapters are available: `LocalStorageProvider` (filesystem, default), `GcsStorageProvider` (Google Cloud Storage), `FirebaseStorageProvider` (Firebase Storage). The active adapter is selected via the `STORAGE_PROVIDER` env var (`local` | `gcs` | `firebase`). Consuming code injects `StorageService` and never references a specific adapter. Local uploads are served via `ServeStaticModule` at `/uploads`.
 
 ### DTOs & Validation
 
