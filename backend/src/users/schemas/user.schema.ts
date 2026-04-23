@@ -19,6 +19,12 @@ export class User {
 
   @Prop({ select: false })
   hashedRefreshToken?: string;
+
+  @Prop({ select: false })
+  hashedPasswordResetToken?: string;
+
+  @Prop({ select: false })
+  passwordResetExpires?: Date;
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);

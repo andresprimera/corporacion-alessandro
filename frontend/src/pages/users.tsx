@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from "react"
 import { useAuth } from "@/hooks/use-auth"
-import { fetchUsersApi, updateUserRoleApi, deleteUserApi } from "@/lib/auth"
+import { fetchUsersApi, updateUserRoleApi, deleteUserApi } from "@/lib/users"
 import type { User } from "@base-dashboard/shared"
 import {
   Table,
@@ -23,32 +23,28 @@ import { TrashIcon } from "lucide-react"
 import { toast } from "sonner"
 
 export default function UsersPage() {
-  const { user: currentUser, getAccessToken } = useAuth()
+  const { user: currentUser } = useAuth()
   const [users, setUsers] = useState<User[]>([])
   const [loading, setLoading] = useState(true)
 
   const loadUsers = useCallback(async () => {
-    const token = getAccessToken()
-    if (!token) return
     try {
-      const data = await fetchUsersApi(token)
+      const data = await fetchUsersApi()
       setUsers(data)
     } catch {
       toast.error("Failed to load users")
     } finally {
       setLoading(false)
     }
-  }, [getAccessToken])
+  }, [])
 
   useEffect(() => {
     loadUsers()
   }, [loadUsers])
 
   async function handleRoleChange(userId: string, role: string) {
-    const token = getAccessToken()
-    if (!token) return
     try {
-      const updated = await updateUserRoleApi(token, userId, role)
+      const updated = await updateUserRoleApi(userId, role)
       setUsers((prev) =>
         prev.map((u) => (u.id === updated.id ? updated : u)),
       )
@@ -61,10 +57,8 @@ export default function UsersPage() {
   }
 
   async function handleDelete(userId: string) {
-    const token = getAccessToken()
-    if (!token) return
     try {
-      await deleteUserApi(token, userId)
+      await deleteUserApi(userId)
       setUsers((prev) => prev.filter((u) => u.id !== userId))
       toast.success("User deleted")
     } catch (error) {

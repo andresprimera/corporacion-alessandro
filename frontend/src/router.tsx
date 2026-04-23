@@ -4,6 +4,8 @@ import DashboardPage from "@/pages/dashboard"
 import UsersPage from "@/pages/users"
 import LoginPage from "@/pages/login"
 import SignupPage from "@/pages/signup"
+import ForgotPasswordPage from "@/pages/forgot-password"
+import ResetPasswordPage from "@/pages/reset-password"
 import { ProtectedRoute } from "@/components/protected-route"
 import { AdminRoute } from "@/components/admin-route"
 import { DashboardLayout } from "@/components/dashboard-layout"
@@ -20,6 +22,14 @@ export const router = createBrowserRouter([
   {
     path: "/signup",
     element: <SignupPage />,
+  },
+  {
+    path: "/forgot-password",
+    element: <ForgotPasswordPage />,
+  },
+  {
+    path: "/reset-password",
+    element: <ResetPasswordPage />,
   },
   {
     path: "/dashboard",

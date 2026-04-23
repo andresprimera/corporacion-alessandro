@@ -7,47 +7,20 @@ import {
   useRef,
   type ReactNode,
 } from "react"
-import {
-  loginApi,
-  signupApi,
-  refreshApi,
-  logoutApi,
-  type AuthUser,
-} from "@/lib/auth"
+import { type User } from "@base-dashboard/shared"
+import { getStoredTokens, storeTokens, clearTokens } from "@/lib/api"
+import { loginApi, signupApi, refreshApi, logoutApi } from "@/lib/auth"
 
 interface AuthContextValue {
-  user: AuthUser | null
+  user: User | null
   isAuthenticated: boolean
   isLoading: boolean
   login: (email: string, password: string) => Promise<void>
   signup: (name: string, email: string, password: string) => Promise<void>
   logout: () => Promise<void>
-  getAccessToken: () => string | null
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
-
-const TOKEN_KEYS = {
-  access: "accessToken",
-  refresh: "refreshToken",
-} as const
-
-function getStoredTokens() {
-  return {
-    accessToken: localStorage.getItem(TOKEN_KEYS.access),
-    refreshToken: localStorage.getItem(TOKEN_KEYS.refresh),
-  }
-}
-
-function storeTokens(accessToken: string, refreshToken: string) {
-  localStorage.setItem(TOKEN_KEYS.access, accessToken)
-  localStorage.setItem(TOKEN_KEYS.refresh, refreshToken)
-}
-
-function clearTokens() {
-  localStorage.removeItem(TOKEN_KEYS.access)
-  localStorage.removeItem(TOKEN_KEYS.refresh)
-}
 
 // Decode JWT payload to get expiration time
 function getTokenExpiry(token: string): number | null {
@@ -60,7 +33,7 @@ function getTokenExpiry(token: string): number | null {
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<AuthUser | null>(null)
+  const [user, setUser] = useState<User | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -133,20 +106,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     scheduleRefresh(data.accessToken, data.refreshToken)
   }, [scheduleRefresh])
 
-  const getAccessToken = useCallback(() => {
-    return localStorage.getItem(TOKEN_KEYS.access)
-  }, [])
-
   const logout = useCallback(async () => {
-    const { accessToken } = getStoredTokens()
     if (refreshTimerRef.current) {
       clearTimeout(refreshTimerRef.current)
     }
+    await logoutApi().catch(() => {})
     clearTokens()
     setUser(null)
-    if (accessToken) {
-      await logoutApi(accessToken).catch(() => {})
-    }
   }, [])
 
   return (
@@ -158,7 +124,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         login,
         signup,
         logout,
-        getAccessToken,
       }}
     >
       {children}

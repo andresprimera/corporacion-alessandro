@@ -55,8 +55,16 @@ pnpm monorepo with three packages: `backend` (NestJS 11 + Mongoose), `frontend` 
 ### Data Fetching
 
 - Use **TanStack React Query** for server state (queries, mutations, caching).
-- API functions live in `src/lib/` — plain `fetch` with the `authFetch` wrapper. No axios.
 - All API calls go through the `/api` proxy (Vite dev server proxies to backend).
+- **No axios.** Plain `fetch` via the `authFetch` / `publicFetch` wrappers from `@/lib/api`.
+
+### API Organization (`src/lib/`)
+
+- **`api.ts`** — Shared infrastructure only: `authFetch`, `publicFetch`, token helpers (`getStoredTokens`, `storeTokens`, `clearTokens`), and the 401 refresh interceptor. No feature-specific API functions here.
+- **One file per feature** — e.g., `auth.ts` (login, signup, refresh, logout, forgot/reset password), `users.ts` (CRUD for users). Each file imports `authFetch` or `publicFetch` from `@/lib/api`.
+- **Authenticated endpoints** use `authFetch` — tokens are auto-attached and 401s trigger a silent refresh + retry. API functions should **never** accept an access token parameter.
+- **Public endpoints** (login, signup, forgot-password) use `publicFetch`.
+- When adding a new feature, create a new `src/lib/<feature>.ts` file rather than adding functions to an existing file.
 
 ### File Organization
 
@@ -66,6 +74,10 @@ frontend/src/
     ui/             # shadcn components — do not edit directly
   hooks/            # Custom hooks (useAuth, useMobile, etc.)
   lib/              # Utilities and API functions
+    api.ts          # Shared fetch wrappers (authFetch, publicFetch, token helpers)
+    auth.ts         # Auth API functions (login, signup, refresh, etc.)
+    users.ts        # User management API functions
+    <feature>.ts    # One file per feature for API functions
   pages/            # Page components (default exports)
 ```
 

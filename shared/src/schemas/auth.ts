@@ -29,3 +29,17 @@ export const updateUserRoleSchema = z.object({
 });
 
 export type UpdateUserRoleInput = z.infer<typeof updateUserRoleSchema>;
+
+export const forgotPasswordSchema = z.object({
+  email: z.email("Please enter a valid email"),
+});
+
+export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;
+
+export const resetPasswordSchema = z.object({
+  token: z.string().min(1, "Token is required"),
+  email: z.email("Please enter a valid email"),
+  password: z.string().min(8, "Password must be at least 8 characters"),
+});
+
+export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;

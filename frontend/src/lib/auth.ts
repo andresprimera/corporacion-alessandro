@@ -1,41 +1,35 @@
-import { type AuthResponse, type User } from "@base-dashboard/shared"
+import { type AuthResponse } from "@base-dashboard/shared"
+import { publicFetch, authFetch } from "@/lib/api"
 
-export type AuthUser = User
 export type { AuthResponse }
 
-async function authFetch(url: string, options: RequestInit = {}): Promise<Response> {
-  const res = await fetch(url, {
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...options.headers,
-    },
-  })
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({}))
-    throw new Error(body.message || "Request failed")
-  }
-  return res
-}
-
-export async function loginApi(email: string, password: string): Promise<AuthResponse> {
-  const res = await authFetch("/api/auth/login", {
+export async function loginApi(
+  email: string,
+  password: string,
+): Promise<AuthResponse> {
+  const res = await publicFetch("/api/auth/login", {
     method: "POST",
     body: JSON.stringify({ email, password }),
   })
   return res.json()
 }
 
-export async function signupApi(name: string, email: string, password: string): Promise<AuthResponse> {
-  const res = await authFetch("/api/auth/signup", {
+export async function signupApi(
+  name: string,
+  email: string,
+  password: string,
+): Promise<AuthResponse> {
+  const res = await publicFetch("/api/auth/signup", {
     method: "POST",
     body: JSON.stringify({ name, email, password }),
   })
   return res.json()
 }
 
-export async function refreshApi(refreshToken: string): Promise<AuthResponse> {
-  const res = await authFetch("/api/auth/refresh", {
+export async function refreshApi(
+  refreshToken: string,
+): Promise<AuthResponse> {
+  const res = await publicFetch("/api/auth/refresh", {
     method: "POST",
     headers: {
       Authorization: `Bearer ${refreshToken}`,
@@ -44,41 +38,24 @@ export async function refreshApi(refreshToken: string): Promise<AuthResponse> {
   return res.json()
 }
 
-export async function logoutApi(accessToken: string): Promise<void> {
-  await authFetch("/api/auth/logout", {
+export async function logoutApi(): Promise<void> {
+  await authFetch("/api/auth/logout", { method: "POST" })
+}
+
+export async function forgotPasswordApi(email: string): Promise<void> {
+  await publicFetch("/api/auth/forgot-password", {
     method: "POST",
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-    },
+    body: JSON.stringify({ email }),
   })
 }
 
-export async function fetchUsersApi(accessToken: string): Promise<AuthUser[]> {
-  const res = await authFetch("/api/users", {
-    headers: { Authorization: `Bearer ${accessToken}` },
-  })
-  return res.json()
-}
-
-export async function updateUserRoleApi(
-  accessToken: string,
-  userId: string,
-  role: string,
-): Promise<AuthUser> {
-  const res = await authFetch(`/api/users/${userId}/role`, {
-    method: "PATCH",
-    headers: { Authorization: `Bearer ${accessToken}` },
-    body: JSON.stringify({ role }),
-  })
-  return res.json()
-}
-
-export async function deleteUserApi(
-  accessToken: string,
-  userId: string,
+export async function resetPasswordApi(
+  token: string,
+  email: string,
+  password: string,
 ): Promise<void> {
-  await authFetch(`/api/users/${userId}`, {
-    method: "DELETE",
-    headers: { Authorization: `Bearer ${accessToken}` },
+  await publicFetch("/api/auth/reset-password", {
+    method: "POST",
+    body: JSON.stringify({ token, email, password }),
   })
 }
