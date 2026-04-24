@@ -5,6 +5,7 @@ import {
   Delete,
   Param,
   Body,
+  Query,
   UseGuards,
   ForbiddenException,
   NotFoundException,
@@ -21,7 +22,13 @@ import {
   updateUserRoleSchema,
   type UpdateUserRoleInput,
   type Role,
+  type PaginatedResponse,
+  type User,
 } from '@base-dashboard/shared';
+import {
+  paginationQuerySchema,
+  type PaginationQuery,
+} from '../common/dto/pagination-query.dto';
 import {
   updateProfileSchema,
   type UpdateProfileInput,
@@ -98,14 +105,28 @@ export class UsersController {
   @Get()
   @UseGuards(RolesGuard)
   @Roles('admin')
-  async findAll() {
-    const users = await this.usersService.findAll();
-    return users.map((u) => ({
-      id: u.id,
-      email: u.email,
-      name: u.name,
-      role: u.role,
-    }));
+  async findAll(
+    @Query(new ZodValidationPipe(paginationQuerySchema))
+    query: PaginationQuery,
+  ): Promise<PaginatedResponse<User>> {
+    const { data, total } = await this.usersService.findAllPaginated(
+      query.page,
+      query.limit,
+    );
+    return {
+      data: data.map((u) => ({
+        id: u.id,
+        email: u.email,
+        name: u.name,
+        role: u.role as Role,
+      })),
+      meta: {
+        page: query.page,
+        limit: query.limit,
+        total,
+        totalPages: Math.ceil(total / query.limit),
+      },
+    };
   }
 
   @Patch(':id/role')

@@ -57,6 +57,18 @@ pnpm monorepo with three packages: `backend` (NestJS 11 + Mongoose), `frontend` 
 - Use **TanStack React Query** for server state (queries, mutations, caching).
 - All API calls go through the `/api` proxy (Vite dev server proxies to backend).
 - **No axios.** Plain `fetch` via the `authFetch` / `publicFetch` wrappers from `@/lib/api`.
+- **No manual `useState`/`useEffect` for fetching.** Use `useQuery` for reads and `useMutation` for writes. Invalidate queries on mutation success via `queryClient.invalidateQueries()`.
+- Use `placeholderData: keepPreviousData` for paginated queries to avoid flash on page change.
+
+### Pagination
+
+- **Server-side pagination** for all list endpoints. Never fetch all records at once.
+- Shared types in `@base-dashboard/shared`: `PaginatedResponse<T>`, `PaginationMeta`, `PaginationQuery`, `paginationQuerySchema`.
+- Backend endpoints accept `?page=1&limit=10` query params, validated via `ZodValidationPipe(paginationQuerySchema)` on `@Query()`.
+- Backend returns `{ data: T[], meta: { page, limit, total, totalPages } }`.
+- Frontend API functions accept `(page, limit)` params and return `PaginatedResponse<T>`.
+- Frontend pages track `page`/`pageSize` in `useState`, pass to `useQuery` key and fetch function.
+- Pagination UI: rows-per-page selector + first/prev/next/last navigation buttons (see `pages/users.tsx` for reference).
 
 ### API Organization (`src/lib/`)
 
@@ -107,7 +119,7 @@ frontend/src/
 
 ### DTOs & Validation
 
-- Validation uses **Zod schemas from `@base-dashboard/shared`** with `ZodValidationPipe` applied per-param (e.g., `@Body(new ZodValidationPipe(schema))`).
+- Validation uses **Zod schemas from `@base-dashboard/shared`** with `ZodValidationPipe` applied per-param (e.g., `@Body(new ZodValidationPipe(schema))` or `@Query(new ZodValidationPipe(schema))`).
 - Backend DTO files re-export schemas and types from shared (e.g., `export { signupSchema, type SignupInput } from '@base-dashboard/shared'`).
 - No global `ValidationPipe` — validation is per-endpoint via Zod.
 
