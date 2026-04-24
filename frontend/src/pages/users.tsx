@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { useTranslation } from "react-i18next"
 import {
   useQuery,
   useMutation,
@@ -36,6 +37,7 @@ import {
 import { toast } from "sonner"
 
 export default function UsersPage() {
+  const { t } = useTranslation()
   const { user: currentUser } = useAuth()
   const queryClient = useQueryClient()
   const [page, setPage] = useState(1)
@@ -55,10 +57,10 @@ export default function UsersPage() {
       updateUserRoleApi(userId, role),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["users"] })
-      toast.success("Role updated")
+      toast.success(t("Role updated"))
     },
     onError: (error: Error) => {
-      toast.error(error.message || "Failed to update role")
+      toast.error(error.message || t("Failed to update role"))
     },
   })
 
@@ -66,10 +68,10 @@ export default function UsersPage() {
     mutationFn: (userId: string) => deleteUserApi(userId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["users"] })
-      toast.success("User deleted")
+      toast.success(t("User deleted"))
     },
     onError: (error: Error) => {
-      toast.error(error.message || "Failed to delete user")
+      toast.error(error.message || t("Failed to delete user"))
     },
   })
 
@@ -92,7 +94,7 @@ export default function UsersPage() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <p className="text-muted-foreground">Loading users...</p>
+        <p className="text-muted-foreground">{t("Loading users...")}</p>
       </div>
     )
   }
@@ -100,26 +102,26 @@ export default function UsersPage() {
   return (
     <div className="space-y-4">
       <div>
-        <h2 className="text-2xl font-bold tracking-tight">Users</h2>
+        <h2 className="text-2xl font-bold tracking-tight">{t("Users")}</h2>
         <p className="text-muted-foreground">
-          Manage user accounts and roles.
+          {t("Manage user accounts and roles.")}
         </p>
       </div>
       <div className="rounded-lg border">
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Name</TableHead>
-              <TableHead>Email</TableHead>
-              <TableHead>Role</TableHead>
-              <TableHead className="w-25">Actions</TableHead>
+              <TableHead>{t("Name")}</TableHead>
+              <TableHead>{t("Email")}</TableHead>
+              <TableHead>{t("Role")}</TableHead>
+              <TableHead className="w-25">{t("Actions")}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {users.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={4} className="h-24 text-center">
-                  No users found.
+                  {t("No users found.")}
                 </TableCell>
               </TableRow>
             ) : (
@@ -157,7 +159,7 @@ export default function UsersPage() {
                         onClick={() => handleDelete(u.id)}
                       >
                         <TrashIcon className="size-4" />
-                        <span className="sr-only">Delete</span>
+                        <span className="sr-only">{t("Delete")}</span>
                       </Button>
                     </TableCell>
                   </TableRow>
@@ -170,12 +172,12 @@ export default function UsersPage() {
       {meta && (
         <div className="flex items-center justify-between px-4">
           <div className="hidden flex-1 text-sm text-muted-foreground lg:flex">
-            {meta.total} user{meta.total !== 1 ? "s" : ""} total
+            {t("{{count}} user total", { count: meta.total })}
           </div>
           <div className="flex w-full items-center gap-8 lg:w-fit">
             <div className="hidden items-center gap-2 lg:flex">
               <Label htmlFor="rows-per-page" className="text-sm font-medium">
-                Rows per page
+                {t("Rows per page")}
               </Label>
               <Select
                 value={String(pageSize)}
@@ -194,7 +196,7 @@ export default function UsersPage() {
               </Select>
             </div>
             <div className="flex w-fit items-center justify-center text-sm font-medium">
-              Page {page} of {totalPages}
+              {t("Page {{page}} of {{totalPages}}", { page, totalPages })}
             </div>
             <div className="ml-auto flex items-center gap-2 lg:ml-0">
               <Button
@@ -204,7 +206,7 @@ export default function UsersPage() {
                 onClick={() => setPage(1)}
                 disabled={page <= 1}
               >
-                <span className="sr-only">Go to first page</span>
+                <span className="sr-only">{t("Go to first page")}</span>
                 <ChevronsLeftIcon />
               </Button>
               <Button
@@ -214,7 +216,7 @@ export default function UsersPage() {
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
                 disabled={page <= 1}
               >
-                <span className="sr-only">Go to previous page</span>
+                <span className="sr-only">{t("Go to previous page")}</span>
                 <ChevronLeftIcon />
               </Button>
               <Button
@@ -224,7 +226,7 @@ export default function UsersPage() {
                 onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                 disabled={page >= totalPages}
               >
-                <span className="sr-only">Go to next page</span>
+                <span className="sr-only">{t("Go to next page")}</span>
                 <ChevronRightIcon />
               </Button>
               <Button
@@ -234,7 +236,7 @@ export default function UsersPage() {
                 onClick={() => setPage(totalPages)}
                 disabled={page >= totalPages}
               >
-                <span className="sr-only">Go to last page</span>
+                <span className="sr-only">{t("Go to last page")}</span>
                 <ChevronsRightIcon />
               </Button>
             </div>

@@ -89,7 +89,9 @@ frontend/src/
     api.ts          # Shared fetch wrappers (authFetch, publicFetch, token helpers)
     auth.ts         # Auth API functions (login, signup, refresh, etc.)
     users.ts        # User management API functions
+    i18n.ts         # i18next config — imports locale JSONs, exports supportedLocales
     <feature>.ts    # One file per feature for API functions
+  locales/          # Translation JSON files (en.json, es.json)
   pages/            # Page components (default exports)
 ```
 
@@ -99,6 +101,21 @@ frontend/src/
 ### Icons
 
 - Use **lucide-react** exclusively. Import specific icons by name.
+
+### Internationalization (i18n)
+
+- **Libraries:** `i18next` + `react-i18next` + `i18next-browser-languagedetector`.
+- **Translation keys are the exact English string** — flat structure, no nested/semantic keys. Example: `t("Login to your account")`, not `t("auth.login.title")`. Config uses `keySeparator: false` and `nsSeparator: false` to support dots/colons in keys.
+- **Translation files:** `frontend/src/locales/en.json` and `es.json`. Keys and values are identical in `en.json`; `es.json` has Spanish translations.
+- **Config:** `frontend/src/lib/i18n.ts` — static imports of JSON files (no HTTP backend), `LanguageDetector` (localStorage → navigator), `fallbackLng: "en"`. Exports `supportedLocales` array.
+- **Env var:** `VITE_SUPPORTED_LOCALES=en,es` (comma-separated). Defaults to `["en"]` when unset. Language toggle auto-hides when only one locale is configured.
+- **In React components:** Use `const { t } = useTranslation()` hook.
+- **At module level** (e.g., column definitions outside components): Use `i18n.t()` imported from `@/lib/i18n`.
+- **Interpolation:** `t("Page {{page}} of {{totalPages}}", { page, totalPages })`.
+- **Pluralization:** `t("{{count}} user total", { count })` with `_one`/`_other` suffixed keys in JSON files.
+- **Date formatting:** Use `i18n.language` instead of hardcoded `"en-US"` in `toLocaleDateString()`.
+- **When adding new UI strings:** Add the key to both `en.json` and `es.json`, then use `t("key")` in the component.
+- **Zod validation messages stay in English** — schemas live in `shared/` and are used by backend too.
 
 ## Backend
 

@@ -1,4 +1,5 @@
 import * as React from "react"
+import { useTranslation } from "react-i18next"
 
 import { NavDocuments } from "@/components/nav-documents"
 import { NavMain } from "@/components/nav-main"
@@ -17,62 +18,35 @@ import { LayoutDashboardIcon, ListIcon, ChartBarIcon, FolderIcon, UsersIcon, Set
 import { useAuth } from "@/hooks/use-auth"
 import { Link } from "react-router"
 
-const adminNavMain = [
-  {
-    title: "Dashboard",
-    url: "/dashboard",
-    icon: <LayoutDashboardIcon />,
-  },
-  {
-    title: "Lifecycle",
-    url: "#",
-    icon: <ListIcon />,
-  },
-  {
-    title: "Analytics",
-    url: "#",
-    icon: <ChartBarIcon />,
-  },
-  {
-    title: "Projects",
-    url: "#",
-    icon: <FolderIcon />,
-  },
-  {
-    title: "Team",
-    url: "#",
-    icon: <UsersIcon />,
-  },
-  {
-    title: "Users",
-    url: "/dashboard/users",
-    icon: <UsersIcon />,
-  },
-]
-
-const userNavMain = [
-  {
-    title: "Dashboard",
-    url: "/dashboard",
-    icon: <LayoutDashboardIcon />,
-  },
-]
-
-const navSecondary = [
-  { title: "Settings", url: "/dashboard/settings", icon: <Settings2Icon /> },
-  { title: "Get Help", url: "#", icon: <CircleHelpIcon /> },
-  { title: "Search", url: "#", icon: <SearchIcon /> },
-]
-
-const documents = [
-  { name: "Data Library", url: "#", icon: <DatabaseIcon /> },
-  { name: "Reports", url: "#", icon: <FileChartColumnIcon /> },
-  { name: "Word Assistant", url: "#", icon: <FileIcon /> },
-]
-
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
+  const { t } = useTranslation()
   const { user } = useAuth()
   const isAdmin = user?.role === "admin"
+
+  const adminNavMain = [
+    { title: t("Dashboard"), url: "/dashboard", icon: <LayoutDashboardIcon /> },
+    { title: t("Lifecycle"), url: "#", icon: <ListIcon /> },
+    { title: t("Analytics"), url: "#", icon: <ChartBarIcon /> },
+    { title: t("Projects"), url: "#", icon: <FolderIcon /> },
+    { title: t("Team"), url: "#", icon: <UsersIcon /> },
+    { title: t("Users"), url: "/dashboard/users", icon: <UsersIcon /> },
+  ]
+
+  const userNavMain = [
+    { title: t("Dashboard"), url: "/dashboard", icon: <LayoutDashboardIcon /> },
+  ]
+
+  const navSecondary = [
+    { title: t("Settings"), url: "/dashboard/settings", icon: <Settings2Icon /> },
+    { title: t("Get Help"), url: "#", icon: <CircleHelpIcon /> },
+    { title: t("Search"), url: "#", icon: <SearchIcon /> },
+  ]
+
+  const documents = [
+    { name: t("Data Library"), url: "#", icon: <DatabaseIcon /> },
+    { name: t("Reports"), url: "#", icon: <FileChartColumnIcon /> },
+    { name: t("Word Assistant"), url: "#", icon: <FileIcon /> },
+  ]
 
   return (
     <Sidebar collapsible="offcanvas" {...props}>

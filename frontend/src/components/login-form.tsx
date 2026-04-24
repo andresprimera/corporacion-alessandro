@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import {
@@ -26,6 +27,7 @@ export function LoginForm({
   className,
   ...props
 }: React.ComponentProps<"div">) {
+  const { t } = useTranslation()
   const { login } = useAuth()
   const navigate = useNavigate()
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -44,7 +46,7 @@ export function LoginForm({
       await login(values.email, values.password)
       navigate("/dashboard")
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Login failed")
+      toast.error(error instanceof Error ? error.message : t("Login failed"))
     } finally {
       setIsSubmitting(false)
     }
@@ -54,20 +56,20 @@ export function LoginForm({
     <div className={cn("flex flex-col gap-6", className)} {...props}>
       <Card>
         <CardHeader>
-          <CardTitle>Login to your account</CardTitle>
+          <CardTitle>{t("Login to your account")}</CardTitle>
           <CardDescription>
-            Enter your email below to login to your account
+            {t("Enter your email below to login to your account")}
           </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit(onSubmit)}>
             <FieldGroup>
               <Field>
-                <FieldLabel htmlFor="email">Email</FieldLabel>
+                <FieldLabel htmlFor="email">{t("Email")}</FieldLabel>
                 <Input
                   id="email"
                   type="email"
-                  placeholder="m@example.com"
+                  placeholder={t("m@example.com")}
                   {...register("email")}
                 />
                 {errors.email && (
@@ -78,12 +80,12 @@ export function LoginForm({
               </Field>
               <Field>
                 <div className="flex items-center justify-between">
-                  <FieldLabel htmlFor="password">Password</FieldLabel>
+                  <FieldLabel htmlFor="password">{t("Password")}</FieldLabel>
                   <Link
                     to="/forgot-password"
                     className="text-sm underline underline-offset-4"
                   >
-                    Forgot password?
+                    {t("Forgot password?")}
                   </Link>
                 </div>
                 <Input
@@ -99,12 +101,12 @@ export function LoginForm({
               </Field>
               <Field>
                 <Button type="submit" disabled={isSubmitting}>
-                  {isSubmitting ? "Logging in..." : "Login"}
+                  {isSubmitting ? t("Logging in...") : t("Login")}
                 </Button>
                 <FieldDescription className="text-center">
-                  Don&apos;t have an account?{" "}
+                  {t("Don't have an account?")}{" "}
                   <Link to="/signup" className="underline underline-offset-4">
-                    Sign up
+                    {t("Sign up")}
                   </Link>
                 </FieldDescription>
               </Field>

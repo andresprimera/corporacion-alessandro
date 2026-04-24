@@ -13,6 +13,7 @@ import {
   FieldLabel,
 } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
+import { useTranslation } from "react-i18next"
 import { useForm } from "react-hook-form"
 import { standardSchemaResolver } from "@hookform/resolvers/standard-schema"
 import { updateProfileSchema, type UpdateProfileInput } from "@base-dashboard/shared"
@@ -22,6 +23,7 @@ import { toast } from "sonner"
 import { updateProfileApi } from "@/lib/profile"
 
 export function ProfileForm() {
+  const { t } = useTranslation()
   const { user, updateUser } = useAuth()
   const [isSubmitting, setIsSubmitting] = useState(false)
 
@@ -42,10 +44,10 @@ export function ProfileForm() {
     try {
       const updatedUser = await updateProfileApi(values.name, values.email)
       updateUser(updatedUser)
-      toast.success("Profile updated successfully")
+      toast.success(t("Profile updated successfully"))
     } catch (error) {
       toast.error(
-        error instanceof Error ? error.message : "Failed to update profile",
+        error instanceof Error ? error.message : t("Failed to update profile"),
       )
     } finally {
       setIsSubmitting(false)
@@ -55,14 +57,14 @@ export function ProfileForm() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Profile Information</CardTitle>
-        <CardDescription>Update your name and email address</CardDescription>
+        <CardTitle>{t("Profile Information")}</CardTitle>
+        <CardDescription>{t("Update your name and email address")}</CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit(onSubmit)}>
           <FieldGroup>
             <Field>
-              <FieldLabel htmlFor="name">Name</FieldLabel>
+              <FieldLabel htmlFor="name">{t("Name")}</FieldLabel>
               <Input id="name" type="text" {...register("name")} />
               {errors.name && (
                 <FieldDescription className="text-destructive">
@@ -71,7 +73,7 @@ export function ProfileForm() {
               )}
             </Field>
             <Field>
-              <FieldLabel htmlFor="email">Email</FieldLabel>
+              <FieldLabel htmlFor="email">{t("Email")}</FieldLabel>
               <Input id="email" type="email" {...register("email")} />
               {errors.email && (
                 <FieldDescription className="text-destructive">
@@ -81,7 +83,7 @@ export function ProfileForm() {
             </Field>
             <Field>
               <Button type="submit" disabled={isSubmitting}>
-                {isSubmitting ? "Saving..." : "Save Changes"}
+                {isSubmitting ? t("Saving...") : t("Save Changes")}
               </Button>
             </Field>
           </FieldGroup>

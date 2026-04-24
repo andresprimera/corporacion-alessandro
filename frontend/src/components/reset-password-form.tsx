@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -36,6 +37,7 @@ type ResetFormValues = z.infer<typeof resetFormSchema>
 export function ResetPasswordForm({
   ...props
 }: React.ComponentProps<typeof Card>) {
+  const { t } = useTranslation()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const token = searchParams.get("token")
@@ -54,17 +56,16 @@ export function ResetPasswordForm({
     return (
       <Card {...props}>
         <CardHeader>
-          <CardTitle>Invalid reset link</CardTitle>
+          <CardTitle>{t("Invalid reset link")}</CardTitle>
           <CardDescription>
-            This password reset link is invalid or has expired. Please request a
-            new one.
+            {t("This password reset link is invalid or has expired. Please request a new one.")}
           </CardDescription>
         </CardHeader>
         <CardContent>
           <FieldGroup>
             <Field>
               <Button render={<Link to="/forgot-password" />}>
-                Request new link
+                {t("Request new link")}
               </Button>
             </Field>
           </FieldGroup>
@@ -77,13 +78,13 @@ export function ResetPasswordForm({
     setIsSubmitting(true)
     try {
       await resetPasswordApi(token!, email!, values.password)
-      toast.success("Password reset successfully")
+      toast.success(t("Password reset successfully"))
       navigate("/login")
     } catch (error) {
       toast.error(
         error instanceof Error
           ? error.message
-          : "Failed to reset password",
+          : t("Failed to reset password"),
       )
     } finally {
       setIsSubmitting(false)
@@ -93,14 +94,14 @@ export function ResetPasswordForm({
   return (
     <Card {...props}>
       <CardHeader>
-        <CardTitle>Reset your password</CardTitle>
-        <CardDescription>Enter your new password below</CardDescription>
+        <CardTitle>{t("Reset your password")}</CardTitle>
+        <CardDescription>{t("Enter your new password below")}</CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit(onSubmit)}>
           <FieldGroup>
             <Field>
-              <FieldLabel htmlFor="password">New Password</FieldLabel>
+              <FieldLabel htmlFor="password">{t("New Password")}</FieldLabel>
               <Input
                 id="password"
                 type="password"
@@ -114,7 +115,7 @@ export function ResetPasswordForm({
             </Field>
             <Field>
               <FieldLabel htmlFor="confirm-password">
-                Confirm Password
+                {t("Confirm Password")}
               </FieldLabel>
               <Input
                 id="confirm-password"
@@ -129,14 +130,14 @@ export function ResetPasswordForm({
             </Field>
             <Field>
               <Button type="submit" disabled={isSubmitting}>
-                {isSubmitting ? "Resetting..." : "Reset password"}
+                {isSubmitting ? t("Resetting...") : t("Reset password")}
               </Button>
               <FieldDescription className="text-center">
                 <Link
                   to="/login"
                   className="underline underline-offset-4"
                 >
-                  Back to login
+                  {t("Back to login")}
                 </Link>
               </FieldDescription>
             </Field>

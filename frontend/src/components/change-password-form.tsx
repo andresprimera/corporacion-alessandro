@@ -13,6 +13,7 @@ import {
   FieldLabel,
 } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
+import { useTranslation } from "react-i18next"
 import { useForm } from "react-hook-form"
 import { standardSchemaResolver } from "@hookform/resolvers/standard-schema"
 import { changePasswordSchema } from "@base-dashboard/shared"
@@ -33,6 +34,7 @@ const changePasswordFormSchema = changePasswordSchema
 type ChangePasswordFormValues = z.infer<typeof changePasswordFormSchema>
 
 export function ChangePasswordForm() {
+  const { t } = useTranslation()
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   const {
@@ -48,11 +50,11 @@ export function ChangePasswordForm() {
     setIsSubmitting(true)
     try {
       await changePasswordApi(values.currentPassword, values.newPassword)
-      toast.success("Password changed successfully")
+      toast.success(t("Password changed successfully"))
       reset()
     } catch (error) {
       toast.error(
-        error instanceof Error ? error.message : "Failed to change password",
+        error instanceof Error ? error.message : t("Failed to change password"),
       )
     } finally {
       setIsSubmitting(false)
@@ -62,9 +64,9 @@ export function ChangePasswordForm() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Change Password</CardTitle>
+        <CardTitle>{t("Change Password")}</CardTitle>
         <CardDescription>
-          Update your password to keep your account secure
+          {t("Update your password to keep your account secure")}
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -72,7 +74,7 @@ export function ChangePasswordForm() {
           <FieldGroup>
             <Field>
               <FieldLabel htmlFor="currentPassword">
-                Current Password
+                {t("Current Password")}
               </FieldLabel>
               <Input
                 id="currentPassword"
@@ -86,7 +88,7 @@ export function ChangePasswordForm() {
               )}
             </Field>
             <Field>
-              <FieldLabel htmlFor="newPassword">New Password</FieldLabel>
+              <FieldLabel htmlFor="newPassword">{t("New Password")}</FieldLabel>
               <Input
                 id="newPassword"
                 type="password"
@@ -100,7 +102,7 @@ export function ChangePasswordForm() {
             </Field>
             <Field>
               <FieldLabel htmlFor="confirmPassword">
-                Confirm New Password
+                {t("Confirm New Password")}
               </FieldLabel>
               <Input
                 id="confirmPassword"
@@ -115,7 +117,7 @@ export function ChangePasswordForm() {
             </Field>
             <Field>
               <Button type="submit" disabled={isSubmitting}>
-                {isSubmitting ? "Changing..." : "Change Password"}
+                {isSubmitting ? t("Changing...") : t("Change Password")}
               </Button>
             </Field>
           </FieldGroup>

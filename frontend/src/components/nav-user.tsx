@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next"
 import {
   Avatar,
   AvatarFallback,
@@ -22,6 +23,7 @@ import { useAuth } from "@/hooks/use-auth"
 import { useNavigate } from "react-router"
 
 export function NavUser() {
+  const { t } = useTranslation()
   const { isMobile } = useSidebar()
   const { user, logout } = useAuth()
   const navigate = useNavigate()
@@ -85,21 +87,21 @@ export function NavUser() {
             <DropdownMenuGroup>
               <DropdownMenuItem>
                 <CircleUserRoundIcon />
-                Account
+                {t("Account")}
               </DropdownMenuItem>
               <DropdownMenuItem>
                 <CreditCardIcon />
-                Billing
+                {t("Billing")}
               </DropdownMenuItem>
               <DropdownMenuItem>
                 <BellIcon />
-                Notifications
+                {t("Notifications")}
               </DropdownMenuItem>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={handleLogout}>
               <LogOutIcon />
-              Log out
+              {t("Log out")}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

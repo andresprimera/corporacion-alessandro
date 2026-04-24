@@ -8,6 +8,7 @@ import { Toaster } from "@/components/ui/sonner"
 import { AuthProvider } from "@/hooks/use-auth"
 import { queryClient } from "@/lib/query-client"
 import { router } from "@/router"
+import "@/lib/i18n"
 import "./index.css"
 
 createRoot(document.getElementById("root")!).render(

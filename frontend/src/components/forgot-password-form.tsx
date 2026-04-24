@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -24,6 +25,7 @@ import { toast } from "sonner"
 export function ForgotPasswordForm({
   ...props
 }: React.ComponentProps<typeof Card>) {
+  const { t } = useTranslation()
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isSubmitted, setIsSubmitted] = useState(false)
 
@@ -42,7 +44,7 @@ export function ForgotPasswordForm({
       setIsSubmitted(true)
     } catch (error) {
       toast.error(
-        error instanceof Error ? error.message : "Something went wrong",
+        error instanceof Error ? error.message : t("Something went wrong"),
       )
     } finally {
       setIsSubmitting(false)
@@ -53,10 +55,9 @@ export function ForgotPasswordForm({
     return (
       <Card {...props}>
         <CardHeader>
-          <CardTitle>Check your email</CardTitle>
+          <CardTitle>{t("Check your email")}</CardTitle>
           <CardDescription>
-            If an account with that email exists, we sent a password reset link.
-            Please check your inbox.
+            {t("If an account with that email exists, we sent a password reset link. Please check your inbox.")}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -67,7 +68,7 @@ export function ForgotPasswordForm({
                   to="/login"
                   className="underline underline-offset-4"
                 >
-                  Back to login
+                  {t("Back to login")}
                 </Link>
               </FieldDescription>
             </Field>
@@ -80,20 +81,20 @@ export function ForgotPasswordForm({
   return (
     <Card {...props}>
       <CardHeader>
-        <CardTitle>Forgot your password?</CardTitle>
+        <CardTitle>{t("Forgot your password?")}</CardTitle>
         <CardDescription>
-          Enter your email and we&apos;ll send you a reset link
+          {t("Enter your email and we'll send you a reset link")}
         </CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit(onSubmit)}>
           <FieldGroup>
             <Field>
-              <FieldLabel htmlFor="email">Email</FieldLabel>
+              <FieldLabel htmlFor="email">{t("Email")}</FieldLabel>
               <Input
                 id="email"
                 type="email"
-                placeholder="m@example.com"
+                placeholder={t("m@example.com")}
                 {...register("email")}
               />
               {errors.email && (
@@ -104,15 +105,15 @@ export function ForgotPasswordForm({
             </Field>
             <Field>
               <Button type="submit" disabled={isSubmitting}>
-                {isSubmitting ? "Sending..." : "Send reset link"}
+                {isSubmitting ? t("Sending...") : t("Send reset link")}
               </Button>
               <FieldDescription className="text-center">
-                Remember your password?{" "}
+                {t("Remember your password?")}{" "}
                 <Link
                   to="/login"
                   className="underline underline-offset-4"
                 >
-                  Back to login
+                  {t("Back to login")}
                 </Link>
               </FieldDescription>
             </Field>
