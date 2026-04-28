@@ -128,11 +128,11 @@ describe('UsersService', () => {
     });
   });
 
-  describe('deleteUser', () => {
+  describe('remove', () => {
     it('should delete user by id', async () => {
       model.findByIdAndDelete.mockResolvedValue(mockUser);
 
-      await service.deleteUser('user-1');
+      await service.remove('user-1');
 
       expect(model.findByIdAndDelete).toHaveBeenCalledWith('user-1');
     });

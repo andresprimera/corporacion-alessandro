@@ -1,4 +1,4 @@
-import { fetchUsersApi, updateUserRoleApi, deleteUserApi } from "@/lib/users"
+import { fetchUsersApi, updateUserRoleApi, removeUserApi } from "@/lib/users"
 import { authFetch } from "@/lib/api"
 
 vi.mock("@/lib/api", () => ({
@@ -40,11 +40,11 @@ describe("users API", () => {
     })
   })
 
-  describe("deleteUserApi", () => {
+  describe("removeUserApi", () => {
     it("should DELETE /api/users/:id", async () => {
       vi.mocked(authFetch).mockResolvedValue(mockJsonResponse(undefined))
 
-      await deleteUserApi("u1")
+      await removeUserApi("u1")
 
       expect(authFetch).toHaveBeenCalledWith("/api/users/u1", {
         method: "DELETE",

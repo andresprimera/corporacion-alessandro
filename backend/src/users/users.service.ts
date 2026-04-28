@@ -43,7 +43,7 @@ export class UsersService {
     return this.userModel.findByIdAndUpdate(userId, { role }, { new: true });
   }
 
-  async deleteUser(userId: string): Promise<void> {
+  async remove(userId: string): Promise<void> {
     await this.userModel.findByIdAndDelete(userId);
   }
 

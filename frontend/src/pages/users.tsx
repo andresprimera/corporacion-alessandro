@@ -7,7 +7,7 @@ import {
   keepPreviousData,
 } from "@tanstack/react-query"
 import { useAuth } from "@/hooks/use-auth"
-import { fetchUsersApi, updateUserRoleApi, deleteUserApi } from "@/lib/users"
+import { fetchUsersApi, updateUserRoleApi, removeUserApi } from "@/lib/users"
 import type { User } from "@base-dashboard/shared"
 import {
   Table,
@@ -65,7 +65,7 @@ export default function UsersPage() {
   })
 
   const deleteMutation = useMutation({
-    mutationFn: (userId: string) => deleteUserApi(userId),
+    mutationFn: (userId: string) => removeUserApi(userId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["users"] })
       toast.success(t("User deleted"))

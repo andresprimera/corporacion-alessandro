@@ -186,6 +186,58 @@ frontend/src/
 - **MailService** (`services/mail/`) uses Nodemailer with SMTP config from env vars (`SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM`).
 - **StorageService** (`services/storage/`) uses an adapter pattern for file storage. A `StorageProvider` interface defines `upload`, `download`, `delete`, `exists`, `getUrl`. Three adapters are available: `LocalStorageProvider` (filesystem, default), `GcsStorageProvider` (Google Cloud Storage), `FirebaseStorageProvider` (Firebase Storage). The active adapter is selected via the `STORAGE_PROVIDER` env var (`local` | `gcs` | `firebase`). Consuming code injects `StorageService` and never references a specific adapter. Local uploads are served via `ServeStaticModule` at `/uploads`.
 
+### Naming Conventions
+
+#### Route Paths
+
+- **Kebab-case** for multi-word segments: `forgot-password`, `reset-password`.
+- **Plural nouns** for resource collections: `/api/users`, `/api/projects`.
+- **Nested routes** for sub-resources or actions on a resource: `/api/users/:id/role`, `/api/users/me/password`.
+- **`me` for current-user endpoints:** `/api/users/me`, `/api/users/me/password` — not `/api/users/profile`.
+
+#### Controller Methods
+
+Controllers are thin — they validate input, call the service, and return. Method names describe the **API action from the client's perspective**:
+
+| Pattern | Example | When to use |
+|---|---|---|
+| `findAll()` | `@Get()` on collection | List/paginated resources |
+| `findOne()` | `@Get(':id')` on single resource | Fetch one by ID |
+| `create()` | `@Post()` | Create a new resource |
+| `update()` | `@Patch(':id')` | Update a resource by ID |
+| `remove()` | `@Delete(':id')` | Delete a resource by ID |
+| `<verb><Noun>()` | `updateRole()`, `changePassword()` | Action on a specific field/sub-resource |
+| `<verb>()` | `signup()`, `login()`, `logout()` | Auth and domain-specific actions (no resource noun needed) |
+| `get<Noun>()` | `getMe()`, `getHealth()` | Read-only endpoints that aren't standard CRUD `find*` |
+
+- **Use `findAll` / `findOne`** for standard CRUD reads — not `getUsers` / `getUser` / `list`.
+- **Use `create` / `update` / `remove`** for standard CRUD writes — not `add` / `edit` / `delete` (avoid shadowing JS `delete`).
+- **Use `<verb><Noun>()`** for non-CRUD actions: `updateRole()`, `changePassword()`, `forgotPassword()`, `resetPassword()`.
+
+#### Service Methods
+
+Services contain business logic. Method names describe the **data operation**:
+
+| Pattern | Example | When to use |
+|---|---|---|
+| `create(dto)` | `create({ name, email, password, role })` | Insert a new record |
+| `findAll()` | `findAll()` | Fetch all records (unpaginated) |
+| `findAllPaginated(page, limit)` | `findAllPaginated(1, 10)` | Fetch records with pagination |
+| `findById(id)` | `findById('abc123')` | Fetch one record by ID |
+| `findBy<Field>(value)` | `findByEmail('a@b.com')` | Fetch one record by a specific field |
+| `findBy<Field>With<Selected>(value)` | `findByIdWithPassword(id)` | Fetch with `.select('+sensitiveField')` |
+| `findBy<Field>Exists(value)` | `findByEmailExists(email)` | Boolean existence check |
+| `update<Field>(id, value)` | `updateRole(id, 'admin')` | Update a specific field |
+| `update(id, dto)` | `update(id, { name, email })` | Update multiple fields (general update) |
+| `remove(id)` | `remove('abc123')` | Delete a record by ID |
+| `count<Resource>()` | `countUsers()` | Aggregate count |
+| `clear<Field>(id)` | `clearPasswordResetToken(id)` | Unset/nullify a specific field |
+
+- **`find*` for reads, `update*` for writes, `remove` for deletes, `create` for inserts.** No synonyms (`get`, `fetch`, `add`, `delete`, `destroy`, `set`).
+- **Append `Paginated`** to distinguish paginated from unpaginated variants: `findAll()` vs `findAllPaginated()`.
+- **Append `With<Field>`** when a query `.select()`s sensitive fields: `findByIdWithPassword()`, `findByIdWithRefreshToken()`.
+- **Private helper methods** use descriptive names without the `find`/`update` prefix: `generateTokens()`, `hashPassword()`, `sendResetEmail()`.
+
 ### DTOs & Validation
 
 - Validation uses **Zod schemas from `@base-dashboard/shared`** with `ZodValidationPipe` applied per-param (e.g., `@Body(new ZodValidationPipe(schema))` or `@Query(new ZodValidationPipe(schema))`).

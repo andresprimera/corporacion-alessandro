@@ -24,6 +24,6 @@ export async function updateUserRoleApi(
   return res.json()
 }
 
-export async function deleteUserApi(userId: string): Promise<void> {
+export async function removeUserApi(userId: string): Promise<void> {
   await authFetch(`/api/users/${userId}`, { method: "DELETE" })
 }

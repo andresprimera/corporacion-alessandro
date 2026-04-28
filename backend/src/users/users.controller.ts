@@ -158,13 +158,13 @@ export class UsersController {
   @UseGuards(RolesGuard)
   @Roles('admin')
   @HttpCode(HttpStatus.NO_CONTENT)
-  async deleteUser(
+  async remove(
     @Param('id') id: string,
     @CurrentUser('userId') currentUserId: string,
   ): Promise<void> {
     if (id === currentUserId) {
       throw new ForbiddenException('Cannot delete your own account');
     }
-    await this.usersService.deleteUser(id);
+    await this.usersService.remove(id);
   }
 }
