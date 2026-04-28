@@ -86,7 +86,9 @@ describe("api", () => {
         ),
       )
 
-      const err: any = await api.publicFetch("/api/test").catch((e: unknown) => e)
+      const err = (await api
+        .publicFetch("/api/test")
+        .catch((e: unknown) => e)) as { name: string; statusCode: number; message: string }
       expect(err.name).toBe("ApiError")
       expect(err.statusCode).toBe(404)
       expect(err.message).toBe("Not found")
@@ -101,7 +103,9 @@ describe("api", () => {
         ),
       )
 
-      const err: any = await api.publicFetch("/api/test").catch((e: unknown) => e)
+      const err = (await api
+        .publicFetch("/api/test")
+        .catch((e: unknown) => e)) as { name: string; statusCode: number; errors: unknown[] }
       expect(err.name).toBe("ApiError")
       expect(err.statusCode).toBe(400)
       expect(err.errors).toEqual(errors)
@@ -208,7 +212,9 @@ describe("api", () => {
         ),
       )
 
-      const err: any = await api.authFetch("/api/secure").catch((e: unknown) => e)
+      const err = (await api
+        .authFetch("/api/secure")
+        .catch((e: unknown) => e)) as { name: string; statusCode: number }
       expect(err.name).toBe("ApiError")
       expect(err.statusCode).toBe(403)
     })
