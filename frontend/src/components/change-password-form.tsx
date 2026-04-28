@@ -54,7 +54,7 @@ export function ChangePasswordForm() {
       reset()
     } catch (error) {
       toast.error(
-        error instanceof Error ? error.message : t("Failed to change password"),
+        error instanceof Error ? t(error.message) : t("Failed to change password"),
       )
     } finally {
       setIsSubmitting(false)

@@ -83,7 +83,7 @@ export function ResetPasswordForm({
     } catch (error) {
       toast.error(
         error instanceof Error
-          ? error.message
+          ? t(error.message)
           : t("Failed to reset password"),
       )
     } finally {

@@ -72,7 +72,7 @@ export function AddUserDialog({
       reset()
     },
     onError: (error: Error) => {
-      toast.error(error.message || t("Failed to create user"))
+      toast.error(t(error.message) || t("Failed to create user"))
     },
   })
 

@@ -142,6 +142,9 @@
   "Create User": "Create User",
   "User": "User",
   "Admin": "Admin",
+  "Delete user": "Delete user",
+  "This action cannot be undone. This will permanently delete the user account.": "This action cannot be undone. This will permanently delete the user account.",
+  "Deleting...": "Deleting...",
 
   "Manage your account settings and preferences.": "Manage your account settings and preferences.",
   "Profile Information": "Profile Information",
@@ -192,5 +195,16 @@
   "Cover Page": "Cover Page",
   "In Progress": "In Progress",
   "Not Started": "Not Started",
-  "Type": "Type"
+  "Type": "Type",
+
+  "Email already registered": "Email already registered",
+  "Invalid credentials": "Invalid credentials",
+  "Access denied": "Access denied",
+  "Email already in use": "Email already in use",
+  "User not found": "User not found",
+  "Cannot change your own role": "Cannot change your own role",
+  "Cannot delete your own account": "Cannot delete your own account",
+  "Current password is incorrect": "Current password is incorrect",
+  "Invalid or expired reset token": "Invalid or expired reset token",
+  "Internal server error": "Internal server error"
 }

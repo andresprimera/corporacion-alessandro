@@ -53,7 +53,7 @@ export function SignupForm({ ...props }: React.ComponentProps<typeof Card>) {
       await signup(values.name, values.email, values.password)
       navigate("/dashboard")
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : t("Signup failed"))
+      toast.error(error instanceof Error ? t(error.message) : t("Signup failed"))
     } finally {
       setIsSubmitting(false)
     }

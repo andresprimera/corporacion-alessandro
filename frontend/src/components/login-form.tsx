@@ -47,7 +47,7 @@ export function LoginForm({
       await login(values.email, values.password)
       navigate("/dashboard")
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : t("Login failed"))
+      toast.error(error instanceof Error ? t(error.message) : t("Login failed"))
     } finally {
       setIsSubmitting(false)
     }

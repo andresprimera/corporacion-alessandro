@@ -25,6 +25,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Label } from "@/components/ui/label"
@@ -47,6 +57,7 @@ export default function UsersPage() {
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
   const [addDialogOpen, setAddDialogOpen] = useState(false)
+  const [deleteUserId, setDeleteUserId] = useState<string | null>(null)
 
   const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ["users", page, pageSize],
@@ -65,7 +76,7 @@ export default function UsersPage() {
       toast.success(t("Role updated"))
     },
     onError: (error: Error) => {
-      toast.error(error.message || t("Failed to update role"))
+      toast.error(t(error.message) || t("Failed to update role"))
     },
   })
 
@@ -76,7 +87,7 @@ export default function UsersPage() {
       toast.success(t("User deleted"))
     },
     onError: (error: Error) => {
-      toast.error(error.message || t("Failed to delete user"))
+      toast.error(t(error.message) || t("Failed to delete user"))
     },
   })
 
@@ -84,8 +95,11 @@ export default function UsersPage() {
     updateRoleMutation.mutate({ userId, role })
   }
 
-  function handleDelete(userId: string) {
-    deleteMutation.mutate(userId)
+  function handleDelete() {
+    if (!deleteUserId) return
+    deleteMutation.mutate(deleteUserId, {
+      onSettled: () => setDeleteUserId(null),
+    })
   }
 
   function handlePageSizeChange(value: string | null) {
@@ -165,7 +179,7 @@ export default function UsersPage() {
         <div className="flex flex-col items-center justify-center gap-4 py-12">
           <AlertCircleIcon className="size-10 text-destructive" />
           <p className="text-muted-foreground">
-            {error.message || t("Failed to load users.")}
+            {t(error.message) || t("Failed to load users.")}
           </p>
           <Button variant="outline" onClick={() => refetch()}>
             {t("Try again")}
@@ -238,7 +252,7 @@ export default function UsersPage() {
                         variant="ghost"
                         size="icon"
                         disabled={isSelf}
-                        onClick={() => handleDelete(u.id)}
+                        onClick={() => setDeleteUserId(u.id)}
                       >
                         <TrashIcon className="size-4" />
                         <span className="sr-only">{t("Delete")}</span>
@@ -325,6 +339,31 @@ export default function UsersPage() {
           </div>
         </div>
       )}
+      <AlertDialog
+        open={deleteUserId !== null}
+        onOpenChange={(open) => {
+          if (!open) setDeleteUserId(null)
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("Delete user")}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t("This action cannot be undone. This will permanently delete the user account.")}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t("Cancel")}</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={handleDelete}
+              disabled={deleteMutation.isPending}
+            >
+              {deleteMutation.isPending ? t("Deleting...") : t("Delete")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       <AddUserDialog open={addDialogOpen} onOpenChange={setAddDialogOpen} />
     </div>
   )

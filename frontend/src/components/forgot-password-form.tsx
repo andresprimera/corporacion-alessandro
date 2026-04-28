@@ -44,7 +44,7 @@ export function ForgotPasswordForm({
       setIsSubmitted(true)
     } catch (error) {
       toast.error(
-        error instanceof Error ? error.message : t("Something went wrong"),
+        error instanceof Error ? t(error.message) : t("Something went wrong"),
       )
     } finally {
       setIsSubmitting(false)

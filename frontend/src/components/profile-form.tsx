@@ -47,7 +47,7 @@ export function ProfileForm() {
       toast.success(t("Profile updated successfully"))
     } catch (error) {
       toast.error(
-        error instanceof Error ? error.message : t("Failed to update profile"),
+        error instanceof Error ? t(error.message) : t("Failed to update profile"),
       )
     } finally {
       setIsSubmitting(false)

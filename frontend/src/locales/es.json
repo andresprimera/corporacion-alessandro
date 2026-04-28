@@ -142,6 +142,9 @@
   "Create User": "Crear usuario",
   "User": "Usuario",
   "Admin": "Administrador",
+  "Delete user": "Eliminar usuario",
+  "This action cannot be undone. This will permanently delete the user account.": "Esta acción no se puede deshacer. Se eliminará permanentemente la cuenta del usuario.",
+  "Deleting...": "Eliminando...",
 
   "Manage your account settings and preferences.": "Gestiona la configuración de tu cuenta y preferencias.",
   "Profile Information": "Información del perfil",
@@ -192,5 +195,16 @@
   "Cover Page": "Portada",
   "In Progress": "En progreso",
   "Not Started": "No iniciado",
-  "Type": "Tipo"
+  "Type": "Tipo",
+
+  "Email already registered": "El correo electrónico ya está registrado",
+  "Invalid credentials": "Credenciales inválidas",
+  "Access denied": "Acceso denegado",
+  "Email already in use": "El correo electrónico ya está en uso",
+  "User not found": "Usuario no encontrado",
+  "Cannot change your own role": "No puedes cambiar tu propio rol",
+  "Cannot delete your own account": "No puedes eliminar tu propia cuenta",
+  "Current password is incorrect": "La contraseña actual es incorrecta",
+  "Invalid or expired reset token": "El enlace de restablecimiento es inválido o ha expirado",
+  "Internal server error": "Error interno del servidor"
 }
