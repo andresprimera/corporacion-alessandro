@@ -197,6 +197,16 @@
   "Not Started": "No iniciado",
   "Type": "Tipo",
 
+  "Please enter a valid email": "Ingresa un correo electrónico válido",
+  "Password is required": "La contraseña es obligatoria",
+  "Name is required": "El nombre es obligatorio",
+  "Password must be at least 8 characters": "La contraseña debe tener al menos 8 caracteres",
+  "Token is required": "El token es obligatorio",
+  "Current password is required": "La contraseña actual es obligatoria",
+  "Please confirm your new password": "Confirma tu nueva contraseña",
+  "Passwords don't match": "Las contraseñas no coinciden",
+  "Passwords do not match": "Las contraseñas no coinciden",
+
   "Email already registered": "El correo electrónico ya está registrado",
   "Invalid credentials": "Credenciales inválidas",
   "Access denied": "Acceso denegado",

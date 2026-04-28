@@ -197,6 +197,16 @@
   "Not Started": "Not Started",
   "Type": "Type",
 
+  "Please enter a valid email": "Please enter a valid email",
+  "Password is required": "Password is required",
+  "Name is required": "Name is required",
+  "Password must be at least 8 characters": "Password must be at least 8 characters",
+  "Token is required": "Token is required",
+  "Current password is required": "Current password is required",
+  "Please confirm your new password": "Please confirm your new password",
+  "Passwords don't match": "Passwords don't match",
+  "Passwords do not match": "Passwords do not match",
+
   "Email already registered": "Email already registered",
   "Invalid credentials": "Invalid credentials",
   "Access denied": "Access denied",
