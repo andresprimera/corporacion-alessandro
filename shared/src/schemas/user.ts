@@ -8,10 +8,12 @@ export type UserStatus = z.infer<typeof userStatusEnum>;
 
 export const userSchema = z.object({
   id: z.string(),
-  email: z.string().email(),
+  email: z.email(),
   name: z.string(),
   role: roleEnum,
   status: userStatusEnum.optional(),
+  cityId: z.string().optional(),
+  cityName: z.string().optional(),
 });
 
 export type User = z.infer<typeof userSchema>;

@@ -16,7 +16,7 @@ interface AuthContextValue {
   isAuthenticated: boolean
   isLoading: boolean
   login: (email: string, password: string) => Promise<void>
-  signup: (name: string, email: string, password: string) => Promise<void>
+  signup: (name: string, email: string, password: string, cityId: string) => Promise<void>
   logout: () => Promise<void>
   updateUser: (user: User) => void
 }
@@ -100,8 +100,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     scheduleRefresh(data.accessToken, data.refreshToken)
   }, [scheduleRefresh])
 
-  const signup = useCallback(async (name: string, email: string, password: string) => {
-    const data = await signupApi(name, email, password)
+  const signup = useCallback(async (name: string, email: string, password: string, cityId: string) => {
+    const data = await signupApi(name, email, password, cityId)
     storeTokens(data.accessToken, data.refreshToken)
     setUser(data.user)
     scheduleRefresh(data.accessToken, data.refreshToken)

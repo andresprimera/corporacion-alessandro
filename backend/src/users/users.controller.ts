@@ -18,6 +18,8 @@ import {
 } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { UsersService } from './users.service';
+import { toUser } from './utils/to-user';
+import { CitiesService } from '../cities/cities.service';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
@@ -27,8 +29,8 @@ import {
   type UpdateUserRoleInput,
   updateUserStatusSchema,
   type UpdateUserStatusInput,
-  type Role,
-  type UserStatus,
+  updateUserCitySchema,
+  type UpdateUserCityInput,
   type PaginatedResponse,
   type User,
 } from '@base-dashboard/shared';
@@ -51,7 +53,20 @@ import {
 
 @Controller('users')
 export class UsersController {
-  constructor(private usersService: UsersService) {}
+  constructor(
+    private usersService: UsersService,
+    private citiesService: CitiesService,
+  ) {}
+
+  private async assertActiveCity(cityId: string): Promise<void> {
+    const city = await this.citiesService.findById(cityId);
+    if (!city) {
+      throw new NotFoundException('City not found');
+    }
+    if (!city.isActive) {
+      throw new BadRequestException('City is inactive');
+    }
+  }
 
   // --- Current user endpoints (all authenticated users) ---
 
@@ -61,13 +76,7 @@ export class UsersController {
     if (!user) {
       throw new NotFoundException('User not found');
     }
-    return {
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      role: user.role as Role,
-      status: user.status as UserStatus | undefined,
-    };
+    return toUser(user);
   }
 
   @Patch('me')
@@ -83,13 +92,7 @@ export class UsersController {
     if (!user) {
       throw new NotFoundException('User not found');
     }
-    return {
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      role: user.role as Role,
-      status: user.status as UserStatus | undefined,
-    };
+    return toUser(user);
   }
 
   @Patch('me/password')
@@ -125,6 +128,9 @@ export class UsersController {
     if (existingUser) {
       throw new ConflictException('Email already in use');
     }
+    if (dto.cityId) {
+      await this.assertActiveCity(dto.cityId);
+    }
     const hashedPassword = await bcrypt.hash(dto.password, 12);
     const user = await this.usersService.create({
       name: dto.name,
@@ -132,14 +138,9 @@ export class UsersController {
       role: dto.role,
       password: hashedPassword,
       status: dto.role === 'salesPerson' ? 'approved' : undefined,
+      cityId: dto.cityId,
     });
-    return {
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      role: user.role as Role,
-      status: user.status as UserStatus | undefined,
-    };
+    return toUser(user);
   }
 
   @Get()
@@ -154,13 +155,7 @@ export class UsersController {
       query.limit,
     );
     return {
-      data: data.map((u) => ({
-        id: u.id,
-        email: u.email,
-        name: u.name,
-        role: u.role as Role,
-        status: u.status as UserStatus | undefined,
-      })),
+      data: data.map(toUser),
       meta: {
         page: query.page,
         limit: query.limit,
@@ -185,13 +180,7 @@ export class UsersController {
     if (!user) {
       throw new NotFoundException('User not found');
     }
-    return {
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      role: user.role as Role,
-      status: user.status as UserStatus | undefined,
-    };
+    return toUser(user);
   }
 
   @Patch(':id/status')
@@ -217,13 +206,34 @@ export class UsersController {
     if (!user) {
       throw new NotFoundException('User not found');
     }
-    return {
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      role: user.role as Role,
-      status: user.status as UserStatus | undefined,
-    };
+    return toUser(user);
+  }
+
+  @Patch(':id/city')
+  @UseGuards(RolesGuard)
+  @Roles('admin')
+  async updateCity(
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(updateUserCitySchema))
+    dto: UpdateUserCityInput,
+    @CurrentUser('userId') currentUserId: string,
+  ): Promise<User> {
+    if (id === currentUserId) {
+      throw new ForbiddenException('Cannot change your own city');
+    }
+    const target = await this.usersService.findById(id);
+    if (!target) {
+      throw new NotFoundException('User not found');
+    }
+    if (target.role !== 'salesPerson') {
+      throw new BadRequestException('User is not a sales person');
+    }
+    await this.assertActiveCity(dto.cityId);
+    const user = await this.usersService.updateCity(id, dto.cityId);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+    return toUser(user);
   }
 
   @Delete(':id')

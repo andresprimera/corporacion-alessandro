@@ -16,6 +16,7 @@ import { CitiesService } from './cities.service';
 import { CityDocument } from './schemas/city.schema';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
+import { Public } from '../auth/decorators/public.decorator';
 import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe';
 import {
   type City,
@@ -71,6 +72,7 @@ export class CitiesController {
   }
 
   @Get('options')
+  @Public()
   async findOptions(): Promise<CityOption[]> {
     return this.citiesService.findActiveOptions();
   }

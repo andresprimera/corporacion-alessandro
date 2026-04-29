@@ -37,6 +37,14 @@ describe('UsersService', () => {
   });
 
   describe('create', () => {
+    function mockCreatedDoc(overrides: Record<string, unknown> = {}) {
+      return {
+        ...mockUser,
+        ...overrides,
+        populate: jest.fn().mockResolvedValue(undefined),
+      };
+    }
+
     it('should create a user', async () => {
       const data = {
         name: 'Test',
@@ -44,12 +52,13 @@ describe('UsersService', () => {
         password: 'hash',
         role: 'user' as const,
       };
-      model.create.mockResolvedValue(mockUser);
+      const created = mockCreatedDoc();
+      model.create.mockResolvedValue(created);
 
       const result = await service.create(data);
 
       expect(model.create).toHaveBeenCalledWith(data);
-      expect(result).toEqual(mockUser);
+      expect(result).toBe(created);
     });
 
     it('should pass the status field through when provided', async () => {
@@ -60,13 +69,33 @@ describe('UsersService', () => {
         role: 'salesPerson' as const,
         status: 'in_revision' as const,
       };
-      const created = { ...mockUser, role: 'salesPerson', status: 'in_revision' };
+      const created = mockCreatedDoc({ role: 'salesPerson', status: 'in_revision' });
       model.create.mockResolvedValue(created);
 
       const result = await service.create(data);
 
       expect(model.create).toHaveBeenCalledWith(data);
-      expect(result).toEqual(created);
+      expect(result).toBe(created);
+    });
+
+    it('should convert cityId to an ObjectId before storing and populate it', async () => {
+      const data = {
+        name: 'Sally',
+        email: 'sally@example.com',
+        password: 'hash',
+        role: 'salesPerson' as const,
+        status: 'in_revision' as const,
+        cityId: '507f1f77bcf86cd799439011',
+      };
+      const created = mockCreatedDoc();
+      model.create.mockResolvedValue(created);
+
+      await service.create(data);
+
+      const callArg = model.create.mock.calls[0][0];
+      expect(callArg.cityId).not.toBe(data.cityId);
+      expect(String(callArg.cityId)).toBe(data.cityId);
+      expect(created.populate).toHaveBeenCalledWith('cityId', 'name');
     });
   });
 
@@ -92,7 +121,11 @@ describe('UsersService', () => {
 
   describe('findAllPaginated', () => {
     it('should return paginated data with total count', async () => {
-      const chainable = { skip: jest.fn().mockReturnThis(), limit: jest.fn().mockResolvedValue([mockUser]) };
+      const chainable = {
+        skip: jest.fn().mockReturnThis(),
+        limit: jest.fn().mockReturnThis(),
+        populate: jest.fn().mockResolvedValue([mockUser]),
+      };
       model.find.mockReturnValue(chainable);
       model.countDocuments.mockResolvedValue(1);
 
@@ -100,11 +133,16 @@ describe('UsersService', () => {
 
       expect(chainable.skip).toHaveBeenCalledWith(0);
       expect(chainable.limit).toHaveBeenCalledWith(10);
+      expect(chainable.populate).toHaveBeenCalledWith('cityId', 'name');
       expect(result).toEqual({ data: [mockUser], total: 1 });
     });
 
     it('should calculate correct skip for page 2', async () => {
-      const chainable = { skip: jest.fn().mockReturnThis(), limit: jest.fn().mockResolvedValue([]) };
+      const chainable = {
+        skip: jest.fn().mockReturnThis(),
+        limit: jest.fn().mockReturnThis(),
+        populate: jest.fn().mockResolvedValue([]),
+      };
       model.find.mockReturnValue(chainable);
       model.countDocuments.mockResolvedValue(0);
 
@@ -115,25 +153,31 @@ describe('UsersService', () => {
   });
 
   describe('findByEmail', () => {
-    it('should find user by email with password selected', async () => {
-      const chainable = { select: jest.fn().mockResolvedValue(mockUser) };
+    it('should find user by email with password selected and city populated', async () => {
+      const chainable = {
+        select: jest.fn().mockReturnThis(),
+        populate: jest.fn().mockResolvedValue(mockUser),
+      };
       model.findOne.mockReturnValue(chainable);
 
       const result = await service.findByEmail('test@example.com');
 
       expect(model.findOne).toHaveBeenCalledWith({ email: 'test@example.com' });
       expect(chainable.select).toHaveBeenCalledWith('+password');
+      expect(chainable.populate).toHaveBeenCalledWith('cityId', 'name');
       expect(result).toEqual(mockUser);
     });
   });
 
   describe('findById', () => {
-    it('should find user by id', async () => {
-      model.findById.mockResolvedValue(mockUser);
+    it('should find user by id with cityId populated', async () => {
+      const chainable = { populate: jest.fn().mockResolvedValue(mockUser) };
+      model.findById.mockReturnValue(chainable);
 
       const result = await service.findById('user-1');
 
       expect(model.findById).toHaveBeenCalledWith('user-1');
+      expect(chainable.populate).toHaveBeenCalledWith('cityId', 'name');
       expect(result).toEqual(mockUser);
     });
   });
@@ -151,7 +195,9 @@ describe('UsersService', () => {
     it('should update role only when no status reconciliation is needed', async () => {
       model.findById.mockResolvedValue({ ...mockUser, role: 'user' });
       const updated = { ...mockUser, role: 'admin' };
-      model.findByIdAndUpdate.mockResolvedValue(updated);
+      model.findByIdAndUpdate.mockReturnValue({
+        populate: jest.fn().mockResolvedValue(updated),
+      });
 
       const result = await service.updateRole('user-1', 'admin');
 
@@ -166,7 +212,9 @@ describe('UsersService', () => {
     it('should auto-approve when promoting to salesPerson without existing status', async () => {
       model.findById.mockResolvedValue({ ...mockUser, role: 'user' });
       const updated = { ...mockUser, role: 'salesPerson', status: 'approved' };
-      model.findByIdAndUpdate.mockResolvedValue(updated);
+      model.findByIdAndUpdate.mockReturnValue({
+        populate: jest.fn().mockResolvedValue(updated),
+      });
 
       const result = await service.updateRole('user-1', 'salesPerson');
 
@@ -185,7 +233,9 @@ describe('UsersService', () => {
         status: 'in_revision',
       });
       const updated = { ...mockUser, role: 'salesPerson', status: 'in_revision' };
-      model.findByIdAndUpdate.mockResolvedValue(updated);
+      model.findByIdAndUpdate.mockReturnValue({
+        populate: jest.fn().mockResolvedValue(updated),
+      });
 
       await service.updateRole('user-1', 'salesPerson');
 
@@ -203,7 +253,9 @@ describe('UsersService', () => {
         status: 'approved',
       });
       const updated = { ...mockUser, role: 'user' };
-      model.findByIdAndUpdate.mockResolvedValue(updated);
+      model.findByIdAndUpdate.mockReturnValue({
+        populate: jest.fn().mockResolvedValue(updated),
+      });
 
       await service.updateRole('user-1', 'user');
 
@@ -213,18 +265,62 @@ describe('UsersService', () => {
         { new: true },
       );
     });
+
+    it('should clear cityId when demoting from salesPerson with a city', async () => {
+      model.findById.mockResolvedValue({
+        ...mockUser,
+        role: 'salesPerson',
+        status: 'approved',
+        cityId: 'city-1',
+      });
+      const updated = { ...mockUser, role: 'user' };
+      model.findByIdAndUpdate.mockReturnValue({
+        populate: jest.fn().mockResolvedValue(updated),
+      });
+
+      await service.updateRole('user-1', 'user');
+
+      expect(model.findByIdAndUpdate).toHaveBeenCalledWith(
+        'user-1',
+        { role: 'user', $unset: { status: 1, cityId: 1 } },
+        { new: true },
+      );
+    });
   });
 
   describe('updateStatus', () => {
     it('should update user status and return updated user', async () => {
       const updated = { ...mockUser, role: 'salesPerson', status: 'approved' };
-      model.findByIdAndUpdate.mockResolvedValue(updated);
+      model.findByIdAndUpdate.mockReturnValue({
+        populate: jest.fn().mockResolvedValue(updated),
+      });
 
       const result = await service.updateStatus('user-1', 'approved');
 
       expect(model.findByIdAndUpdate).toHaveBeenCalledWith(
         'user-1',
         { status: 'approved' },
+        { new: true },
+      );
+      expect(result).toEqual(updated);
+    });
+  });
+
+  describe('updateCity', () => {
+    it('should update the user city and return updated user', async () => {
+      const updated = { ...mockUser, cityId: 'city-1' };
+      model.findByIdAndUpdate.mockReturnValue({
+        populate: jest.fn().mockResolvedValue(updated),
+      });
+
+      const result = await service.updateCity(
+        'user-1',
+        '507f1f77bcf86cd799439011',
+      );
+
+      expect(model.findByIdAndUpdate).toHaveBeenCalledWith(
+        'user-1',
+        expect.objectContaining({ cityId: expect.anything() }),
         { new: true },
       );
       expect(result).toEqual(updated);
@@ -264,13 +360,17 @@ describe('UsersService', () => {
   });
 
   describe('findByIdWithRefreshToken', () => {
-    it('should find user with refresh token selected', async () => {
-      const chainable = { select: jest.fn().mockResolvedValue(mockUser) };
+    it('should find user with refresh token selected and city populated', async () => {
+      const chainable = {
+        select: jest.fn().mockReturnThis(),
+        populate: jest.fn().mockResolvedValue(mockUser),
+      };
       model.findById.mockReturnValue(chainable);
 
       const result = await service.findByIdWithRefreshToken('user-1');
 
       expect(chainable.select).toHaveBeenCalledWith('+hashedRefreshToken');
+      expect(chainable.populate).toHaveBeenCalledWith('cityId', 'name');
       expect(result).toEqual(mockUser);
     });
   });
@@ -296,7 +396,9 @@ describe('UsersService', () => {
   describe('updateProfile', () => {
     it('should update name and email', async () => {
       const updated = { ...mockUser, name: 'New Name' };
-      model.findByIdAndUpdate.mockResolvedValue(updated);
+      model.findByIdAndUpdate.mockReturnValue({
+        populate: jest.fn().mockResolvedValue(updated),
+      });
 
       const result = await service.updateProfile('user-1', { name: 'New Name', email: 'test@example.com' });
 

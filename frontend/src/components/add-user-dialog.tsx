@@ -1,10 +1,11 @@
 import { useTranslation } from "react-i18next"
 import { useForm, Controller } from "react-hook-form"
 import { standardSchemaResolver } from "@hookform/resolvers/standard-schema"
-import { useMutation, useQueryClient } from "@tanstack/react-query"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { createUserSchema } from "@base-dashboard/shared"
 import { z } from "zod/v4"
 import { createUserApi } from "@/lib/users"
+import { fetchCityOptionsApi } from "@/lib/cities"
 import { toast } from "sonner"
 import {
   Dialog,
@@ -31,8 +32,11 @@ import {
 } from "@/components/ui/select"
 import { Button } from "@/components/ui/button"
 
-const addUserFormSchema = createUserSchema
-  .extend({ confirmPassword: z.string() })
+const addUserFormSchema = z
+  .intersection(
+    createUserSchema,
+    z.object({ confirmPassword: z.string() }),
+  )
   .refine((data) => data.password === data.confirmPassword, {
     message: "Passwords don't match",
     path: ["confirmPassword"],
@@ -50,10 +54,16 @@ export function AddUserDialog({
   const { t } = useTranslation()
   const queryClient = useQueryClient()
 
+  const { data: cityOptions = [], isLoading: isLoadingCities } = useQuery({
+    queryKey: ["cities", "options"],
+    queryFn: fetchCityOptionsApi,
+  })
+
   const {
     register,
     handleSubmit,
     control,
+    watch,
     formState: { errors },
     reset,
   } = useForm<AddUserValues>({
@@ -62,6 +72,8 @@ export function AddUserDialog({
       role: "user",
     },
   })
+
+  const selectedRole = watch("role")
 
   const mutation = useMutation({
     mutationFn: createUserApi,
@@ -82,6 +94,7 @@ export function AddUserDialog({
       email: values.email,
       password: values.password,
       role: values.role,
+      cityId: values.cityId,
     })
   }
 
@@ -189,6 +202,42 @@ export function AddUserDialog({
               {errors.role && (
                 <FieldDescription className="text-destructive">
                   {t(errors.role.message ?? "")}
+                </FieldDescription>
+              )}
+            </Field>
+            <Field>
+              <FieldLabel>
+                {selectedRole === "salesPerson"
+                  ? t("City")
+                  : t("City (optional)")}
+              </FieldLabel>
+              <Controller
+                name="cityId"
+                control={control}
+                render={({ field }) => (
+                  <Select
+                    value={field.value ?? ""}
+                    onValueChange={(val) => {
+                      if (val) field.onChange(val)
+                    }}
+                    disabled={isLoadingCities}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder={t("Select a city")} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {cityOptions.map((city) => (
+                        <SelectItem key={city.id} value={city.id}>
+                          {city.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+              {errors.cityId && (
+                <FieldDescription className="text-destructive">
+                  {t(errors.cityId.message ?? "")}
                 </FieldDescription>
               )}
             </Field>

@@ -91,13 +91,22 @@ describe('CitiesService', () => {
   });
 
   describe('findById', () => {
+    const validId = '507f1f77bcf86cd799439011';
+
     it('should find a city by id', async () => {
       cityModel.findById.mockResolvedValue(mockCity);
 
-      const result = await service.findById('city-1');
+      const result = await service.findById(validId);
 
-      expect(cityModel.findById).toHaveBeenCalledWith('city-1');
+      expect(cityModel.findById).toHaveBeenCalledWith(validId);
       expect(result).toEqual(mockCity);
+    });
+
+    it('should return null for malformed ids without hitting the database', async () => {
+      const result = await service.findById('not-an-object-id');
+
+      expect(result).toBeNull();
+      expect(cityModel.findById).not.toHaveBeenCalled();
     });
   });
 

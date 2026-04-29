@@ -9,6 +9,8 @@ export {
   type UpdateUserRoleInput,
   updateUserStatusSchema,
   type UpdateUserStatusInput,
+  updateUserCitySchema,
+  type UpdateUserCityInput,
   forgotPasswordSchema,
   type ForgotPasswordInput,
   resetPasswordSchema,

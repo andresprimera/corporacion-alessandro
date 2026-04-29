@@ -5,7 +5,7 @@ import {
   type CreateCityInput,
   type UpdateCityInput,
 } from "@base-dashboard/shared"
-import { authFetch } from "@/lib/api"
+import { authFetch, publicFetch } from "@/lib/api"
 
 export async function fetchCitiesApi(
   page: number,
@@ -47,6 +47,6 @@ export async function removeCityApi(id: string): Promise<void> {
 }
 
 export async function fetchCityOptionsApi(): Promise<CityOption[]> {
-  const res = await authFetch("/api/cities/options")
+  const res = await publicFetch("/api/cities/options")
   return res.json()
 }

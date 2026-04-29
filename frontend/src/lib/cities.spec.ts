@@ -5,10 +5,11 @@ import {
   updateCityApi,
   removeCityApi,
 } from "@/lib/cities"
-import { authFetch } from "@/lib/api"
+import { authFetch, publicFetch } from "@/lib/api"
 
 vi.mock("@/lib/api", () => ({
   authFetch: vi.fn(),
+  publicFetch: vi.fn(),
 }))
 
 const mockJsonResponse = (data: unknown): Response =>
@@ -100,13 +101,13 @@ describe("cities API", () => {
   })
 
   describe("fetchCityOptionsApi", () => {
-    it("should GET /api/cities/options", async () => {
+    it("should GET /api/cities/options via publicFetch (endpoint is public)", async () => {
       const options = [{ id: "c1", name: "Caracas" }]
-      vi.mocked(authFetch).mockResolvedValue(mockJsonResponse(options))
+      vi.mocked(publicFetch).mockResolvedValue(mockJsonResponse(options))
 
       const result = await fetchCityOptionsApi()
 
-      expect(authFetch).toHaveBeenCalledWith("/api/cities/options")
+      expect(publicFetch).toHaveBeenCalledWith("/api/cities/options")
       expect(result).toEqual(options)
     })
   })

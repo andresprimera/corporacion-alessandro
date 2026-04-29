@@ -39,6 +39,17 @@ export async function updateUserStatusApi(
   return res.json()
 }
 
+export async function updateUserCityApi(
+  userId: string,
+  cityId: string,
+): Promise<User> {
+  const res = await authFetch(`/api/users/${userId}/city`, {
+    method: "PATCH",
+    body: JSON.stringify({ cityId }),
+  })
+  return res.json()
+}
+
 export async function removeUserApi(userId: string): Promise<void> {
   await authFetch(`/api/users/${userId}`, { method: "DELETE" })
 }

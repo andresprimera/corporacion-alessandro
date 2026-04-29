@@ -10,6 +10,7 @@ import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
 import { AuthService } from './auth.service';
 import { UsersService } from '../users/users.service';
+import { CitiesService } from '../cities/cities.service';
 import { MailService } from '../services';
 
 jest.mock('bcrypt');
@@ -54,6 +55,10 @@ describe('AuthService', () => {
     sendMail: jest.fn(),
   };
 
+  const citiesService = {
+    findById: jest.fn(),
+  };
+
   beforeEach(async () => {
     jest.clearAllMocks();
 
@@ -61,6 +66,7 @@ describe('AuthService', () => {
       providers: [
         AuthService,
         { provide: UsersService, useValue: usersService },
+        { provide: CitiesService, useValue: citiesService },
         { provide: JwtService, useValue: jwtService },
         { provide: ConfigService, useValue: configService },
         { provide: MailService, useValue: mailService },
@@ -73,15 +79,49 @@ describe('AuthService', () => {
     configService.getOrThrow.mockReturnValue('mock-secret');
     mockedBcrypt.hash.mockResolvedValue('hashed-value' as never);
     mockedBcrypt.compare.mockResolvedValue(true as never);
+    citiesService.findById.mockResolvedValue({ id: 'city-1', isActive: true });
   });
 
   describe('signup', () => {
-    const dto = { name: 'Test', email: 'test@example.com', password: 'Password1!' };
+    const dto = {
+      name: 'Test',
+      email: 'test@example.com',
+      password: 'Password1!',
+      cityId: 'city-1',
+    };
 
     it('should throw ConflictException if email already exists', async () => {
       usersService.findByEmail.mockResolvedValue(mockUser);
 
       await expect(service.signup(dto)).rejects.toThrow(ConflictException);
+    });
+
+    it('should throw BadRequestException when city does not exist', async () => {
+      usersService.findByEmail.mockResolvedValue(null);
+      citiesService.findById.mockResolvedValue(null);
+
+      await expect(service.signup(dto)).rejects.toThrow(BadRequestException);
+      expect(usersService.create).not.toHaveBeenCalled();
+    });
+
+    it('should throw BadRequestException when city is inactive', async () => {
+      usersService.findByEmail.mockResolvedValue(null);
+      citiesService.findById.mockResolvedValue({ id: 'city-1', isActive: false });
+
+      await expect(service.signup(dto)).rejects.toThrow(BadRequestException);
+      expect(usersService.create).not.toHaveBeenCalled();
+    });
+
+    it('should pass cityId through to user creation', async () => {
+      usersService.findByEmail.mockResolvedValue(null);
+      usersService.countUsers.mockResolvedValue(0);
+      usersService.create.mockResolvedValue(mockUser);
+
+      await service.signup(dto);
+
+      expect(usersService.create).toHaveBeenCalledWith(
+        expect.objectContaining({ cityId: 'city-1' }),
+      );
     });
 
     it('should assign admin role to the first user', async () => {

@@ -5,7 +5,7 @@ import {
   forwardRef,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, isValidObjectId } from 'mongoose';
 import { City, CityDocument } from './schemas/city.schema';
 import { WarehousesService } from '../warehouses/warehouses.service';
 import { isDuplicateKeyError } from '../common/utils/mongo-errors';
@@ -48,6 +48,7 @@ export class CitiesService {
   }
 
   async findById(id: string): Promise<CityDocument | null> {
+    if (!isValidObjectId(id)) return null;
     return this.cityModel.findById(id);
   }
 

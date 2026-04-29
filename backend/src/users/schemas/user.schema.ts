@@ -1,5 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { HydratedDocument } from 'mongoose';
+import { HydratedDocument, SchemaTypes, Types } from 'mongoose';
 
 export type UserDocument = HydratedDocument<User>;
 
@@ -20,6 +20,9 @@ export class User {
 
   @Prop({ enum: ['approved', 'in_revision'], required: false })
   status?: string;
+
+  @Prop({ type: SchemaTypes.ObjectId, ref: 'City', required: false })
+  cityId?: Types.ObjectId;
 
   @Prop({ required: true, select: false })
   password: string;
