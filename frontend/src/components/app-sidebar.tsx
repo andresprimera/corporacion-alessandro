@@ -13,7 +13,17 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
-import { LayoutDashboardIcon, UsersIcon, Settings2Icon, CommandIcon, PackageIcon } from "lucide-react"
+import {
+  LayoutDashboardIcon,
+  UsersIcon,
+  Settings2Icon,
+  CommandIcon,
+  PackageIcon,
+  MapPinIcon,
+  WarehouseIcon,
+  BoxesIcon,
+  BarChart3Icon,
+} from "lucide-react"
 import { useAuth } from "@/hooks/use-auth"
 import { Link } from "react-router"
 
@@ -26,6 +36,10 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     { title: t("Dashboard"), url: "/dashboard", icon: <LayoutDashboardIcon /> },
     { title: t("Users"), url: "/dashboard/users", icon: <UsersIcon /> },
     { title: t("Products"), url: "/dashboard/products", icon: <PackageIcon /> },
+    { title: t("Cities"), url: "/dashboard/cities", icon: <MapPinIcon /> },
+    { title: t("Warehouses"), url: "/dashboard/warehouses", icon: <WarehouseIcon /> },
+    { title: t("Inventory"), url: "/dashboard/inventory", icon: <BoxesIcon /> },
+    { title: t("Stock"), url: "/dashboard/stock", icon: <BarChart3Icon /> },
   ]
 
   const userNavMain = [

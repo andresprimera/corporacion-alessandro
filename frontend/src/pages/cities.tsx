@@ -1,15 +1,14 @@
 import { useState } from "react"
-import { ProductFormDialog } from "@/components/product-form-dialog"
+import { CityFormDialog } from "@/components/city-form-dialog"
 import { useTranslation } from "react-i18next"
-import i18n from "@/lib/i18n"
 import {
   useQuery,
   useMutation,
   useQueryClient,
   keepPreviousData,
 } from "@tanstack/react-query"
-import { fetchProductsApi, removeProductApi } from "@/lib/products"
-import type { Product } from "@base-dashboard/shared"
+import { fetchCitiesApi, removeCityApi } from "@/lib/cities"
+import type { City } from "@base-dashboard/shared"
 import {
   Table,
   TableBody,
@@ -40,76 +39,49 @@ import {
 } from "lucide-react"
 import { toast } from "sonner"
 
-function formatPrice(value: number, currency: string): string {
-  return new Intl.NumberFormat(i18n.language, {
-    style: "currency",
-    currency,
-  }).format(value)
-}
-
-function formatPresentation(value: string, t: (key: string) => string): string {
-  if (value === "L1") return t("1 L")
-  if (value === "ML750") return t("750 ml")
-  return value
-}
-
-function liquorTypeLabel(
-  value: string,
-  t: (key: string) => string,
-): string {
-  if (value === "rum") return t("Rum")
-  if (value === "whisky") return t("Whisky")
-  if (value === "vodka") return t("Vodka")
-  if (value === "gin") return t("Gin")
-  if (value === "tequila") return t("Tequila")
-  return t("Other")
-}
-
-export default function ProductsPage() {
+export default function CitiesPage() {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
   const [formOpen, setFormOpen] = useState(false)
-  const [editingProduct, setEditingProduct] = useState<Product | undefined>(
-    undefined,
-  )
-  const [deleteProductId, setDeleteProductId] = useState<string | null>(null)
+  const [editingCity, setEditingCity] = useState<City | undefined>(undefined)
+  const [deleteCityId, setDeleteCityId] = useState<string | null>(null)
 
   const { data, isLoading, isError, error, refetch } = useQuery({
-    queryKey: ["products", page, pageSize],
-    queryFn: () => fetchProductsApi(page, pageSize),
+    queryKey: ["cities", page, pageSize],
+    queryFn: () => fetchCitiesApi(page, pageSize),
     placeholderData: keepPreviousData,
   })
 
-  const products = data?.data ?? []
+  const cities = data?.data ?? []
   const meta = data?.meta
 
   const deleteMutation = useMutation({
-    mutationFn: (productId: string) => removeProductApi(productId),
+    mutationFn: (cityId: string) => removeCityApi(cityId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["products"] })
-      toast.success(t("Product deleted"))
+      queryClient.invalidateQueries({ queryKey: ["cities"] })
+      toast.success(t("City deleted"))
     },
     onError: (err: Error) => {
-      toast.error(t(err.message) || t("Failed to delete product"))
+      toast.error(t(err.message) || t("Failed to delete city"))
     },
   })
 
   function handleAdd() {
-    setEditingProduct(undefined)
+    setEditingCity(undefined)
     setFormOpen(true)
   }
 
-  function handleEdit(product: Product) {
-    setEditingProduct(product)
+  function handleEdit(city: City) {
+    setEditingCity(city)
     setFormOpen(true)
   }
 
   function handleDelete() {
-    if (!deleteProductId) return
-    deleteMutation.mutate(deleteProductId, {
-      onSettled: () => setDeleteProductId(null),
+    if (!deleteCityId) return
+    deleteMutation.mutate(deleteCityId, {
+      onSettled: () => setDeleteCityId(null),
     })
   }
 
@@ -123,14 +95,12 @@ export default function ProductsPage() {
   const heading = (
     <div className="flex items-center justify-between">
       <div>
-        <h2 className="text-2xl font-bold tracking-tight">{t("Products")}</h2>
-        <p className="text-muted-foreground">
-          {t("Manage groceries and liquor inventory.")}
-        </p>
+        <h2 className="text-2xl font-bold tracking-tight">{t("Cities")}</h2>
+        <p className="text-muted-foreground">{t("Manage cities.")}</p>
       </div>
       <Button onClick={handleAdd}>
         <PlusIcon className="size-4" />
-        {t("Add Product")}
+        {t("Add City")}
       </Button>
     </div>
   )
@@ -144,38 +114,24 @@ export default function ProductsPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>{t("Name")}</TableHead>
-                <TableHead>{t("Kind")}</TableHead>
-                <TableHead>{t("Liquor type")}</TableHead>
-                <TableHead>{t("Presentation")}</TableHead>
-                <TableHead>{t("Price")}</TableHead>
+                <TableHead>{t("Active")}</TableHead>
                 <TableHead className="w-32">{t("Actions")}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {Array.from({ length: Math.min(pageSize, 5) }).map(
-                (_, i) => (
-                  <TableRow key={i}>
-                    <TableCell>
-                      <Skeleton className="h-4 w-32" />
-                    </TableCell>
-                    <TableCell>
-                      <Skeleton className="h-6 w-20" />
-                    </TableCell>
-                    <TableCell>
-                      <Skeleton className="h-4 w-16" />
-                    </TableCell>
-                    <TableCell>
-                      <Skeleton className="h-4 w-16" />
-                    </TableCell>
-                    <TableCell>
-                      <Skeleton className="h-4 w-20" />
-                    </TableCell>
-                    <TableCell>
-                      <Skeleton className="size-8" />
-                    </TableCell>
-                  </TableRow>
-                ),
-              )}
+              {Array.from({ length: Math.min(pageSize, 5) }).map((_, i) => (
+                <TableRow key={i}>
+                  <TableCell>
+                    <Skeleton className="h-4 w-32" />
+                  </TableCell>
+                  <TableCell>
+                    <Skeleton className="h-6 w-16" />
+                  </TableCell>
+                  <TableCell>
+                    <Skeleton className="size-8" />
+                  </TableCell>
+                </TableRow>
+              ))}
             </TableBody>
           </Table>
         </div>
@@ -190,7 +146,7 @@ export default function ProductsPage() {
         <div className="flex flex-col items-center justify-center gap-4 py-12">
           <AlertCircleIcon className="size-10 text-destructive" />
           <p className="text-muted-foreground">
-            {t(error.message) || t("Failed to load products.")}
+            {t(error.message) || t("Failed to load cities.")}
           </p>
           <Button variant="outline" onClick={() => refetch()}>
             {t("Try again")}
@@ -208,52 +164,32 @@ export default function ProductsPage() {
           <TableHeader>
             <TableRow>
               <TableHead>{t("Name")}</TableHead>
-              <TableHead>{t("Kind")}</TableHead>
-              <TableHead>{t("Liquor type")}</TableHead>
-              <TableHead>{t("Presentation")}</TableHead>
-              <TableHead>{t("Price")}</TableHead>
+              <TableHead>{t("Active")}</TableHead>
               <TableHead className="w-32">{t("Actions")}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {products.length === 0 ? (
+            {cities.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="h-24 text-center">
-                  {t("No products found.")}
+                <TableCell colSpan={3} className="h-24 text-center">
+                  {t("No cities found.")}
                 </TableCell>
               </TableRow>
             ) : (
-              products.map((p) => (
-                <TableRow key={p.id}>
-                  <TableCell className="font-medium">{p.name}</TableCell>
+              cities.map((c) => (
+                <TableRow key={c.id}>
+                  <TableCell className="font-medium">{c.name}</TableCell>
                   <TableCell>
-                    <Badge variant="secondary">
-                      {p.kind === "liquor" ? t("Liquor") : t("Groceries")}
+                    <Badge variant={c.isActive ? "default" : "secondary"}>
+                      {c.isActive ? t("Active") : t("Inactive")}
                     </Badge>
-                  </TableCell>
-                  <TableCell>
-                    {p.kind === "liquor" ? (
-                      liquorTypeLabel(p.liquorType, t)
-                    ) : (
-                      <span className="text-muted-foreground">—</span>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    {p.kind === "liquor" ? (
-                      formatPresentation(p.presentation, t)
-                    ) : (
-                      <span className="text-muted-foreground">—</span>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    {formatPrice(p.price.value, p.price.currency)}
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-1">
                       <Button
                         variant="ghost"
                         size="icon"
-                        onClick={() => handleEdit(p)}
+                        onClick={() => handleEdit(c)}
                       >
                         <PencilIcon className="size-4" />
                         <span className="sr-only">{t("Edit")}</span>
@@ -261,7 +197,7 @@ export default function ProductsPage() {
                       <Button
                         variant="ghost"
                         size="icon"
-                        onClick={() => setDeleteProductId(p.id)}
+                        onClick={() => setDeleteCityId(c.id)}
                       >
                         <TrashIcon className="size-4" />
                         <span className="sr-only">{t("Delete")}</span>
@@ -279,24 +215,24 @@ export default function ProductsPage() {
           page={page}
           pageSize={pageSize}
           totalPages={totalPages}
-          totalLabel={t("{{count}} product total", { count: meta.total })}
-          rowsId="rows-per-page-products"
+          totalLabel={t("{{count}} city total", { count: meta.total })}
+          rowsId="rows-per-page-cities"
           onPageChange={setPage}
           onPageSizeChange={handlePageSizeChange}
         />
       )}
       <AlertDialog
-        open={deleteProductId !== null}
+        open={deleteCityId !== null}
         onOpenChange={(open) => {
-          if (!open) setDeleteProductId(null)
+          if (!open) setDeleteCityId(null)
         }}
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{t("Delete product")}</AlertDialogTitle>
+            <AlertDialogTitle>{t("Delete city")}</AlertDialogTitle>
             <AlertDialogDescription>
               {t(
-                "This action cannot be undone. This will permanently delete the product.",
+                "This action cannot be undone. This will permanently delete the city.",
               )}
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -312,10 +248,10 @@ export default function ProductsPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-      <ProductFormDialog
+      <CityFormDialog
         open={formOpen}
         onOpenChange={setFormOpen}
-        product={editingProduct}
+        city={editingCity}
       />
     </div>
   )

@@ -3,6 +3,10 @@ import LandingPage from "@/pages/landing"
 import DashboardPage from "@/pages/dashboard"
 import UsersPage from "@/pages/users"
 import ProductsPage from "@/pages/products"
+import CitiesPage from "@/pages/cities"
+import WarehousesPage from "@/pages/warehouses"
+import InventoryPage from "@/pages/inventory"
+import StockPage from "@/pages/stock"
 import LoginPage from "@/pages/login"
 import SignupPage from "@/pages/signup"
 import ForgotPasswordPage from "@/pages/forgot-password"
@@ -58,6 +62,38 @@ export const router = createBrowserRouter([
         element: (
           <AdminRoute>
             <ProductsPage />
+          </AdminRoute>
+        ),
+      },
+      {
+        path: "cities",
+        element: (
+          <AdminRoute>
+            <CitiesPage />
+          </AdminRoute>
+        ),
+      },
+      {
+        path: "warehouses",
+        element: (
+          <AdminRoute>
+            <WarehousesPage />
+          </AdminRoute>
+        ),
+      },
+      {
+        path: "inventory",
+        element: (
+          <AdminRoute>
+            <InventoryPage />
+          </AdminRoute>
+        ),
+      },
+      {
+        path: "stock",
+        element: (
+          <AdminRoute>
+            <StockPage />
           </AdminRoute>
         ),
       },

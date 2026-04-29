@@ -1,5 +1,6 @@
 import {
   fetchProductsApi,
+  fetchProductOptionsApi,
   createProductApi,
   updateProductApi,
   removeProductApi,
@@ -119,6 +120,18 @@ describe("products API", () => {
       expect(authFetch).toHaveBeenCalledWith("/api/products/p1", {
         method: "DELETE",
       })
+    })
+  })
+
+  describe("fetchProductOptionsApi", () => {
+    it("should GET /api/products/options", async () => {
+      const options = [{ id: "p1", name: "Rice", kind: "groceries" }]
+      vi.mocked(authFetch).mockResolvedValue(mockJsonResponse(options))
+
+      const result = await fetchProductOptionsApi()
+
+      expect(authFetch).toHaveBeenCalledWith("/api/products/options")
+      expect(result).toEqual(options)
     })
   })
 })

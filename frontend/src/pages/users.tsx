@@ -42,15 +42,11 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Label } from "@/components/ui/label"
 import { Skeleton } from "@/components/ui/skeleton"
+import { DataPagination } from "@/components/data-pagination"
 import {
   AlertCircleIcon,
   TrashIcon,
-  ChevronsLeftIcon,
-  ChevronLeftIcon,
-  ChevronRightIcon,
-  ChevronsRightIcon,
   PlusIcon,
 } from "lucide-react"
 import { toast } from "sonner"
@@ -124,9 +120,8 @@ export default function UsersPage() {
     })
   }
 
-  function handlePageSizeChange(value: string | null) {
-    if (!value) return
-    setPageSize(Number(value))
+  function handlePageSizeChange(size: number) {
+    setPageSize(size)
     setPage(1)
   }
 
@@ -319,78 +314,15 @@ export default function UsersPage() {
         </Table>
       </div>
       {meta && (
-        <div className="flex items-center justify-between px-4">
-          <div className="hidden flex-1 text-sm text-muted-foreground lg:flex">
-            {t("{{count}} user total", { count: meta.total })}
-          </div>
-          <div className="flex w-full items-center gap-8 lg:w-fit">
-            <div className="hidden items-center gap-2 lg:flex">
-              <Label htmlFor="rows-per-page" className="text-sm font-medium">
-                {t("Rows per page")}
-              </Label>
-              <Select
-                value={String(pageSize)}
-                onValueChange={handlePageSizeChange}
-              >
-                <SelectTrigger size="sm" className="w-20" id="rows-per-page">
-                  <SelectValue placeholder={String(pageSize)} />
-                </SelectTrigger>
-                <SelectContent side="top">
-                  {[10, 20, 30, 50].map((size) => (
-                    <SelectItem key={size} value={String(size)}>
-                      {size}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex w-fit items-center justify-center text-sm font-medium">
-              {t("Page {{page}} of {{totalPages}}", { page, totalPages })}
-            </div>
-            <div className="ml-auto flex items-center gap-2 lg:ml-0">
-              <Button
-                variant="outline"
-                className="hidden size-8 lg:flex"
-                size="icon"
-                onClick={() => setPage(1)}
-                disabled={page <= 1}
-              >
-                <span className="sr-only">{t("Go to first page")}</span>
-                <ChevronsLeftIcon />
-              </Button>
-              <Button
-                variant="outline"
-                className="size-8"
-                size="icon"
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                disabled={page <= 1}
-              >
-                <span className="sr-only">{t("Go to previous page")}</span>
-                <ChevronLeftIcon />
-              </Button>
-              <Button
-                variant="outline"
-                className="size-8"
-                size="icon"
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                disabled={page >= totalPages}
-              >
-                <span className="sr-only">{t("Go to next page")}</span>
-                <ChevronRightIcon />
-              </Button>
-              <Button
-                variant="outline"
-                className="hidden size-8 lg:flex"
-                size="icon"
-                onClick={() => setPage(totalPages)}
-                disabled={page >= totalPages}
-              >
-                <span className="sr-only">{t("Go to last page")}</span>
-                <ChevronsRightIcon />
-              </Button>
-            </div>
-          </div>
-        </div>
+        <DataPagination
+          page={page}
+          pageSize={pageSize}
+          totalPages={totalPages}
+          totalLabel={t("{{count}} user total", { count: meta.total })}
+          rowsId="rows-per-page"
+          onPageChange={setPage}
+          onPageSizeChange={handlePageSizeChange}
+        />
       )}
       <AlertDialog
         open={deleteUserId !== null}

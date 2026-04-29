@@ -65,4 +65,51 @@ export {
   type CreateProductInput,
   updateProductSchema,
   type UpdateProductInput,
+  productOptionSchema,
+  type ProductOption,
 } from "./schemas/product";
+
+export {
+  citySchema,
+  type City,
+  createCitySchema,
+  type CreateCityInput,
+  updateCitySchema,
+  type UpdateCityInput,
+  cityListQuerySchema,
+  type CityListQuery,
+  cityOptionSchema,
+  type CityOption,
+} from "./schemas/city";
+
+export {
+  warehouseSchema,
+  type Warehouse,
+  createWarehouseSchema,
+  type CreateWarehouseInput,
+  updateWarehouseSchema,
+  type UpdateWarehouseInput,
+  warehouseListQuerySchema,
+  type WarehouseListQuery,
+  warehouseOptionSchema,
+  type WarehouseOption,
+} from "./schemas/warehouse";
+
+export {
+  transactionTypeEnum,
+  type TransactionType,
+  inventoryTransactionCreatedBySchema,
+  type InventoryTransactionCreatedBy,
+  inventoryTransactionSchema,
+  type InventoryTransaction,
+  createInventoryTransactionSchema,
+  type CreateInventoryTransactionInput,
+  updateInventoryTransactionSchema,
+  type UpdateInventoryTransactionInput,
+  productStockByWarehouseSchema,
+  type ProductStockByWarehouse,
+  productStockAggregatedSchema,
+  type ProductStockAggregated,
+  stockByWarehouseQuerySchema,
+  type StockByWarehouseQuery,
+} from "./schemas/inventory";

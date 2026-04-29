@@ -43,4 +43,11 @@ export class ProductsService {
   async remove(id: string): Promise<void> {
     await this.productModel.findByIdAndDelete(id);
   }
+
+  async findOptions(): Promise<{ id: string; name: string; kind: string }[]> {
+    const docs = await this.productModel
+      .find({}, { name: 1, kind: 1 })
+      .sort({ name: 1 });
+    return docs.map((d) => ({ id: d.id, name: d.name, kind: d.kind }));
+  }
 }

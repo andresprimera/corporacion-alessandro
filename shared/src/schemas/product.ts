@@ -61,3 +61,10 @@ export type CreateProductInput = z.infer<typeof createProductSchema>;
 
 export const updateProductSchema = createProductSchema;
 export type UpdateProductInput = z.infer<typeof updateProductSchema>;
+
+export const productOptionSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  kind: productKindEnum,
+});
+export type ProductOption = z.infer<typeof productOptionSchema>;

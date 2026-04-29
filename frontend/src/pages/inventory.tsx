@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { ProductFormDialog } from "@/components/product-form-dialog"
+import { InventoryFormDialog } from "@/components/inventory-form-dialog"
 import { useTranslation } from "react-i18next"
 import i18n from "@/lib/i18n"
 import {
@@ -8,8 +8,15 @@ import {
   useQueryClient,
   keepPreviousData,
 } from "@tanstack/react-query"
-import { fetchProductsApi, removeProductApi } from "@/lib/products"
-import type { Product } from "@base-dashboard/shared"
+import {
+  fetchInventoryTransactionsApi,
+  removeInventoryTransactionApi,
+  transactionTypeLabelKey,
+} from "@/lib/inventory"
+import type {
+  InventoryTransaction,
+  TransactionType,
+} from "@base-dashboard/shared"
 import {
   Table,
   TableBody,
@@ -40,76 +47,65 @@ import {
 } from "lucide-react"
 import { toast } from "sonner"
 
-function formatPrice(value: number, currency: string): string {
-  return new Intl.NumberFormat(i18n.language, {
-    style: "currency",
-    currency,
-  }).format(value)
+function transactionTypeBadgeVariant(
+  value: TransactionType,
+): "default" | "secondary" | "destructive" | "outline" {
+  if (value === "inbound") return "default"
+  if (value === "outbound") return "destructive"
+  return "secondary"
 }
 
-function formatPresentation(value: string, t: (key: string) => string): string {
-  if (value === "L1") return t("1 L")
-  if (value === "ML750") return t("750 ml")
-  return value
+function formatDate(value: string): string {
+  return new Date(value).toLocaleDateString(i18n.language)
 }
 
-function liquorTypeLabel(
-  value: string,
-  t: (key: string) => string,
-): string {
-  if (value === "rum") return t("Rum")
-  if (value === "whisky") return t("Whisky")
-  if (value === "vodka") return t("Vodka")
-  if (value === "gin") return t("Gin")
-  if (value === "tequila") return t("Tequila")
-  return t("Other")
-}
-
-export default function ProductsPage() {
+export default function InventoryPage() {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
   const [formOpen, setFormOpen] = useState(false)
-  const [editingProduct, setEditingProduct] = useState<Product | undefined>(
-    undefined,
+  const [editingTransaction, setEditingTransaction] = useState<
+    InventoryTransaction | undefined
+  >(undefined)
+  const [deleteTransactionId, setDeleteTransactionId] = useState<string | null>(
+    null,
   )
-  const [deleteProductId, setDeleteProductId] = useState<string | null>(null)
 
   const { data, isLoading, isError, error, refetch } = useQuery({
-    queryKey: ["products", page, pageSize],
-    queryFn: () => fetchProductsApi(page, pageSize),
+    queryKey: ["inventory", "transactions", page, pageSize],
+    queryFn: () => fetchInventoryTransactionsApi(page, pageSize),
     placeholderData: keepPreviousData,
   })
 
-  const products = data?.data ?? []
+  const transactions = data?.data ?? []
   const meta = data?.meta
 
   const deleteMutation = useMutation({
-    mutationFn: (productId: string) => removeProductApi(productId),
+    mutationFn: (id: string) => removeInventoryTransactionApi(id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["products"] })
-      toast.success(t("Product deleted"))
+      queryClient.invalidateQueries({ queryKey: ["inventory"] })
+      toast.success(t("Transaction deleted"))
     },
     onError: (err: Error) => {
-      toast.error(t(err.message) || t("Failed to delete product"))
+      toast.error(t(err.message) || t("Failed to delete transaction"))
     },
   })
 
   function handleAdd() {
-    setEditingProduct(undefined)
+    setEditingTransaction(undefined)
     setFormOpen(true)
   }
 
-  function handleEdit(product: Product) {
-    setEditingProduct(product)
+  function handleEdit(tx: InventoryTransaction) {
+    setEditingTransaction(tx)
     setFormOpen(true)
   }
 
   function handleDelete() {
-    if (!deleteProductId) return
-    deleteMutation.mutate(deleteProductId, {
-      onSettled: () => setDeleteProductId(null),
+    if (!deleteTransactionId) return
+    deleteMutation.mutate(deleteTransactionId, {
+      onSettled: () => setDeleteTransactionId(null),
     })
   }
 
@@ -123,14 +119,14 @@ export default function ProductsPage() {
   const heading = (
     <div className="flex items-center justify-between">
       <div>
-        <h2 className="text-2xl font-bold tracking-tight">{t("Products")}</h2>
+        <h2 className="text-2xl font-bold tracking-tight">{t("Inventory")}</h2>
         <p className="text-muted-foreground">
-          {t("Manage groceries and liquor inventory.")}
+          {t("Manage stock movements.")}
         </p>
       </div>
       <Button onClick={handleAdd}>
         <PlusIcon className="size-4" />
-        {t("Add Product")}
+        {t("Add Transaction")}
       </Button>
     </div>
   )
@@ -143,39 +139,45 @@ export default function ProductsPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>{t("Name")}</TableHead>
-                <TableHead>{t("Kind")}</TableHead>
-                <TableHead>{t("Liquor type")}</TableHead>
-                <TableHead>{t("Presentation")}</TableHead>
-                <TableHead>{t("Price")}</TableHead>
+                <TableHead>{t("Product")}</TableHead>
+                <TableHead>{t("Warehouse")}</TableHead>
+                <TableHead>{t("Type")}</TableHead>
+                <TableHead>{t("Batch")}</TableHead>
+                <TableHead>{t("Qty")}</TableHead>
+                <TableHead>{t("Created by")}</TableHead>
+                <TableHead>{t("Date")}</TableHead>
                 <TableHead className="w-32">{t("Actions")}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {Array.from({ length: Math.min(pageSize, 5) }).map(
-                (_, i) => (
-                  <TableRow key={i}>
-                    <TableCell>
-                      <Skeleton className="h-4 w-32" />
-                    </TableCell>
-                    <TableCell>
-                      <Skeleton className="h-6 w-20" />
-                    </TableCell>
-                    <TableCell>
-                      <Skeleton className="h-4 w-16" />
-                    </TableCell>
-                    <TableCell>
-                      <Skeleton className="h-4 w-16" />
-                    </TableCell>
-                    <TableCell>
-                      <Skeleton className="h-4 w-20" />
-                    </TableCell>
-                    <TableCell>
-                      <Skeleton className="size-8" />
-                    </TableCell>
-                  </TableRow>
-                ),
-              )}
+              {Array.from({ length: Math.min(pageSize, 5) }).map((_, i) => (
+                <TableRow key={i}>
+                  <TableCell>
+                    <Skeleton className="h-4 w-32" />
+                  </TableCell>
+                  <TableCell>
+                    <Skeleton className="h-4 w-24" />
+                  </TableCell>
+                  <TableCell>
+                    <Skeleton className="h-6 w-20" />
+                  </TableCell>
+                  <TableCell>
+                    <Skeleton className="h-4 w-20" />
+                  </TableCell>
+                  <TableCell>
+                    <Skeleton className="h-4 w-12" />
+                  </TableCell>
+                  <TableCell>
+                    <Skeleton className="h-4 w-24" />
+                  </TableCell>
+                  <TableCell>
+                    <Skeleton className="h-4 w-24" />
+                  </TableCell>
+                  <TableCell>
+                    <Skeleton className="size-8" />
+                  </TableCell>
+                </TableRow>
+              ))}
             </TableBody>
           </Table>
         </div>
@@ -190,7 +192,7 @@ export default function ProductsPage() {
         <div className="flex flex-col items-center justify-center gap-4 py-12">
           <AlertCircleIcon className="size-10 text-destructive" />
           <p className="text-muted-foreground">
-            {t(error.message) || t("Failed to load products.")}
+            {t(error.message) || t("Failed to load transactions.")}
           </p>
           <Button variant="outline" onClick={() => refetch()}>
             {t("Try again")}
@@ -207,53 +209,47 @@ export default function ProductsPage() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>{t("Name")}</TableHead>
-              <TableHead>{t("Kind")}</TableHead>
-              <TableHead>{t("Liquor type")}</TableHead>
-              <TableHead>{t("Presentation")}</TableHead>
-              <TableHead>{t("Price")}</TableHead>
+              <TableHead>{t("Product")}</TableHead>
+              <TableHead>{t("Warehouse")}</TableHead>
+              <TableHead>{t("Type")}</TableHead>
+              <TableHead>{t("Batch")}</TableHead>
+              <TableHead>{t("Qty")}</TableHead>
+              <TableHead>{t("Created by")}</TableHead>
+              <TableHead>{t("Date")}</TableHead>
               <TableHead className="w-32">{t("Actions")}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {products.length === 0 ? (
+            {transactions.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="h-24 text-center">
-                  {t("No products found.")}
+                <TableCell colSpan={8} className="h-24 text-center">
+                  {t("No transactions found.")}
                 </TableCell>
               </TableRow>
             ) : (
-              products.map((p) => (
-                <TableRow key={p.id}>
-                  <TableCell className="font-medium">{p.name}</TableCell>
+              transactions.map((tx) => (
+                <TableRow key={tx.id}>
+                  <TableCell className="font-medium">
+                    {tx.productName ?? tx.productId}
+                  </TableCell>
                   <TableCell>
-                    <Badge variant="secondary">
-                      {p.kind === "liquor" ? t("Liquor") : t("Groceries")}
+                    {tx.warehouseName ?? tx.warehouseId}
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant={transactionTypeBadgeVariant(tx.transactionType)}>
+                      {t(transactionTypeLabelKey(tx.transactionType))}
                     </Badge>
                   </TableCell>
-                  <TableCell>
-                    {p.kind === "liquor" ? (
-                      liquorTypeLabel(p.liquorType, t)
-                    ) : (
-                      <span className="text-muted-foreground">—</span>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    {p.kind === "liquor" ? (
-                      formatPresentation(p.presentation, t)
-                    ) : (
-                      <span className="text-muted-foreground">—</span>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    {formatPrice(p.price.value, p.price.currency)}
-                  </TableCell>
+                  <TableCell>{tx.batch}</TableCell>
+                  <TableCell>{tx.qty}</TableCell>
+                  <TableCell>{tx.createdBy.name}</TableCell>
+                  <TableCell>{formatDate(tx.createdAt)}</TableCell>
                   <TableCell>
                     <div className="flex items-center gap-1">
                       <Button
                         variant="ghost"
                         size="icon"
-                        onClick={() => handleEdit(p)}
+                        onClick={() => handleEdit(tx)}
                       >
                         <PencilIcon className="size-4" />
                         <span className="sr-only">{t("Edit")}</span>
@@ -261,7 +257,7 @@ export default function ProductsPage() {
                       <Button
                         variant="ghost"
                         size="icon"
-                        onClick={() => setDeleteProductId(p.id)}
+                        onClick={() => setDeleteTransactionId(tx.id)}
                       >
                         <TrashIcon className="size-4" />
                         <span className="sr-only">{t("Delete")}</span>
@@ -279,24 +275,24 @@ export default function ProductsPage() {
           page={page}
           pageSize={pageSize}
           totalPages={totalPages}
-          totalLabel={t("{{count}} product total", { count: meta.total })}
-          rowsId="rows-per-page-products"
+          totalLabel={t("{{count}} transaction total", { count: meta.total })}
+          rowsId="rows-per-page-inventory"
           onPageChange={setPage}
           onPageSizeChange={handlePageSizeChange}
         />
       )}
       <AlertDialog
-        open={deleteProductId !== null}
+        open={deleteTransactionId !== null}
         onOpenChange={(open) => {
-          if (!open) setDeleteProductId(null)
+          if (!open) setDeleteTransactionId(null)
         }}
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{t("Delete product")}</AlertDialogTitle>
+            <AlertDialogTitle>{t("Delete transaction")}</AlertDialogTitle>
             <AlertDialogDescription>
               {t(
-                "This action cannot be undone. This will permanently delete the product.",
+                "This action cannot be undone. This will permanently delete the transaction.",
               )}
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -312,10 +308,10 @@ export default function ProductsPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-      <ProductFormDialog
+      <InventoryFormDialog
         open={formOpen}
         onOpenChange={setFormOpen}
-        product={editingProduct}
+        transaction={editingTransaction}
       />
     </div>
   )

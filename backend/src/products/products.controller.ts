@@ -23,6 +23,8 @@ import {
   type PaginatedResponse,
   type Presentation,
   type Product,
+  type ProductKind,
+  type ProductOption,
   type Currency,
 } from '@base-dashboard/shared';
 import {
@@ -82,6 +84,16 @@ export class ProductsController {
         totalPages: Math.ceil(total / query.limit),
       },
     };
+  }
+
+  @Get('options')
+  async findOptions(): Promise<ProductOption[]> {
+    const opts = await this.productsService.findOptions();
+    return opts.map((o) => ({
+      id: o.id,
+      name: o.name,
+      kind: o.kind as ProductKind,
+    }));
   }
 
   @Get(':id')

@@ -55,7 +55,12 @@ export class AuthService {
       throw new ForbiddenException('Account created, pending approval');
     }
 
-    const tokens = await this.generateTokens(user.id, user.email, user.role);
+    const tokens = await this.generateTokens(
+      user.id,
+      user.email,
+      user.name,
+      user.role,
+    );
     await this.updateStoredRefreshToken(user.id, tokens.refreshToken);
 
     return {
@@ -85,7 +90,12 @@ export class AuthService {
       throw new ForbiddenException('Your account is pending approval');
     }
 
-    const tokens = await this.generateTokens(user.id, user.email, user.role);
+    const tokens = await this.generateTokens(
+      user.id,
+      user.email,
+      user.name,
+      user.role,
+    );
     await this.updateStoredRefreshToken(user.id, tokens.refreshToken);
 
     return {
@@ -117,7 +127,12 @@ export class AuthService {
       throw new UnauthorizedException('Access denied');
     }
 
-    const tokens = await this.generateTokens(user.id, user.email, user.role);
+    const tokens = await this.generateTokens(
+      user.id,
+      user.email,
+      user.name,
+      user.role,
+    );
     await this.updateStoredRefreshToken(user.id, tokens.refreshToken);
 
     return {
@@ -136,8 +151,13 @@ export class AuthService {
     await this.usersService.updateRefreshToken(userId, null);
   }
 
-  private async generateTokens(userId: string, email: string, role: string) {
-    const payload = { sub: userId, email, role };
+  private async generateTokens(
+    userId: string,
+    email: string,
+    name: string,
+    role: string,
+  ) {
+    const payload = { sub: userId, email, name, role };
 
     const [accessToken, refreshToken] = await Promise.all([
       this.jwtService.signAsync(payload, {

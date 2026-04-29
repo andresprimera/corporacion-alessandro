@@ -7,6 +7,13 @@ export const paginationQuerySchema = z.object({
 
 export type PaginationQuery = z.infer<typeof paginationQuerySchema>;
 
+export const onlyActiveQueryShape = {
+  onlyActive: z
+    .enum(["true", "false"])
+    .transform((v) => v === "true")
+    .optional(),
+};
+
 export interface PaginationMeta {
   page: number;
   limit: number;

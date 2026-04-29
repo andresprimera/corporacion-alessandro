@@ -1,5 +1,6 @@
 import {
   type Product,
+  type ProductOption,
   type PaginatedResponse,
   type CreateProductInput,
   type UpdateProductInput,
@@ -41,4 +42,9 @@ export async function updateProductApi(
 
 export async function removeProductApi(id: string): Promise<void> {
   await authFetch(`/api/products/${id}`, { method: "DELETE" })
+}
+
+export async function fetchProductOptionsApi(): Promise<ProductOption[]> {
+  const res = await authFetch("/api/products/options")
+  return res.json()
 }
