@@ -1,7 +1,9 @@
 import {
   BadRequestException,
+  Inject,
   Injectable,
   NotFoundException,
+  forwardRef,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, PipelineStage, Types } from 'mongoose';
@@ -42,6 +44,7 @@ export class InventoryService {
     @InjectModel(InventoryTransaction.name)
     private inventoryModel: Model<InventoryTransaction>,
     private productsService: ProductsService,
+    @Inject(forwardRef(() => WarehousesService))
     private warehousesService: WarehousesService,
   ) {}
 
