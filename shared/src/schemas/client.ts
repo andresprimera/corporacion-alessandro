@@ -5,7 +5,9 @@ import { paginationQuerySchema } from "./pagination";
 export const clientSchema = z.object({
   id: z.string(),
   name: z.string().min(1, "Name is required"),
-  rif: z.string().min(1, "RIF is required"),
+  rif: z
+    .string()
+    .regex(/^\d{3}\.\d{3}\.\d{3}-\d$/, "RIF must be in format 999.999.999-9"),
   address: z.string().min(1, "Address is required"),
   phone: z.string().min(1, "Phone is required"),
   salesPersonId: z.string(),
@@ -17,7 +19,9 @@ export type Client = z.infer<typeof clientSchema>;
 
 export const createClientSchema = z.object({
   name: z.string().min(1, "Name is required"),
-  rif: z.string().min(1, "RIF is required"),
+  rif: z
+    .string()
+    .regex(/^\d{3}\.\d{3}\.\d{3}-\d$/, "RIF must be in format 999.999.999-9"),
   address: z.string().min(1, "Address is required"),
   phone: z.string().min(1, "Phone is required"),
   salesPersonId: z.string().optional(),

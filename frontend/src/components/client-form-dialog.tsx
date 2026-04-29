@@ -47,6 +47,15 @@ const defaultValues: CreateClientInput = {
   salesPersonId: "",
 }
 
+function formatRif(input: string): string {
+  const digits = input.replace(/\D/g, "").slice(0, 10)
+  if (digits.length <= 3) return digits
+  if (digits.length <= 6) return `${digits.slice(0, 3)}.${digits.slice(3)}`
+  if (digits.length <= 9)
+    return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6)}`
+  return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6, 9)}-${digits.slice(9)}`
+}
+
 function clientToFormValues(client: Client): CreateClientInput {
   return {
     name: client.name,
@@ -143,7 +152,22 @@ export function ClientFormDialog({
             </Field>
             <Field>
               <FieldLabel htmlFor="client-rif">{t("RIF")}</FieldLabel>
-              <Input id="client-rif" type="text" {...register("rif")} />
+              <Controller
+                name="rif"
+                control={control}
+                render={({ field }) => (
+                  <Input
+                    id="client-rif"
+                    type="text"
+                    inputMode="numeric"
+                    placeholder="999.999.999-9"
+                    value={field.value ?? ""}
+                    onChange={(e) =>
+                      field.onChange(formatRif(e.target.value))
+                    }
+                  />
+                )}
+              />
               {errors.rif && (
                 <FieldDescription className="text-destructive">
                   {t(errors.rif.message ?? "")}

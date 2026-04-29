@@ -420,6 +420,7 @@
   "Client not found": "Cliente no encontrado",
   "RIF": "RIF",
   "RIF is required": "El RIF es obligatorio",
+  "RIF must be in format 999.999.999-9": "El RIF debe tener el formato 999.999.999-9",
   "Phone": "Teléfono",
   "Phone is required": "El teléfono es obligatorio",
   "Address is required": "La dirección es obligatoria",
