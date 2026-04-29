@@ -7,6 +7,7 @@ import CitiesPage from "@/pages/cities"
 import WarehousesPage from "@/pages/warehouses"
 import InventoryPage from "@/pages/inventory"
 import StockPage from "@/pages/stock"
+import SalesPage from "@/pages/sales"
 import LoginPage from "@/pages/login"
 import SignupPage from "@/pages/signup"
 import ForgotPasswordPage from "@/pages/forgot-password"
@@ -14,6 +15,7 @@ import ResetPasswordPage from "@/pages/reset-password"
 import SettingsPage from "@/pages/settings"
 import { ProtectedRoute } from "@/components/protected-route"
 import { AdminRoute } from "@/components/admin-route"
+import { RoleRoute } from "@/components/role-route"
 import { DashboardLayout } from "@/components/dashboard-layout"
 
 export const router = createBrowserRouter([
@@ -95,6 +97,14 @@ export const router = createBrowserRouter([
           <AdminRoute>
             <StockPage />
           </AdminRoute>
+        ),
+      },
+      {
+        path: "sales",
+        element: (
+          <RoleRoute allowed={["admin", "salesPerson"]}>
+            <SalesPage />
+          </RoleRoute>
         ),
       },
       {

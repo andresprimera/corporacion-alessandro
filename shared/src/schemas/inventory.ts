@@ -120,5 +120,6 @@ export type ProductStockAggregated = z.infer<
 
 export const stockByWarehouseQuerySchema = paginationQuerySchema.extend({
   warehouseId: z.string().optional(),
+  productId: z.string().optional(),
 });
 export type StockByWarehouseQuery = z.infer<typeof stockByWarehouseQuerySchema>;

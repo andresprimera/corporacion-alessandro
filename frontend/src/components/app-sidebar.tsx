@@ -23,6 +23,7 @@ import {
   WarehouseIcon,
   BoxesIcon,
   BarChart3Icon,
+  ReceiptIcon,
 } from "lucide-react"
 import { useAuth } from "@/hooks/use-auth"
 import { Link } from "react-router"
@@ -31,6 +32,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { t } = useTranslation()
   const { user } = useAuth()
   const isAdmin = user?.role === "admin"
+  const isSalesPerson = user?.role === "salesPerson"
 
   const adminNavMain = [
     { title: t("Dashboard"), url: "/dashboard", icon: <LayoutDashboardIcon /> },
@@ -40,6 +42,12 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     { title: t("Warehouses"), url: "/dashboard/warehouses", icon: <WarehouseIcon /> },
     { title: t("Inventory"), url: "/dashboard/inventory", icon: <BoxesIcon /> },
     { title: t("Stock"), url: "/dashboard/stock", icon: <BarChart3Icon /> },
+    { title: t("Sales"), url: "/dashboard/sales", icon: <ReceiptIcon /> },
+  ]
+
+  const salesPersonNavMain = [
+    { title: t("Dashboard"), url: "/dashboard", icon: <LayoutDashboardIcon /> },
+    { title: t("Sales"), url: "/dashboard/sales", icon: <ReceiptIcon /> },
   ]
 
   const userNavMain = [
@@ -66,7 +74,15 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         </SidebarMenu>
       </SidebarHeader>
       <SidebarContent>
-        <NavMain items={isAdmin ? adminNavMain : userNavMain} />
+        <NavMain
+          items={
+            isAdmin
+              ? adminNavMain
+              : isSalesPerson
+                ? salesPersonNavMain
+                : userNavMain
+          }
+        />
         <NavSecondary items={navSecondary} className="mt-auto" />
       </SidebarContent>
       <SidebarFooter>

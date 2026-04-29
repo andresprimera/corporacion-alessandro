@@ -72,15 +72,21 @@ export async function fetchStockAggregatedApi(
   return res.json()
 }
 
-export async function fetchStockByWarehouseApi(
-  args: { warehouseId?: string; page: number; limit: number },
-): Promise<PaginatedResponse<ProductStockByWarehouse>> {
+export async function fetchStockByWarehouseApi(args: {
+  warehouseId?: string
+  productId?: string
+  page: number
+  limit: number
+}): Promise<PaginatedResponse<ProductStockByWarehouse>> {
   const params = new URLSearchParams({
     page: String(args.page),
     limit: String(args.limit),
   })
   if (args.warehouseId) {
     params.set("warehouseId", args.warehouseId)
+  }
+  if (args.productId) {
+    params.set("productId", args.productId)
   }
   const res = await authFetch(
     `/api/inventory-transactions/stock/by-warehouse?${params}`,

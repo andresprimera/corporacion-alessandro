@@ -12,6 +12,7 @@ import { ProductsModule } from './products/products.module';
 import { CitiesModule } from './cities/cities.module';
 import { WarehousesModule } from './warehouses/warehouses.module';
 import { InventoryModule } from './inventory/inventory.module';
+import { SalesModule } from './sales/sales.module';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 import { SeederModule } from './seeder/seeder.module';
 
@@ -37,6 +38,7 @@ import { SeederModule } from './seeder/seeder.module';
     CitiesModule,
     WarehousesModule,
     InventoryModule,
+    SalesModule,
     SeederModule,
   ],
   controllers: [AppController],

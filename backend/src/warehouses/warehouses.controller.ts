@@ -83,6 +83,7 @@ export class WarehousesController {
   }
 
   @Get('options')
+  @Roles('admin', 'salesPerson')
   async findOptions(): Promise<WarehouseOption[]> {
     return this.warehousesService.findActiveOptions();
   }

@@ -65,11 +65,14 @@ export class InventoryService {
   async create(
     data: CreateInventoryTransactionInput,
     createdBy: InventoryTransactionCreatedBy,
+    opts: { skipValidation?: boolean } = {},
   ): Promise<InventoryTransactionDocument> {
-    await Promise.all([
-      this.assertProduct(data.productId),
-      this.assertActiveWarehouse(data.warehouseId),
-    ]);
+    if (!opts.skipValidation) {
+      await Promise.all([
+        this.assertProduct(data.productId),
+        this.assertActiveWarehouse(data.warehouseId),
+      ]);
+    }
     const created = await this.inventoryModel.create({
       ...data,
       productId: new Types.ObjectId(data.productId),
@@ -170,19 +173,42 @@ export class InventoryService {
     return result !== null;
   }
 
+  async findAvailableStock(
+    productId: string,
+    warehouseId: string,
+  ): Promise<number> {
+    const [result] = await this.inventoryModel.aggregate<{ totalQty: number }>([
+      {
+        $match: {
+          productId: new Types.ObjectId(productId),
+          warehouseId: new Types.ObjectId(warehouseId),
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          totalQty: signedQtySum,
+        },
+      },
+    ]);
+    return result?.totalQty ?? 0;
+  }
+
   async findStockByWarehouse(
     query: StockByWarehouseQuery,
   ): Promise<{ data: ProductStockByWarehouse[]; total: number }> {
     const skip = (query.page - 1) * query.limit;
-    const matchStage: PipelineStage[] = query.warehouseId
-      ? [
-          {
-            $match: {
-              warehouseId: new Types.ObjectId(query.warehouseId),
-            },
-          },
-        ]
-      : [];
+    const matchFilter: Record<string, Types.ObjectId> = {};
+    if (query.warehouseId) {
+      matchFilter.warehouseId = new Types.ObjectId(query.warehouseId);
+    }
+    if (query.productId) {
+      matchFilter.productId = new Types.ObjectId(query.productId);
+    }
+    const matchStage: PipelineStage[] =
+      Object.keys(matchFilter).length > 0
+        ? [{ $match: matchFilter }]
+        : [];
 
     const pipeline: PipelineStage[] = [
       ...matchStage,

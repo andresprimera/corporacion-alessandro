@@ -87,6 +87,7 @@ export class InventoryController {
   constructor(private inventoryService: InventoryService) {}
 
   @Get('stock/by-warehouse')
+  @Roles('admin', 'salesPerson')
   async findStockByWarehouse(
     @Query(new ZodValidationPipe(stockByWarehouseQuerySchema))
     query: StockByWarehouseQuery,

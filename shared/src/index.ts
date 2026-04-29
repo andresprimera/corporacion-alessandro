@@ -115,3 +115,20 @@ export {
   stockByWarehouseQuerySchema,
   type StockByWarehouseQuery,
 } from "./schemas/inventory";
+
+export {
+  warehouseAllocationSchema,
+  type WarehouseAllocation,
+  saleItemSchema,
+  type SaleItem,
+  saleSoldBySchema,
+  type SaleSoldBy,
+  saleSchema,
+  type Sale,
+  createSaleSchema,
+  type CreateSaleInput,
+  updateSaleSchema,
+  type UpdateSaleInput,
+  saleListQuerySchema,
+  type SaleListQuery,
+} from "./schemas/sale";

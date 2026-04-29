@@ -152,5 +152,24 @@ describe("inventory API", () => {
         "/api/inventory-transactions/stock/by-warehouse?page=1&limit=10&warehouseId=w1",
       )
     })
+
+    it("should include productId when provided", async () => {
+      vi.mocked(authFetch).mockResolvedValue(
+        mockJsonResponse({
+          data: [],
+          meta: { page: 1, limit: 10, total: 0, totalPages: 0 },
+        }),
+      )
+
+      await fetchStockByWarehouseApi({
+        productId: "p1",
+        page: 1,
+        limit: 100,
+      })
+
+      expect(authFetch).toHaveBeenCalledWith(
+        "/api/inventory-transactions/stock/by-warehouse?page=1&limit=100&productId=p1",
+      )
+    })
   })
 })

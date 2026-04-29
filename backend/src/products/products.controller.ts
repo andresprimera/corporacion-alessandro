@@ -87,6 +87,7 @@ export class ProductsController {
   }
 
   @Get('options')
+  @Roles('admin', 'salesPerson')
   async findOptions(): Promise<ProductOption[]> {
     const opts = await this.productsService.findOptions();
     return opts.map((o) => ({
