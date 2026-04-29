@@ -32,6 +32,7 @@ import {
   updateUserCitySchema,
   type UpdateUserCityInput,
   type PaginatedResponse,
+  type SalesPersonOption,
   type User,
 } from '@base-dashboard/shared';
 import {
@@ -141,6 +142,13 @@ export class UsersController {
       cityId: dto.cityId,
     });
     return toUser(user);
+  }
+
+  @Get('sales-persons/options')
+  @UseGuards(RolesGuard)
+  @Roles('admin')
+  async getSalesPersonOptions(): Promise<SalesPersonOption[]> {
+    return this.usersService.getSalesPersonOptions();
   }
 
   @Get()

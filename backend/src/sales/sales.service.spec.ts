@@ -1,11 +1,13 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getModelToken } from '@nestjs/mongoose';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { Types } from 'mongoose';
 import { SalesService } from './sales.service';
 import { Sale } from './schemas/sale.schema';
 import { ProductsService } from '../products/products.service';
 import { WarehousesService } from '../warehouses/warehouses.service';
 import { InventoryService } from '../inventory/inventory.service';
+import { ClientsService } from '../clients/clients.service';
 
 describe('SalesService', () => {
   let service: SalesService;
@@ -17,16 +19,29 @@ describe('SalesService', () => {
     create: jest.fn(),
     findAvailableStock: jest.fn(),
   };
+  const clientsService = { findById: jest.fn() };
 
   const VALID_PRODUCT_ID = '507f1f77bcf86cd799439011';
   const VALID_WAREHOUSE_A = '507f1f77bcf86cd799439021';
   const VALID_WAREHOUSE_B = '507f1f77bcf86cd799439022';
+  const VALID_CLIENT_ID = '507f1f77bcf86cd799439031';
+  const VALID_SALES_PERSON_ID = '507f1f77bcf86cd799439041';
+  const OTHER_SALES_PERSON_ID = '507f1f77bcf86cd799439042';
 
   const mockProduct = {
     id: VALID_PRODUCT_ID,
     name: 'Harina PAN 1kg',
     kind: 'groceries',
     price: { value: 1.5, currency: 'USD' },
+  };
+
+  const mockClient = {
+    id: VALID_CLIENT_ID,
+    name: 'Bodega Local',
+    salesPersonId: {
+      _id: new Types.ObjectId(VALID_SALES_PERSON_ID),
+      name: 'Sales User',
+    },
   };
 
   beforeEach(async () => {
@@ -49,6 +64,7 @@ describe('SalesService', () => {
         { provide: ProductsService, useValue: productsService },
         { provide: WarehousesService, useValue: warehousesService },
         { provide: InventoryService, useValue: inventoryService },
+        { provide: ClientsService, useValue: clientsService },
       ],
     }).compile();
 
@@ -59,13 +75,19 @@ describe('SalesService', () => {
       sort: jest.fn().mockReturnThis(),
       select: jest.fn().mockResolvedValue(null),
     });
+
+    // Default: client lookup returns the mock client
+    clientsService.findById.mockResolvedValue(mockClient);
   });
 
   describe('create', () => {
-    const soldBy = { userId: 'user-1', name: 'Sales User' };
+    const soldBy = { userId: VALID_SALES_PERSON_ID, name: 'Sales User' };
+    const adminActor = { role: 'admin' as const };
+    const salesPersonActor = { role: 'salesPerson' as const };
 
     function singleAllocationDto() {
       return {
+        clientId: VALID_CLIENT_ID,
         items: [
           {
             productId: VALID_PRODUCT_ID,
@@ -81,7 +103,7 @@ describe('SalesService', () => {
       productsService.findById.mockResolvedValue(null);
 
       await expect(
-        service.create(singleAllocationDto(), soldBy),
+        service.create(singleAllocationDto(), soldBy, adminActor),
       ).rejects.toThrow(NotFoundException);
     });
 
@@ -90,7 +112,7 @@ describe('SalesService', () => {
       warehousesService.findById.mockResolvedValue(null);
 
       await expect(
-        service.create(singleAllocationDto(), soldBy),
+        service.create(singleAllocationDto(), soldBy, adminActor),
       ).rejects.toThrow(NotFoundException);
     });
 
@@ -103,7 +125,7 @@ describe('SalesService', () => {
       });
 
       await expect(
-        service.create(singleAllocationDto(), soldBy),
+        service.create(singleAllocationDto(), soldBy, adminActor),
       ).rejects.toThrow(BadRequestException);
     });
 
@@ -117,7 +139,7 @@ describe('SalesService', () => {
       inventoryService.findAvailableStock.mockResolvedValue(5);
 
       await expect(
-        service.create(singleAllocationDto(), soldBy),
+        service.create(singleAllocationDto(), soldBy, adminActor),
       ).rejects.toThrow(/Insufficient stock/);
       expect(inventoryService.create).not.toHaveBeenCalled();
     });
@@ -135,6 +157,7 @@ describe('SalesService', () => {
       inventoryService.findAvailableStock.mockResolvedValue(50);
 
       const dto = {
+        clientId: VALID_CLIENT_ID,
         items: [
           {
             productId: VALID_PRODUCT_ID,
@@ -151,7 +174,7 @@ describe('SalesService', () => {
         ],
       };
 
-      await expect(service.create(dto, soldBy)).rejects.toThrow(
+      await expect(service.create(dto, soldBy, adminActor)).rejects.toThrow(
         /Insufficient stock/,
       );
       expect(inventoryService.create).not.toHaveBeenCalled();
@@ -174,7 +197,7 @@ describe('SalesService', () => {
       saleModel.create.mockResolvedValue({ id: 'sale-1' });
 
       const dto = {
-        customerName: 'Bodega Local',
+        clientId: VALID_CLIENT_ID,
         items: [
           {
             productId: VALID_PRODUCT_ID,
@@ -188,7 +211,7 @@ describe('SalesService', () => {
         ],
       };
 
-      await service.create(dto, soldBy);
+      await service.create(dto, soldBy, adminActor);
 
       expect(inventoryService.create).toHaveBeenCalledTimes(2);
       const [firstTx, firstCreatedBy, firstOpts] =
@@ -208,6 +231,47 @@ describe('SalesService', () => {
       expect(inserted.totalAmount).toBe(30 * 1.5);
       expect(inserted.currency).toBe('USD');
       expect(inserted.saleNumber).toMatch(/^S-\d{4}-00001$/);
+      expect(inserted.clientName).toBe(mockClient.name);
+      expect(inserted.clientId.toString()).toBe(VALID_CLIENT_ID);
+    });
+
+    it('throws NotFoundException when client is missing', async () => {
+      clientsService.findById.mockResolvedValue(null);
+
+      await expect(
+        service.create(singleAllocationDto(), soldBy, adminActor),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it("throws ForbiddenException when sales person uses another sales person's client", async () => {
+      clientsService.findById.mockResolvedValue({
+        ...mockClient,
+        salesPersonId: {
+          _id: new Types.ObjectId(OTHER_SALES_PERSON_ID),
+          name: 'Other Sales User',
+        },
+      });
+
+      await expect(
+        service.create(singleAllocationDto(), soldBy, salesPersonActor),
+      ).rejects.toThrow(/another sales person/);
+      expect(inventoryService.create).not.toHaveBeenCalled();
+      expect(saleModel.create).not.toHaveBeenCalled();
+    });
+
+    it('allows a sales person to use their own client', async () => {
+      productsService.findById.mockResolvedValue(mockProduct);
+      warehousesService.findById.mockResolvedValue({
+        id: VALID_WAREHOUSE_A,
+        name: 'Almacén X',
+        isActive: true,
+      });
+      inventoryService.findAvailableStock.mockResolvedValue(100);
+      saleModel.create.mockResolvedValue({ id: 'sale-1' });
+
+      await service.create(singleAllocationDto(), soldBy, salesPersonActor);
+
+      expect(saleModel.create).toHaveBeenCalledTimes(1);
     });
 
     it('retries the saleNumber generation on duplicate-key without re-running inventory writes', async () => {
@@ -224,7 +288,7 @@ describe('SalesService', () => {
         .mockRejectedValueOnce(dupErr)
         .mockResolvedValueOnce({ id: 'sale-1', saleNumber: 'S-2026-00002' });
 
-      await service.create(singleAllocationDto(), soldBy);
+      await service.create(singleAllocationDto(), soldBy, adminActor);
 
       // Sale.create called twice (one dup-key, one success)
       expect(saleModel.create).toHaveBeenCalledTimes(2);
@@ -249,7 +313,7 @@ describe('SalesService', () => {
       inventoryService.findAvailableStock.mockResolvedValue(100);
       saleModel.create.mockResolvedValue({ id: 'sale-1' });
 
-      await service.create(singleAllocationDto(), soldBy);
+      await service.create(singleAllocationDto(), soldBy, adminActor);
 
       const inserted = saleModel.create.mock.calls[0][0];
       expect(inserted.saleNumber).toBe(`S-${year}-00043`);

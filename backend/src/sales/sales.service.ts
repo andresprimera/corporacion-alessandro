@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   Logger,
   NotFoundException,
@@ -10,9 +11,12 @@ import { Sale, SaleDocument } from './schemas/sale.schema';
 import { ProductsService } from '../products/products.service';
 import { WarehousesService } from '../warehouses/warehouses.service';
 import { InventoryService } from '../inventory/inventory.service';
+import { ClientsService } from '../clients/clients.service';
 import { isDuplicateKeyError } from '../common/utils/mongo-errors';
+import { readPopulatedRef } from '../common/utils/populated-ref';
 import type {
   CreateSaleInput,
+  Role,
   SaleSoldBy,
   UpdateSaleInput,
 } from '@base-dashboard/shared';
@@ -42,12 +46,27 @@ export class SalesService {
     private productsService: ProductsService,
     private warehousesService: WarehousesService,
     private inventoryService: InventoryService,
+    private clientsService: ClientsService,
   ) {}
 
   async create(
     dto: CreateSaleInput,
     soldBy: SaleSoldBy,
+    actor: { role: Role },
   ): Promise<SaleDocument> {
+    const client = await this.clientsService.findById(dto.clientId);
+    if (!client) {
+      throw new NotFoundException('Client not found');
+    }
+    if (
+      actor.role === 'salesPerson' &&
+      readPopulatedRef(client.salesPersonId).id !== soldBy.userId
+    ) {
+      throw new ForbiddenException(
+        'Cannot use a client from another sales person',
+      );
+    }
+
     const resolvedItems = await this.resolveAndValidateItems(dto);
 
     const totalQty = resolvedItems.reduce(
@@ -69,6 +88,7 @@ export class SalesService {
       currency,
       soldBy,
       dto,
+      { id: client.id, name: client.name },
     );
 
     const batch = `SALE-${created.saleNumber}`;
@@ -102,13 +122,15 @@ export class SalesService {
     currency: string,
     soldBy: SaleSoldBy,
     dto: CreateSaleInput,
+    client: { id: string; name: string },
     retriesLeft = 3,
   ): Promise<SaleDocument> {
     const saleNumber = await this.generateSaleNumber();
     try {
       return await this.saleModel.create({
         saleNumber,
-        customerName: dto.customerName,
+        clientId: new Types.ObjectId(client.id),
+        clientName: client.name,
         notes: dto.notes,
         items: resolvedItems.map((item) => ({
           productId: new Types.ObjectId(item.productId),
@@ -137,6 +159,7 @@ export class SalesService {
           currency,
           soldBy,
           dto,
+          client,
           retriesLeft - 1,
         );
       }

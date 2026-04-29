@@ -2,6 +2,7 @@ import {
   type User,
   type PaginatedResponse,
   type CreateUserInput,
+  type SalesPersonOption,
 } from "@base-dashboard/shared"
 import { authFetch } from "@/lib/api"
 
@@ -59,5 +60,18 @@ export async function createUserApi(data: CreateUserInput): Promise<User> {
     method: "POST",
     body: JSON.stringify(data),
   })
+  return res.json()
+}
+
+export const salesPersonOptionsQueryKey = [
+  "users",
+  "sales-persons",
+  "options",
+] as const
+
+export async function fetchSalesPersonOptionsApi(): Promise<
+  SalesPersonOption[]
+> {
+  const res = await authFetch("/api/users/sales-persons/options")
   return res.json()
 }

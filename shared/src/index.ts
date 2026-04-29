@@ -132,3 +132,18 @@ export {
   saleListQuerySchema,
   type SaleListQuery,
 } from "./schemas/sale";
+
+export {
+  clientSchema,
+  type Client,
+  createClientSchema,
+  type CreateClientInput,
+  updateClientSchema,
+  type UpdateClientInput,
+  clientListQuerySchema,
+  type ClientListQuery,
+  salesPersonOptionSchema,
+  type SalesPersonOption,
+  clientOptionSchema,
+  type ClientOption,
+} from "./schemas/client";

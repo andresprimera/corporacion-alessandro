@@ -30,7 +30,8 @@ export type SaleSoldBy = z.infer<typeof saleSoldBySchema>;
 export const saleSchema = z.object({
   id: z.string(),
   saleNumber: z.string(),
-  customerName: z.string().optional(),
+  clientId: z.string(),
+  clientName: z.string(),
   notes: z.string().optional(),
   items: z.array(saleItemSchema),
   totalQty: z.number(),
@@ -66,14 +67,13 @@ const saleItemInputSchema = saleItemInputBase.refine(
 export type SaleItemInput = z.infer<typeof saleItemInputSchema>;
 
 export const createSaleSchema = z.object({
-  customerName: z.string().optional(),
+  clientId: z.string().min(1, "Client is required"),
   notes: z.string().optional(),
   items: z.array(saleItemInputSchema).min(1, "At least one item is required"),
 });
 export type CreateSaleInput = z.infer<typeof createSaleSchema>;
 
 export const updateSaleSchema = z.object({
-  customerName: z.string().optional(),
   notes: z.string().optional(),
 });
 export type UpdateSaleInput = z.infer<typeof updateSaleSchema>;

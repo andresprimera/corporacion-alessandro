@@ -26,6 +26,7 @@ import {
   type Currency,
   type PaginatedResponse,
   type ProductKind,
+  type Role,
   type Sale,
   type SaleItem,
   type WarehouseAllocation,
@@ -59,7 +60,8 @@ function toSale(doc: SaleDocument): Sale {
   return {
     id: doc.id,
     saleNumber: doc.saleNumber,
-    customerName: doc.customerName,
+    clientId: doc.clientId.toString(),
+    clientName: doc.clientName,
     notes: doc.notes,
     items: doc.items.map(toItem),
     totalQty: doc.totalQty,
@@ -109,12 +111,13 @@ export class SalesController {
   @Post()
   async create(
     @Body(new ZodValidationPipe(createSaleSchema)) dto: CreateSaleInput,
-    @CurrentUser() user: { userId: string; name: string },
+    @CurrentUser() user: { userId: string; name: string; role: Role },
   ): Promise<Sale> {
-    const sale = await this.salesService.create(dto, {
-      userId: user.userId,
-      name: user.name,
-    });
+    const sale = await this.salesService.create(
+      dto,
+      { userId: user.userId, name: user.name },
+      { role: user.role },
+    );
     return toSale(sale);
   }
 

@@ -14,6 +14,7 @@ import {
 } from "@base-dashboard/shared"
 import { fetchProductOptionsApi } from "@/lib/products"
 import { fetchStockByWarehouseApi } from "@/lib/inventory"
+import { fetchClientOptionsApi } from "@/lib/clients"
 import { createSaleApi } from "@/lib/sales"
 import { toast } from "sonner"
 import {
@@ -49,7 +50,7 @@ const defaultItem: CreateSaleInput["items"][number] = {
 }
 
 const defaultValues: CreateSaleInput = {
-  customerName: "",
+  clientId: "",
   notes: "",
   items: [defaultItem],
 }
@@ -205,6 +206,12 @@ export function SaleFormDialog({
     enabled: open,
   })
 
+  const { data: clientOptions = [] } = useQuery({
+    queryKey: ["clients", "options"],
+    queryFn: fetchClientOptionsApi,
+    enabled: open,
+  })
+
   const {
     register,
     handleSubmit,
@@ -251,7 +258,7 @@ export function SaleFormDialog({
 
   function onSubmit(values: CreateSaleInput) {
     mutation.mutate({
-      customerName: values.customerName?.trim() || undefined,
+      clientId: values.clientId,
       notes: values.notes?.trim() || undefined,
       items: values.items.map((item) => ({
         productId: item.productId,
@@ -286,14 +293,33 @@ export function SaleFormDialog({
         <form onSubmit={handleSubmit(onSubmit)}>
           <FieldGroup>
             <Field>
-              <FieldLabel htmlFor="customer-name">
-                {t("Customer (optional)")}
-              </FieldLabel>
-              <Input
-                id="customer-name"
-                type="text"
-                {...register("customerName")}
+              <FieldLabel>{t("Client")}</FieldLabel>
+              <Controller
+                name="clientId"
+                control={control}
+                render={({ field }) => (
+                  <Select
+                    value={field.value || ""}
+                    onValueChange={(val) => val && field.onChange(val)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder={t("Select client")} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {clientOptions.map((c) => (
+                        <SelectItem key={c.id} value={c.id}>
+                          {c.name} ({c.rif})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
               />
+              {errors.clientId && (
+                <FieldDescription className="text-destructive">
+                  {t(errors.clientId.message ?? "")}
+                </FieldDescription>
+              )}
             </Field>
             <Field>
               <FieldLabel htmlFor="sale-notes">{t("Notes")}</FieldLabel>

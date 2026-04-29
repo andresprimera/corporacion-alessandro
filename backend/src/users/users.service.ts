@@ -1,7 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
-import { type Role, type UserStatus } from '@base-dashboard/shared';
+import {
+  type Role,
+  type SalesPersonOption,
+  type UserStatus,
+} from '@base-dashboard/shared';
 import { User, UserDocument } from './schemas/user.schema';
 
 export type CreateUserData = {
@@ -33,6 +37,13 @@ export class UsersService {
 
   async findAll(): Promise<UserDocument[]> {
     return this.userModel.find();
+  }
+
+  async getSalesPersonOptions(): Promise<SalesPersonOption[]> {
+    const docs = await this.userModel
+      .find({ role: 'salesPerson', status: 'approved' }, { name: 1 })
+      .sort({ name: 1 });
+    return docs.map((d) => ({ id: d.id, name: d.name }));
   }
 
   async findAllPaginated(

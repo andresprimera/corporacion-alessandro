@@ -24,6 +24,7 @@ import {
   BoxesIcon,
   BarChart3Icon,
   ReceiptIcon,
+  ContactIcon,
 } from "lucide-react"
 import { useAuth } from "@/hooks/use-auth"
 import { Link } from "react-router"
@@ -42,11 +43,13 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     { title: t("Warehouses"), url: "/dashboard/warehouses", icon: <WarehouseIcon /> },
     { title: t("Inventory"), url: "/dashboard/inventory", icon: <BoxesIcon /> },
     { title: t("Stock"), url: "/dashboard/stock", icon: <BarChart3Icon /> },
+    { title: t("Clients"), url: "/dashboard/clients", icon: <ContactIcon /> },
     { title: t("Sales"), url: "/dashboard/sales", icon: <ReceiptIcon /> },
   ]
 
   const salesPersonNavMain = [
     { title: t("Dashboard"), url: "/dashboard", icon: <LayoutDashboardIcon /> },
+    { title: t("My Clients"), url: "/dashboard/clients", icon: <ContactIcon /> },
     { title: t("Sales"), url: "/dashboard/sales", icon: <ReceiptIcon /> },
   ]
 

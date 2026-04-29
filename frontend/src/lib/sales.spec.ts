@@ -51,7 +51,7 @@ describe("sales API", () => {
       vi.mocked(authFetch).mockResolvedValue(mockJsonResponse(sale))
 
       const data = {
-        customerName: "Bodega",
+        clientId: "c1",
         items: [
           {
             productId: "p1",
@@ -75,7 +75,7 @@ describe("sales API", () => {
     it("should PATCH /api/sales/:id", async () => {
       vi.mocked(authFetch).mockResolvedValue(mockJsonResponse({ id: "s1" }))
 
-      const data = { customerName: "Updated" }
+      const data = { notes: "Updated" }
       await updateSaleApi("s1", data)
 
       expect(authFetch).toHaveBeenCalledWith("/api/sales/s1", {

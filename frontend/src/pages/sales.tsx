@@ -117,7 +117,7 @@ export default function SalesPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>{t("Sale #")}</TableHead>
-                <TableHead>{t("Customer")}</TableHead>
+                <TableHead>{t("Client")}</TableHead>
                 <TableHead>{t("Items")}</TableHead>
                 <TableHead>{t("Total")}</TableHead>
                 <TableHead>{t("Sold by")}</TableHead>
@@ -167,7 +167,7 @@ export default function SalesPage() {
           <TableHeader>
             <TableRow>
               <TableHead>{t("Sale #")}</TableHead>
-              <TableHead>{t("Customer")}</TableHead>
+              <TableHead>{t("Client")}</TableHead>
               <TableHead>{t("Items")}</TableHead>
               <TableHead>{t("Total")}</TableHead>
               <TableHead>{t("Sold by")}</TableHead>
@@ -188,11 +188,7 @@ export default function SalesPage() {
                   <TableCell className="font-mono text-sm">
                     {sale.saleNumber}
                   </TableCell>
-                  <TableCell>
-                    {sale.customerName || (
-                      <span className="text-muted-foreground">—</span>
-                    )}
-                  </TableCell>
+                  <TableCell>{sale.clientName}</TableCell>
                   <TableCell>
                     {t("{{count}} item", { count: sale.items.length })}
                     <span className="text-muted-foreground">

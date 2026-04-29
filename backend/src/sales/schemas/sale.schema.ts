@@ -60,8 +60,11 @@ export class Sale {
   @Prop({ required: true, unique: true })
   saleNumber: string;
 
-  @Prop({ required: false, trim: true })
-  customerName?: string;
+  @Prop({ type: SchemaTypes.ObjectId, ref: 'Client', required: true })
+  clientId: Types.ObjectId;
+
+  @Prop({ required: true })
+  clientName: string;
 
   @Prop({ required: false, trim: true })
   notes?: string;
