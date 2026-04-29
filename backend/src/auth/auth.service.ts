@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -15,7 +16,11 @@ import { type SignupInput } from './dto/signup.dto';
 import { type LoginInput } from './dto/login.dto';
 import { type ForgotPasswordInput } from './dto/forgot-password.dto';
 import { type ResetPasswordInput } from './dto/reset-password.dto';
-import { type AuthResponse, type Role } from '@base-dashboard/shared';
+import {
+  type AuthResponse,
+  type Role,
+  type UserStatus,
+} from '@base-dashboard/shared';
 
 @Injectable()
 export class AuthService {
@@ -35,21 +40,33 @@ export class AuthService {
     }
 
     const userCount = await this.usersService.countUsers();
-    const role = userCount === 0 ? 'admin' : 'user';
+    const isFirstUser = userCount === 0;
 
     const hashedPassword = await bcrypt.hash(dto.password, 12);
     const user = await this.usersService.create({
-      ...dto,
+      name: dto.name,
+      email: dto.email,
       password: hashedPassword,
-      role,
+      role: isFirstUser ? 'admin' : 'salesPerson',
+      status: isFirstUser ? undefined : 'in_revision',
     });
+
+    if (!isFirstUser) {
+      throw new ForbiddenException('Account created, pending approval');
+    }
 
     const tokens = await this.generateTokens(user.id, user.email, user.role);
     await this.updateStoredRefreshToken(user.id, tokens.refreshToken);
 
     return {
       ...tokens,
-      user: { id: user.id, email: user.email, name: user.name, role: user.role as Role },
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        role: user.role as Role,
+        status: user.status as UserStatus | undefined,
+      },
     };
   }
 
@@ -64,12 +81,22 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
+    if (user.role === 'salesPerson' && user.status !== 'approved') {
+      throw new ForbiddenException('Your account is pending approval');
+    }
+
     const tokens = await this.generateTokens(user.id, user.email, user.role);
     await this.updateStoredRefreshToken(user.id, tokens.refreshToken);
 
     return {
       ...tokens,
-      user: { id: user.id, email: user.email, name: user.name, role: user.role as Role },
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        role: user.role as Role,
+        status: user.status as UserStatus | undefined,
+      },
     };
   }
 
@@ -95,7 +122,13 @@ export class AuthService {
 
     return {
       ...tokens,
-      user: { id: user.id, email: user.email, name: user.name, role: user.role as Role },
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        role: user.role as Role,
+        status: user.status as UserStatus | undefined,
+      },
     };
   }
 

@@ -1,5 +1,10 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { ConflictException, UnauthorizedException, BadRequestException } from '@nestjs/common';
+import {
+  ConflictException,
+  UnauthorizedException,
+  BadRequestException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
@@ -91,16 +96,21 @@ describe('AuthService', () => {
       );
     });
 
-    it('should assign user role to subsequent users', async () => {
+    it('should assign salesPerson role with in_revision status to subsequent users and block sign-in', async () => {
       usersService.findByEmail.mockResolvedValue(null);
       usersService.countUsers.mockResolvedValue(5);
-      usersService.create.mockResolvedValue(mockUser);
+      usersService.create.mockResolvedValue({
+        ...mockUser,
+        role: 'salesPerson',
+        status: 'in_revision',
+      });
 
-      await service.signup(dto);
+      await expect(service.signup(dto)).rejects.toThrow(ForbiddenException);
 
       expect(usersService.create).toHaveBeenCalledWith(
-        expect.objectContaining({ role: 'user' }),
+        expect.objectContaining({ role: 'salesPerson', status: 'in_revision' }),
       );
+      expect(jwtService.signAsync).not.toHaveBeenCalled();
     });
 
     it('should return tokens and user data on successful signup', async () => {
@@ -164,6 +174,44 @@ describe('AuthService', () => {
       await service.login(dto);
 
       expect(usersService.updateRefreshToken).toHaveBeenCalledWith('user-1', 'hashed-value');
+    });
+
+    it('should throw ForbiddenException for salesPerson with in_revision status', async () => {
+      usersService.findByEmail.mockResolvedValue({
+        ...mockUser,
+        role: 'salesPerson',
+        status: 'in_revision',
+      });
+      mockedBcrypt.compare.mockResolvedValue(true as never);
+
+      await expect(service.login(dto)).rejects.toThrow(ForbiddenException);
+    });
+
+    it('should allow login for salesPerson with approved status', async () => {
+      usersService.findByEmail.mockResolvedValue({
+        ...mockUser,
+        role: 'salesPerson',
+        status: 'approved',
+      });
+      mockedBcrypt.compare.mockResolvedValue(true as never);
+
+      const result = await service.login(dto);
+
+      expect(result.user.role).toBe('salesPerson');
+      expect(result.user.status).toBe('approved');
+    });
+
+    it('should allow admin login regardless of status field', async () => {
+      usersService.findByEmail.mockResolvedValue({
+        ...mockUser,
+        role: 'admin',
+        status: undefined,
+      });
+      mockedBcrypt.compare.mockResolvedValue(true as never);
+
+      const result = await service.login(dto);
+
+      expect(result.user.role).toBe('admin');
     });
   });
 

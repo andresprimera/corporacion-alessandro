@@ -8,6 +8,7 @@ import {
   Body,
   Query,
   UseGuards,
+  BadRequestException,
   ForbiddenException,
   NotFoundException,
   ConflictException,
@@ -24,7 +25,10 @@ import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe';
 import {
   updateUserRoleSchema,
   type UpdateUserRoleInput,
+  updateUserStatusSchema,
+  type UpdateUserStatusInput,
   type Role,
+  type UserStatus,
   type PaginatedResponse,
   type User,
 } from '@base-dashboard/shared';
@@ -62,6 +66,7 @@ export class UsersController {
       email: user.email,
       name: user.name,
       role: user.role as Role,
+      status: user.status as UserStatus | undefined,
     };
   }
 
@@ -83,6 +88,7 @@ export class UsersController {
       email: user.email,
       name: user.name,
       role: user.role as Role,
+      status: user.status as UserStatus | undefined,
     };
   }
 
@@ -121,14 +127,18 @@ export class UsersController {
     }
     const hashedPassword = await bcrypt.hash(dto.password, 12);
     const user = await this.usersService.create({
-      ...dto,
+      name: dto.name,
+      email: dto.email,
+      role: dto.role,
       password: hashedPassword,
+      status: dto.role === 'salesPerson' ? 'approved' : undefined,
     });
     return {
       id: user.id,
       email: user.email,
       name: user.name,
       role: user.role as Role,
+      status: user.status as UserStatus | undefined,
     };
   }
 
@@ -149,6 +159,7 @@ export class UsersController {
         email: u.email,
         name: u.name,
         role: u.role as Role,
+        status: u.status as UserStatus | undefined,
       })),
       meta: {
         page: query.page,
@@ -179,6 +190,39 @@ export class UsersController {
       email: user.email,
       name: user.name,
       role: user.role as Role,
+      status: user.status as UserStatus | undefined,
+    };
+  }
+
+  @Patch(':id/status')
+  @UseGuards(RolesGuard)
+  @Roles('admin')
+  async updateStatus(
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(updateUserStatusSchema))
+    dto: UpdateUserStatusInput,
+    @CurrentUser('userId') currentUserId: string,
+  ): Promise<User> {
+    if (id === currentUserId) {
+      throw new ForbiddenException('Cannot change your own status');
+    }
+    const target = await this.usersService.findById(id);
+    if (!target) {
+      throw new NotFoundException('User not found');
+    }
+    if (target.role !== 'salesPerson') {
+      throw new BadRequestException('User is not a sales person');
+    }
+    const user = await this.usersService.updateStatus(id, dto.status);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+    return {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      role: user.role as Role,
+      status: user.status as UserStatus | undefined,
     };
   }
 

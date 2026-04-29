@@ -28,6 +28,17 @@ export async function updateUserRoleApi(
   return res.json()
 }
 
+export async function updateUserStatusApi(
+  userId: string,
+  status: string,
+): Promise<User> {
+  const res = await authFetch(`/api/users/${userId}/status`, {
+    method: "PATCH",
+    body: JSON.stringify({ status }),
+  })
+  return res.json()
+}
+
 export async function removeUserApi(userId: string): Promise<void> {
   await authFetch(`/api/users/${userId}`, { method: "DELETE" })
 }

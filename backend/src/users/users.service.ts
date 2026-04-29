@@ -1,18 +1,22 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
+import { type Role, type UserStatus } from '@base-dashboard/shared';
 import { User, UserDocument } from './schemas/user.schema';
+
+export type CreateUserData = {
+  name: string;
+  email: string;
+  password: string;
+  role: Role;
+  status?: UserStatus;
+};
 
 @Injectable()
 export class UsersService {
   constructor(@InjectModel(User.name) private userModel: Model<User>) {}
 
-  async create(data: {
-    name: string;
-    email: string;
-    password: string;
-    role: string;
-  }): Promise<UserDocument> {
+  async create(data: CreateUserData): Promise<UserDocument> {
     return this.userModel.create(data);
   }
 
@@ -38,9 +42,26 @@ export class UsersService {
 
   async updateRole(
     userId: string,
-    role: string,
+    role: Role,
   ): Promise<UserDocument | null> {
-    return this.userModel.findByIdAndUpdate(userId, { role }, { new: true });
+    const user = await this.userModel.findById(userId);
+    if (!user) return null;
+
+    const update: Record<string, unknown> = { role };
+    if (role === 'salesPerson' && user.status === undefined) {
+      update.status = 'approved';
+    } else if (role !== 'salesPerson' && user.status !== undefined) {
+      update.$unset = { status: 1 };
+    }
+
+    return this.userModel.findByIdAndUpdate(userId, update, { new: true });
+  }
+
+  async updateStatus(
+    userId: string,
+    status: UserStatus,
+  ): Promise<UserDocument | null> {
+    return this.userModel.findByIdAndUpdate(userId, { status }, { new: true });
   }
 
   async remove(userId: string): Promise<void> {

@@ -18,7 +18,7 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar"
-import { EllipsisVerticalIcon, CircleUserRoundIcon, CreditCardIcon, BellIcon, LogOutIcon } from "lucide-react"
+import { EllipsisVerticalIcon, LogOutIcon } from "lucide-react"
 import { useAuth } from "@/hooks/use-auth"
 import { useNavigate } from "react-router"
 
@@ -82,21 +82,6 @@ export function NavUser() {
                   </div>
                 </div>
               </DropdownMenuLabel>
-            </DropdownMenuGroup>
-            <DropdownMenuSeparator />
-            <DropdownMenuGroup>
-              <DropdownMenuItem>
-                <CircleUserRoundIcon />
-                {t("Account")}
-              </DropdownMenuItem>
-              <DropdownMenuItem>
-                <CreditCardIcon />
-                {t("Billing")}
-              </DropdownMenuItem>
-              <DropdownMenuItem>
-                <BellIcon />
-                {t("Notifications")}
-              </DropdownMenuItem>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={handleLogout}>

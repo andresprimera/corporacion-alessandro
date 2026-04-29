@@ -1,4 +1,10 @@
-import { fetchUsersApi, updateUserRoleApi, removeUserApi, createUserApi } from "@/lib/users"
+import {
+  fetchUsersApi,
+  updateUserRoleApi,
+  updateUserStatusApi,
+  removeUserApi,
+  createUserApi,
+} from "@/lib/users"
 import { authFetch } from "@/lib/api"
 
 vi.mock("@/lib/api", () => ({
@@ -35,6 +41,27 @@ describe("users API", () => {
       expect(authFetch).toHaveBeenCalledWith("/api/users/u1/role", {
         method: "PATCH",
         body: JSON.stringify({ role: "admin" }),
+      })
+      expect(result).toEqual(user)
+    })
+  })
+
+  describe("updateUserStatusApi", () => {
+    it("should PATCH /api/users/:id/status with status body", async () => {
+      const user = {
+        id: "u1",
+        name: "Sales",
+        email: "s@s.com",
+        role: "salesPerson",
+        status: "approved",
+      }
+      vi.mocked(authFetch).mockResolvedValue(mockJsonResponse(user))
+
+      const result = await updateUserStatusApi("u1", "approved")
+
+      expect(authFetch).toHaveBeenCalledWith("/api/users/u1/status", {
+        method: "PATCH",
+        body: JSON.stringify({ status: "approved" }),
       })
       expect(result).toEqual(user)
     })

@@ -179,6 +179,9 @@ export function AddUserDialog({
                     <SelectContent>
                       <SelectItem value="user">{t("User")}</SelectItem>
                       <SelectItem value="admin">{t("Admin")}</SelectItem>
+                      <SelectItem value="salesPerson">
+                        {t("Sales Person")}
+                      </SelectItem>
                     </SelectContent>
                   </Select>
                 )}

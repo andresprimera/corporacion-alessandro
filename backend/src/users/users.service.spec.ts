@@ -38,13 +38,35 @@ describe('UsersService', () => {
 
   describe('create', () => {
     it('should create a user', async () => {
-      const data = { name: 'Test', email: 'test@example.com', password: 'hash', role: 'user' };
+      const data = {
+        name: 'Test',
+        email: 'test@example.com',
+        password: 'hash',
+        role: 'user' as const,
+      };
       model.create.mockResolvedValue(mockUser);
 
       const result = await service.create(data);
 
       expect(model.create).toHaveBeenCalledWith(data);
       expect(result).toEqual(mockUser);
+    });
+
+    it('should pass the status field through when provided', async () => {
+      const data = {
+        name: 'Sally',
+        email: 'sally@example.com',
+        password: 'hash',
+        role: 'salesPerson' as const,
+        status: 'in_revision' as const,
+      };
+      const created = { ...mockUser, role: 'salesPerson', status: 'in_revision' };
+      model.create.mockResolvedValue(created);
+
+      const result = await service.create(data);
+
+      expect(model.create).toHaveBeenCalledWith(data);
+      expect(result).toEqual(created);
     });
   });
 
@@ -117,13 +139,94 @@ describe('UsersService', () => {
   });
 
   describe('updateRole', () => {
-    it('should update user role and return updated user', async () => {
+    it('should return null when user does not exist', async () => {
+      model.findById.mockResolvedValue(null);
+
+      const result = await service.updateRole('missing', 'admin');
+
+      expect(result).toBeNull();
+      expect(model.findByIdAndUpdate).not.toHaveBeenCalled();
+    });
+
+    it('should update role only when no status reconciliation is needed', async () => {
+      model.findById.mockResolvedValue({ ...mockUser, role: 'user' });
       const updated = { ...mockUser, role: 'admin' };
       model.findByIdAndUpdate.mockResolvedValue(updated);
 
       const result = await service.updateRole('user-1', 'admin');
 
-      expect(model.findByIdAndUpdate).toHaveBeenCalledWith('user-1', { role: 'admin' }, { new: true });
+      expect(model.findByIdAndUpdate).toHaveBeenCalledWith(
+        'user-1',
+        { role: 'admin' },
+        { new: true },
+      );
+      expect(result).toEqual(updated);
+    });
+
+    it('should auto-approve when promoting to salesPerson without existing status', async () => {
+      model.findById.mockResolvedValue({ ...mockUser, role: 'user' });
+      const updated = { ...mockUser, role: 'salesPerson', status: 'approved' };
+      model.findByIdAndUpdate.mockResolvedValue(updated);
+
+      const result = await service.updateRole('user-1', 'salesPerson');
+
+      expect(model.findByIdAndUpdate).toHaveBeenCalledWith(
+        'user-1',
+        { role: 'salesPerson', status: 'approved' },
+        { new: true },
+      );
+      expect(result).toEqual(updated);
+    });
+
+    it('should preserve existing status when role stays salesPerson', async () => {
+      model.findById.mockResolvedValue({
+        ...mockUser,
+        role: 'salesPerson',
+        status: 'in_revision',
+      });
+      const updated = { ...mockUser, role: 'salesPerson', status: 'in_revision' };
+      model.findByIdAndUpdate.mockResolvedValue(updated);
+
+      await service.updateRole('user-1', 'salesPerson');
+
+      expect(model.findByIdAndUpdate).toHaveBeenCalledWith(
+        'user-1',
+        { role: 'salesPerson' },
+        { new: true },
+      );
+    });
+
+    it('should clear status when demoting from salesPerson', async () => {
+      model.findById.mockResolvedValue({
+        ...mockUser,
+        role: 'salesPerson',
+        status: 'approved',
+      });
+      const updated = { ...mockUser, role: 'user' };
+      model.findByIdAndUpdate.mockResolvedValue(updated);
+
+      await service.updateRole('user-1', 'user');
+
+      expect(model.findByIdAndUpdate).toHaveBeenCalledWith(
+        'user-1',
+        { role: 'user', $unset: { status: 1 } },
+        { new: true },
+      );
+    });
+  });
+
+  describe('updateStatus', () => {
+    it('should update user status and return updated user', async () => {
+      const updated = { ...mockUser, role: 'salesPerson', status: 'approved' };
+      model.findByIdAndUpdate.mockResolvedValue(updated);
+
+      const result = await service.updateStatus('user-1', 'approved');
+
+      expect(model.findByIdAndUpdate).toHaveBeenCalledWith(
+        'user-1',
+        { status: 'approved' },
+        { new: true },
+      );
       expect(result).toEqual(updated);
     });
   });

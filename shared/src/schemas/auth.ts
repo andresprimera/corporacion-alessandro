@@ -1,5 +1,5 @@
 import { z } from "zod/v4";
-import { userSchema, roleEnum } from "./user";
+import { userSchema, roleEnum, userStatusEnum } from "./user";
 
 export const loginSchema = z.object({
   email: z.email("Please enter a valid email"),
@@ -38,6 +38,12 @@ export const updateUserRoleSchema = z.object({
 });
 
 export type UpdateUserRoleInput = z.infer<typeof updateUserRoleSchema>;
+
+export const updateUserStatusSchema = z.object({
+  status: userStatusEnum,
+});
+
+export type UpdateUserStatusInput = z.infer<typeof updateUserStatusSchema>;
 
 export const forgotPasswordSchema = z.object({
   email: z.email("Please enter a valid email"),

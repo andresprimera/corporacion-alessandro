@@ -8,7 +8,12 @@ import {
   keepPreviousData,
 } from "@tanstack/react-query"
 import { useAuth } from "@/hooks/use-auth"
-import { fetchUsersApi, updateUserRoleApi, removeUserApi } from "@/lib/users"
+import {
+  fetchUsersApi,
+  updateUserRoleApi,
+  updateUserStatusApi,
+  removeUserApi,
+} from "@/lib/users"
 import type { User } from "@base-dashboard/shared"
 import {
   Table,
@@ -50,6 +55,12 @@ import {
 } from "lucide-react"
 import { toast } from "sonner"
 
+function roleLabel(role: string, t: (key: string) => string): string {
+  if (role === "admin") return t("Admin")
+  if (role === "salesPerson") return t("Sales Person")
+  return t("User")
+}
+
 export default function UsersPage() {
   const { t } = useTranslation()
   const { user: currentUser } = useAuth()
@@ -77,6 +88,17 @@ export default function UsersPage() {
     },
     onError: (error: Error) => {
       toast.error(t(error.message) || t("Failed to update role"))
+    },
+  })
+
+  const approveMutation = useMutation({
+    mutationFn: (userId: string) => updateUserStatusApi(userId, "approved"),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["users"] })
+      toast.success(t("User approved"))
+    },
+    onError: (error: Error) => {
+      toast.error(t(error.message) || t("Failed to update status"))
     },
   })
 
@@ -132,11 +154,12 @@ export default function UsersPage() {
                 <TableHead>{t("Name")}</TableHead>
                 <TableHead>{t("Email")}</TableHead>
                 <TableHead>{t("Role")}</TableHead>
+                <TableHead>{t("Status")}</TableHead>
                 <TableHead className="w-25">{t("Actions")}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {Array.from({ length: pageSize > 5 ? 5 : pageSize }).map(
+              {Array.from({ length: Math.min(pageSize, 5) }).map(
                 (_, i) => (
                   <TableRow key={i}>
                     <TableCell>
@@ -147,6 +170,9 @@ export default function UsersPage() {
                     </TableCell>
                     <TableCell>
                       <Skeleton className="h-8 w-20" />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton className="h-6 w-20" />
                     </TableCell>
                     <TableCell>
                       <Skeleton className="size-8" />
@@ -210,26 +236,29 @@ export default function UsersPage() {
               <TableHead>{t("Name")}</TableHead>
               <TableHead>{t("Email")}</TableHead>
               <TableHead>{t("Role")}</TableHead>
+              <TableHead>{t("Status")}</TableHead>
               <TableHead className="w-25">{t("Actions")}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {users.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={4} className="h-24 text-center">
+                <TableCell colSpan={5} className="h-24 text-center">
                   {t("No users found.")}
                 </TableCell>
               </TableRow>
             ) : (
               users.map((u: User) => {
                 const isSelf = u.id === currentUser?.id
+                const isSalesPerson = u.role === "salesPerson"
+                const isPending = isSalesPerson && u.status === "in_revision"
                 return (
                   <TableRow key={u.id}>
                     <TableCell className="font-medium">{u.name}</TableCell>
                     <TableCell>{u.email}</TableCell>
                     <TableCell>
                       {isSelf ? (
-                        <Badge variant="secondary">{u.role}</Badge>
+                        <Badge variant="secondary">{roleLabel(u.role, t)}</Badge>
                       ) : (
                         <Select
                           value={u.role}
@@ -241,10 +270,34 @@ export default function UsersPage() {
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="admin">admin</SelectItem>
-                            <SelectItem value="user">user</SelectItem>
+                            <SelectItem value="admin">{t("Admin")}</SelectItem>
+                            <SelectItem value="user">{t("User")}</SelectItem>
+                            <SelectItem value="salesPerson">
+                              {t("Sales Person")}
+                            </SelectItem>
                           </SelectContent>
                         </Select>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {isPending ? (
+                        <div className="flex items-center gap-2">
+                          <Badge variant="outline">{t("In revision")}</Badge>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={
+                              isSelf || approveMutation.isPending
+                            }
+                            onClick={() => approveMutation.mutate(u.id)}
+                          >
+                            {t("Approve")}
+                          </Button>
+                        </div>
+                      ) : isSalesPerson && u.status === "approved" ? (
+                        <Badge variant="secondary">{t("Approved")}</Badge>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
                       )}
                     </TableCell>
                     <TableCell>
