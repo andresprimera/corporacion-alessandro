@@ -1,6 +1,12 @@
 import { type AuthResponse, type ApiErrorResponse } from "@base-dashboard/shared"
 import { ApiError } from "@/lib/api-error"
 
+const API_BASE = import.meta.env.VITE_API_URL ?? ""
+
+function resolveUrl(url: string): string {
+  return url.startsWith("/") ? `${API_BASE}${url}` : url
+}
+
 const TOKEN_KEYS = {
   access: "accessToken",
   refresh: "refreshToken",
@@ -48,7 +54,7 @@ async function refreshTokens(): Promise<AuthResponse> {
       throw new Error("No refresh token")
     }
 
-    const res = await fetch("/api/auth/refresh", {
+    const res = await fetch(resolveUrl("/api/auth/refresh"), {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -79,7 +85,7 @@ export async function publicFetch(
   url: string,
   options: RequestInit = {},
 ): Promise<Response> {
-  const res = await fetch(url, {
+  const res = await fetch(resolveUrl(url), {
     ...options,
     headers: {
       "Content-Type": "application/json",
@@ -99,7 +105,7 @@ export async function authFetch(
   const { accessToken } = getStoredTokens()
 
   const makeRequest = (token: string | null): Promise<Response> =>
-    fetch(url, {
+    fetch(resolveUrl(url), {
       ...options,
       headers: {
         "Content-Type": "application/json",
