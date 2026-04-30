@@ -35,10 +35,10 @@ import {
 } from "@tanstack/react-table"
 import { Area, AreaChart, CartesianGrid, XAxis } from "recharts"
 import { toast } from "sonner"
-import { z } from "zod"
+import { z } from "zod/v4"
 
 import { useTranslation } from "react-i18next"
-import i18n from "@/lib/i18n"
+import { i18n } from "@/lib/i18n"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -318,6 +318,7 @@ function DraggableRow({ row }: { row: Row<z.infer<typeof schema>> }) {
       data-dragging={isDragging}
       ref={setNodeRef}
       className="relative z-0 data-[dragging=true]:z-10 data-[dragging=true]:opacity-80"
+      // eslint-disable-next-line no-restricted-syntax -- @dnd-kit/sortable requires inline transform/transition; no Tailwind equivalent
       style={{
         transform: CSS.Transform.toString(transform),
         transition: transition,

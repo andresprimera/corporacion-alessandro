@@ -148,7 +148,7 @@ export class UsersController {
   @UseGuards(RolesGuard)
   @Roles('admin')
   async getSalesPersonOptions(): Promise<SalesPersonOption[]> {
-    return this.usersService.getSalesPersonOptions();
+    return this.usersService.findSalesPersonOptions();
   }
 
   @Get()

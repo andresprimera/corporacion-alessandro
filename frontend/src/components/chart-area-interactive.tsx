@@ -2,7 +2,7 @@ import * as React from "react"
 import { Area, AreaChart, CartesianGrid, XAxis } from "recharts"
 
 import { useTranslation } from "react-i18next"
-import i18n from "@/lib/i18n"
+import { i18n } from "@/lib/i18n"
 import { useIsMobile } from "@/hooks/use-mobile"
 import {
   Card,

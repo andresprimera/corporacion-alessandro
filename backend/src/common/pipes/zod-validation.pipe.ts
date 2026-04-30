@@ -8,7 +8,7 @@ import { z } from 'zod/v4';
 export class ZodValidationPipe implements PipeTransform {
   constructor(private schema: z.ZodType) {}
 
-  transform(value: unknown, metadata: ArgumentMetadata) {
+  transform(value: unknown, metadata: ArgumentMetadata): unknown {
     if (metadata.type !== 'body' && metadata.type !== 'query') {
       return value;
     }

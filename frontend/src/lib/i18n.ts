@@ -40,5 +40,4 @@ i18n
     },
   })
 
-export { supportedLocales }
-export default i18n
+export { i18n, supportedLocales }

@@ -4,6 +4,28 @@
 
 pnpm monorepo with three packages: `backend` (NestJS 11 + Mongoose), `frontend` (Vite + React 19 + React Router v7), and `shared` (`@base-dashboard/shared` — Zod schemas and types). All entity/API types are defined in `shared/` and imported by both backend and frontend. Never duplicate types across packages. The shared package has no build step — it exports raw TS via `"main": "src/index.ts"`.
 
+## Enforcement Layers
+
+The rules below are split between what the toolchain enforces automatically and what requires judgment. Don't memorize the auto-enforced ones — the build will tell you.
+
+**ESLint** (`backend/eslint.config.mjs`, `frontend/eslint.config.js`) auto-fails on:
+
+- **TypeScript bans:** `any`, missing return types on exported functions (`explicit-module-boundary-types`) — scoped to backend code, frontend `lib/**`, and `hooks/**`. Components and pages are exempt (React components return JSX, inference is sufficient).
+- **Logging bans:** `console.*` (use NestJS `Logger` on backend).
+- **Library bans (both packages):** `axios`, `lodash`, `lodash-es`, `uuid` (use `crypto.randomUUID()`), `date-fns` / `dayjs` / `moment` (use native `Date` / `Intl`).
+- **Frontend-only library bans:** state libs (`zustand`, `redux`, `@reduxjs/toolkit`, `jotai`, `recoil`), icon libs other than `lucide-react` (`react-icons`, `@heroicons/react`, `phosphor-react`, `@iconify/*`), bare `zod` (use `zod/v4`), `@hookform/resolvers/zod` (use `standard-schema`).
+- **Frontend-only syntax bans:** `'use client'` / `'use server'` directives, `../` parent imports, `window.confirm` / `alert` / `prompt`, inline `style` props (use Tailwind via `className`), default exports outside `pages/` and Vite entry points.
+- **Naming bans:** files must be kebab-case; backend service methods can't start with `get|fetch|add|delete|destroy|set|list|edit` + capital; controller methods can't start with `list|add|edit|delete|destroy|fetch` + capital (use `find/create/update/remove` per CLAUDE.md backend naming).
+- **React hooks:** `exhaustive-deps` is `error`.
+
+**Claude Code hooks** (`.claude/settings.json`) — PostToolUse runs ESLint on each edited file; Stop runs `pnpm typecheck` once per turn. Both must pass before work is declared done.
+
+**Pre-commit** (`.husky/pre-commit`) — runs `pnpm lint && pnpm typecheck && pnpm test` on every branch.
+
+**Package manager** — root `preinstall` script blocks `npm install` / `yarn install`; pnpm only.
+
+The rest of this file is judgment calls and architectural conventions that lint can't catch.
+
 ## Shared Package (`@base-dashboard/shared`)
 
 The shared package is the **single source of truth** for all data shapes that cross the network boundary. It contains Zod schemas and their inferred TypeScript types — nothing else.
@@ -31,17 +53,15 @@ The shared package is the **single source of truth** for all data shapes that cr
 - Frontend imports directly from `@base-dashboard/shared` in `lib/` and `hooks/` files.
 - When adding a new feature, define the schemas and types in shared **first**, then build the backend and frontend against them.
 
-## TypeScript — Zero Tolerance
+## TypeScript
 
-- **No `any` types.** No exceptions. If a library returns `any`, wrap it with a proper type.
-- **No type assertions** (`as`). Use type guards, generics, or proper narrowing instead. Exception: Mongoose enum fields return `string` — cast to the shared union type (e.g., `user.role as Role`).
+- **No type assertions** (`as`). Use type guards, generics, or proper narrowing instead. Exception: Mongoose enum fields return `string` — cast to the shared union type (e.g., `user.role as Role`). (Not lint-enforced because of the Mongoose exception.)
 - **No single-use local types** for data that comes from the database or API. Import the canonical type from `shared/`.
 - Infer from schemas when possible: `z.infer<typeof schema>` for Zod, `HydratedDocument<T>` for Mongoose.
-- Explicit return types on all service methods (backend) and API functions (frontend).
 
 ## Frontend
 
-**This is a Vite + React SPA, not Next.js.** Never add `"use client"` or `"use server"` directives — they do nothing here and are a sign of framework confusion.
+**This is a Vite + React SPA, not Next.js.** Don't reach for Next-isms (server components, route handlers, app-router conventions).
 
 ### Components
 
@@ -58,14 +78,14 @@ The shared package is the **single source of truth** for all data shapes that cr
 
 ### Styling
 
-- **Tailwind CSS only.** No inline styles, no CSS modules, no styled-components.
+- **Tailwind CSS only.** No CSS modules or styled-components.
 - Use `cn()` from `@/lib/utils` for conditional classes.
 - Use CVA (`class-variance-authority`) for component variants.
 - Use CSS variables from the theme system (defined in `index.css`) — never hardcode colors.
 
 ### Dialogs & Confirmations
 
-- **Use shadcn `AlertDialog`** for destructive confirmations (delete, remove). Never use `window.confirm()`.
+- **Use shadcn `AlertDialog`** for destructive confirmations (delete, remove).
 - **Use shadcn `Dialog`** for forms or content that appears in an overlay.
 - **Toast (`sonner`) for feedback** — success/error messages after actions. Not for confirmations.
 - **Never install a separate modal/dialog library** — shadcn covers all cases.
@@ -73,14 +93,11 @@ The shared package is the **single source of truth** for all data shapes that cr
 ### Forms
 
 - **All forms use Zod v4 + react-hook-form.** No exceptions.
-- Use `standardSchemaResolver` from `@hookform/resolvers/standard-schema` (not `zodResolver`).
-- Import Zod from `zod/v4`.
 - Define the schema, infer the type, use `register()` for inputs, display errors via `FieldDescription` with `text-destructive`.
 - Show errors with `toast.error()` from `sonner` for API failures.
 
 ### Routing & Auth
 
-- Pages use **default exports**. Components and hooks use **named exports**.
 - `/` is a public landing page. `/login` and `/signup` are public auth pages.
 - `/dashboard` is the protected area — wrapped in `<ProtectedRoute>` + `<DashboardLayout>` (sidebar + header + `<Outlet />`).
 - Admin-only routes (e.g., `/dashboard/users`) wrap with `<AdminRoute>` which checks `user.role === "admin"`.
@@ -104,14 +121,13 @@ Error handling goes beyond forms. Every page or component that fetches data must
 - **Server state → React Query.** All data from the API lives in the query cache. No duplicating server data into local state.
 - **Auth state → `AuthContext`** via `useAuth()`. This is the only app-wide context. Do not add new React Contexts without strong justification — most "global" state is actually server state that belongs in React Query.
 - **Local UI state → `useState`** in the component that owns it. Pagination controls, form input, modal open/closed, selected tabs — these are local to the component.
-- **No state management libraries** (no zustand, redux, jotai). React Query + Context + local state covers all current needs. Do not add a state library unless a clear use case arises that none of these solve.
 - **Derived state → compute inline or `useMemo`.** Don't store derived values in state. If it can be computed from existing state or query data, compute it.
 
 ### Data Fetching
 
 - Use **TanStack React Query** for server state (queries, mutations, caching).
 - All API calls go through the `/api` proxy (Vite dev server proxies to backend).
-- **No axios.** Plain `fetch` via the `authFetch` / `publicFetch` wrappers from `@/lib/api`.
+- Use the `authFetch` / `publicFetch` wrappers from `@/lib/api` — never raw `fetch` (these handle token attachment and 401 refresh).
 - **No manual `useState`/`useEffect` for fetching.** Use `useQuery` for reads and `useMutation` for writes. Invalidate queries on mutation success via `queryClient.invalidateQueries()`.
 - Use `placeholderData: keepPreviousData` for paginated queries to avoid flash on page change.
 - **Query keys are arrays** — resource name first, then params: `["users", page, pageSize]`, `["users", userId]`. Never use plain strings.
@@ -163,12 +179,11 @@ frontend/src/
   pages/            # Page components (default exports)
 ```
 
-- Files use **kebab-case**: `login-form.tsx`, `use-auth.tsx`.
-- Imports use the **`@/` alias** — never relative paths with `../`.
+- Imports use the **`@/` alias** for cross-directory references.
 
 ### Icons
 
-- Use **lucide-react** exclusively. Import specific icons by name.
+- Use **lucide-react**. Import specific icons by name.
 
 ### Internationalization (i18n)
 
@@ -268,10 +283,6 @@ Controllers are thin — they validate input, call the service, and return. Meth
 | `<verb>()` | `signup()`, `login()`, `logout()` | Auth and domain-specific actions (no resource noun needed) |
 | `get<Noun>()` | `getMe()`, `getHealth()` | Read-only endpoints that aren't standard CRUD `find*` |
 
-- **Use `findAll` / `findOne`** for standard CRUD reads — not `getUsers` / `getUser` / `list`.
-- **Use `create` / `update` / `remove`** for standard CRUD writes — not `add` / `edit` / `delete` (avoid shadowing JS `delete`).
-- **Use `<verb><Noun>()`** for non-CRUD actions: `updateRole()`, `changePassword()`, `forgotPassword()`, `resetPassword()`.
-
 #### Service Methods
 
 Services contain business logic. Method names describe the **data operation**:
@@ -291,7 +302,6 @@ Services contain business logic. Method names describe the **data operation**:
 | `count<Resource>()` | `countUsers()` | Aggregate count |
 | `clear<Field>(id)` | `clearPasswordResetToken(id)` | Unset/nullify a specific field |
 
-- **`find*` for reads, `update*` for writes, `remove` for deletes, `create` for inserts.** No synonyms (`get`, `fetch`, `add`, `delete`, `destroy`, `set`).
 - **Append `Paginated`** to distinguish paginated from unpaginated variants: `findAll()` vs `findAllPaginated()`.
 - **Append `With<Field>`** when a query `.select()`s sensitive fields: `findByIdWithPassword()`, `findByIdWithRefreshToken()`.
 - **Private helper methods** use descriptive names without the `find`/`update` prefix: `generateTokens()`, `hashPassword()`, `sendResetEmail()`.
@@ -328,7 +338,7 @@ Services contain business logic. Method names describe the **data operation**:
 
 ### Logging
 
-- Use the **NestJS `Logger`** class — never `console.log`, `console.error`, or `console.warn`.
+- Use the **NestJS `Logger`** class for all log output.
 - Each service creates its own logger instance: `private readonly logger = new Logger(ClassName.name)`.
 - Use `this.logger.log()` for info-level events and `this.logger.error()` for errors.
 - Log meaningful events (service startup, external API calls, seeding) — not routine CRUD operations.
@@ -375,20 +385,18 @@ Services contain business logic. Method names describe the **data operation**:
 
 ## General
 
-- **Package manager:** pnpm. Always use `pnpm add`, never `npm install` or `yarn add`.
 - **Dev command:** `pnpm dev` at root runs both backend and frontend in parallel.
 - **Build check:** Run `pnpm run build` in both packages before considering work complete.
 - **No commented-out code.** Delete it; git has history.
-- **No `console.log` in committed code.** Use proper error handling or logging (NestJS `Logger` on backend).
 
 ### Date & Time
 
-- **Use native `Date` and `Intl` APIs.** No date-fns, dayjs, or moment — the project doesn't use them and shouldn't add them unless a complex need arises (recurring schedules, timezone math, etc.).
+- Use native `Date` and `Intl` APIs.
 - **Locale-aware formatting:** Use `toLocaleDateString(i18n.language)` on the frontend, never hardcoded `"en-US"`.
 - **Duration strings on backend:** Use the `ms` library's `StringValue` type for config values like JWT expirations (`"15m"`, `"7d"`).
 
 ### Dependencies
 
-- **Check before adding.** Before installing a new package, verify that the functionality isn't already covered by an existing dependency or native API. Common traps: adding `axios` (use `fetch`), `lodash` (use native array/object methods), `uuid` (use `crypto.randomUUID()`), date libraries (use native `Date`/`Intl`).
+- **Check before adding.** Before installing a new package, verify the functionality isn't already covered by an existing dependency or native API.
 - **Prefer what's already installed.** The project uses shadcn/ui, lucide-react, sonner, recharts, @dnd-kit, react-hook-form, and TanStack React Query. Use these before reaching for alternatives.
 - **No duplicate-purpose packages.** If a library already solves a problem, don't add a second one that does the same thing.

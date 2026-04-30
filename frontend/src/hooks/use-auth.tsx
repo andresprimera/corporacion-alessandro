@@ -5,6 +5,7 @@ import {
   useEffect,
   useCallback,
   useRef,
+  type ReactElement,
   type ReactNode,
 } from "react"
 import { type User } from "@base-dashboard/shared"
@@ -33,7 +34,7 @@ function getTokenExpiry(token: string): number | null {
   }
 }
 
-export function AuthProvider({ children }: { children: ReactNode }) {
+export function AuthProvider({ children }: { children: ReactNode }): ReactElement {
   const [user, setUser] = useState<User | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -138,7 +139,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 }
 
 // eslint-disable-next-line react-refresh/only-export-components
-export function useAuth() {
+export function useAuth(): AuthContextValue {
   const context = useContext(AuthContext)
   if (!context) {
     throw new Error("useAuth must be used within an AuthProvider")

@@ -18,7 +18,10 @@ export class JwtRefreshStrategy extends PassportStrategy(
     super(options);
   }
 
-  validate(req: Request, payload: { sub: string; email: string }) {
+  validate(
+    req: Request,
+    payload: { sub: string; email: string },
+  ): { userId: string; email: string; refreshToken: string | undefined } {
     const refreshToken = req
       .get('Authorization')
       ?.replace('Bearer ', '')

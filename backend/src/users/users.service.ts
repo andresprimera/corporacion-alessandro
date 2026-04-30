@@ -39,7 +39,7 @@ export class UsersService {
     return this.userModel.find();
   }
 
-  async getSalesPersonOptions(): Promise<SalesPersonOption[]> {
+  async findSalesPersonOptions(): Promise<SalesPersonOption[]> {
     const docs = await this.userModel
       .find({ role: 'salesPerson', status: 'approved' }, { name: 1 })
       .sort({ name: 1 });
