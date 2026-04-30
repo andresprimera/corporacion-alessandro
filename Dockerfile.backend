@@ -17,6 +17,7 @@ COPY backend ./backend
 RUN pnpm --filter base-dashboard-backend build
 
 ENV NODE_ENV=production
+WORKDIR /app/backend
 EXPOSE 3000
 
-CMD ["pnpm", "--filter", "base-dashboard-backend", "run", "start:prod"]
+CMD ["node", "dist/main.js"]
