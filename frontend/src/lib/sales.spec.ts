@@ -4,6 +4,8 @@ import {
   createSaleApi,
   updateSaleApi,
   removeSaleApi,
+  downloadDeliveryOrderApi,
+  downloadInvoiceApi,
 } from "@/lib/sales"
 import { authFetch } from "@/lib/api"
 
@@ -110,4 +112,88 @@ describe("sales API", () => {
     })
   })
 
+  describe("PDF downloads", () => {
+    let createdAnchor: HTMLAnchorElement
+    let createObjectURLSpy: ReturnType<typeof vi.fn>
+    let revokeObjectURLSpy: ReturnType<typeof vi.fn>
+    let createElementSpy: ReturnType<typeof vi.spyOn>
+
+    beforeEach(() => {
+      createObjectURLSpy = vi.fn().mockReturnValue("blob:mock")
+      revokeObjectURLSpy = vi.fn()
+      vi.stubGlobal("URL", {
+        ...URL,
+        createObjectURL: createObjectURLSpy,
+        revokeObjectURL: revokeObjectURLSpy,
+      })
+
+      createdAnchor = document.createElement("a")
+      createdAnchor.click = vi.fn()
+      createElementSpy = vi
+        .spyOn(document, "createElement")
+        .mockImplementation((tag: string) => {
+          if (tag === "a") return createdAnchor
+          return document.createElementNS(
+            "http://www.w3.org/1999/xhtml",
+            tag,
+          ) as HTMLElement
+        })
+    })
+
+    afterEach(() => {
+      vi.unstubAllGlobals()
+      createElementSpy.mockRestore()
+    })
+
+    function mockBlobResponse(headers: Record<string, string> = {}): Response {
+      return {
+        blob: () => Promise.resolve(new Blob(["pdf"])),
+        headers: {
+          get: (name: string) => headers[name.toLowerCase()] ?? null,
+        },
+      } as unknown as Response
+    }
+
+    describe("downloadDeliveryOrderApi", () => {
+      it("hits the delivery-order endpoint and triggers a download", async () => {
+        vi.mocked(authFetch).mockResolvedValue(
+          mockBlobResponse({
+            "content-disposition": 'attachment; filename="orden-entrega-S-2026-00001.pdf"',
+          }),
+        )
+
+        await downloadDeliveryOrderApi("s1")
+
+        expect(authFetch).toHaveBeenCalledWith("/api/sales/s1/delivery-order")
+        expect(createObjectURLSpy).toHaveBeenCalled()
+        expect(createdAnchor.download).toBe("orden-entrega-S-2026-00001.pdf")
+        expect(createdAnchor.click).toHaveBeenCalled()
+        expect(revokeObjectURLSpy).toHaveBeenCalledWith("blob:mock")
+      })
+
+      it("falls back to a default filename when content-disposition is missing", async () => {
+        vi.mocked(authFetch).mockResolvedValue(mockBlobResponse({}))
+
+        await downloadDeliveryOrderApi("s1")
+
+        expect(createdAnchor.download).toBe("orden-entrega-s1.pdf")
+      })
+    })
+
+    describe("downloadInvoiceApi", () => {
+      it("hits the invoice endpoint and triggers a download", async () => {
+        vi.mocked(authFetch).mockResolvedValue(
+          mockBlobResponse({
+            "content-disposition": 'attachment; filename="factura-S-2026-00001.pdf"',
+          }),
+        )
+
+        await downloadInvoiceApi("s1")
+
+        expect(authFetch).toHaveBeenCalledWith("/api/sales/s1/invoice")
+        expect(createdAnchor.download).toBe("factura-S-2026-00001.pdf")
+        expect(createdAnchor.click).toHaveBeenCalled()
+      })
+    })
+  })
 })

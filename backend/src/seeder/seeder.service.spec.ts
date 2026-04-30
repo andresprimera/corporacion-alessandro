@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
+import { getModelToken } from '@nestjs/mongoose';
 import * as bcrypt from 'bcrypt';
 import { SeederService } from './seeder.service';
 import { UsersService } from '../users/users.service';
@@ -7,6 +8,9 @@ import { CitiesService } from '../cities/cities.service';
 import { WarehousesService } from '../warehouses/warehouses.service';
 import { ProductsService } from '../products/products.service';
 import { InventoryService } from '../inventory/inventory.service';
+import { ClientsService } from '../clients/clients.service';
+import { SalesService } from '../sales/sales.service';
+import { Sale } from '../sales/schemas/sale.schema';
 import { demoCities, demoInventory, demoProducts, demoWarehouses } from './demo-data';
 
 jest.mock('bcrypt');
@@ -41,6 +45,17 @@ describe('SeederService', () => {
     findAllPaginated: jest.fn(),
     create: jest.fn(),
   };
+  const clientsService = {
+    findOptions: jest.fn(),
+    create: jest.fn(),
+  };
+  const salesService = {
+    findAllPaginated: jest.fn(),
+    create: jest.fn(),
+  };
+  const saleModel = {
+    updateOne: jest.fn(),
+  };
   const configService = {
     get: jest.fn(),
   };
@@ -56,12 +71,22 @@ describe('SeederService', () => {
         { provide: WarehousesService, useValue: warehousesService },
         { provide: ProductsService, useValue: productsService },
         { provide: InventoryService, useValue: inventoryService },
+        { provide: ClientsService, useValue: clientsService },
+        { provide: SalesService, useValue: salesService },
+        { provide: getModelToken(Sale.name), useValue: saleModel },
         { provide: ConfigService, useValue: configService },
       ],
     }).compile();
 
     service = module.get<SeederService>(SeederService);
     mockedBcrypt.hash.mockResolvedValue('hashed-pw' as never);
+    // Safe defaults so the sales-person / client / sale seeding stages don't
+    // throw on the existing demo-data tests, which only mock the early stages.
+    citiesService.findActiveOptions.mockResolvedValue([]);
+    usersService.findByEmail.mockResolvedValue(null);
+    usersService.findByEmailExists.mockResolvedValue(false);
+    clientsService.findOptions.mockResolvedValue([]);
+    salesService.findAllPaginated.mockResolvedValue({ data: [], total: 1 });
   });
 
   describe('admin user seeding', () => {

@@ -21,5 +21,6 @@ export function toUser(doc: UserDocument): User {
     status: doc.status as UserStatus | undefined,
     cityId: city?.id,
     cityName: city?.doc?.name,
+    commissionPercentage: doc.commissionPercentage,
   };
 }

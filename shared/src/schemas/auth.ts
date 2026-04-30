@@ -58,6 +58,17 @@ export const updateUserCitySchema = z.object({
 
 export type UpdateUserCityInput = z.infer<typeof updateUserCitySchema>;
 
+export const updateUserCommissionSchema = z.object({
+  commissionPercentage: z
+    .number()
+    .min(0, "Commission must be at least 0%")
+    .max(100, "Commission must be at most 100%"),
+});
+
+export type UpdateUserCommissionInput = z.infer<
+  typeof updateUserCommissionSchema
+>;
+
 export const forgotPasswordSchema = z.object({
   email: z.email("Please enter a valid email"),
 });

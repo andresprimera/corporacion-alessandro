@@ -10,6 +10,7 @@ import {
   Patch,
   Post,
   Query,
+  StreamableFile,
   UseGuards,
 } from '@nestjs/common';
 import { SalesService } from './sales.service';
@@ -139,5 +140,33 @@ export class SalesController {
   @HttpCode(HttpStatus.NO_CONTENT)
   async remove(@Param('id') id: string): Promise<void> {
     await this.salesService.remove(id);
+  }
+
+  @Get(':id/delivery-order')
+  async deliveryOrder(
+    @Param('id') id: string,
+    @CurrentUser() user: { userId: string; role: Role },
+  ): Promise<StreamableFile> {
+    const { filename, buffer } =
+      await this.salesService.generateDeliveryOrderPdf(id, user);
+    return new StreamableFile(buffer, {
+      type: 'application/pdf',
+      disposition: `attachment; filename="${filename}"`,
+    });
+  }
+
+  @Get(':id/invoice')
+  async invoice(
+    @Param('id') id: string,
+    @CurrentUser() user: { userId: string; role: Role },
+  ): Promise<StreamableFile> {
+    const { filename, buffer } = await this.salesService.generateInvoicePdf(
+      id,
+      user,
+    );
+    return new StreamableFile(buffer, {
+      type: 'application/pdf',
+      disposition: `attachment; filename="${filename}"`,
+    });
   }
 }

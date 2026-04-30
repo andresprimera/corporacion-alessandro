@@ -26,6 +26,7 @@ import {
   ReceiptIcon,
   ContactIcon,
   ShoppingCartIcon,
+  PercentIcon,
 } from "lucide-react"
 import { useAuth } from "@/hooks/use-auth"
 import { Link } from "react-router"
@@ -47,6 +48,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     { title: t("Clients"), url: "/dashboard/clients", icon: <ContactIcon /> },
     { title: t("Catalog"), url: "/dashboard/catalog", icon: <ShoppingCartIcon /> },
     { title: t("Sales"), url: "/dashboard/sales", icon: <ReceiptIcon /> },
+    { title: t("Commissions"), url: "/dashboard/commissions", icon: <PercentIcon /> },
   ]
 
   const salesPersonNavMain = [
@@ -54,6 +56,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     { title: t("My Clients"), url: "/dashboard/clients", icon: <ContactIcon /> },
     { title: t("Catalog"), url: "/dashboard/catalog", icon: <ShoppingCartIcon /> },
     { title: t("Sales"), url: "/dashboard/sales", icon: <ReceiptIcon /> },
+    { title: t("My Commissions"), url: "/dashboard/commissions", icon: <PercentIcon /> },
   ]
 
   const userNavMain = [
@@ -74,7 +77,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               render={<Link to="/dashboard" />}
             >
               <CommandIcon className="size-5!" />
-              <span className="text-base font-semibold">Acme Inc.</span>
+              <span className="font-display text-xl font-semibold italic tracking-wide">
+                Alessandro Corp
+              </span>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>

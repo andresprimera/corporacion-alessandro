@@ -19,7 +19,9 @@ export default function LandingPage() {
       <header className="flex items-center justify-between px-6 py-4 border-b">
         <div className="flex items-center gap-2">
           <CommandIcon className="size-5" />
-          <span className="text-lg font-semibold">Acme Inc.</span>
+          <span className="font-display text-2xl font-semibold italic tracking-wide">
+            Alessandro Corp
+          </span>
         </div>
         <div className="flex items-center gap-2">
           <LanguageToggle />

@@ -24,6 +24,9 @@ export class User {
   @Prop({ type: SchemaTypes.ObjectId, ref: 'City', required: false })
   cityId?: Types.ObjectId;
 
+  @Prop({ type: Number, min: 0, max: 100, required: false })
+  commissionPercentage?: number;
+
   @Prop({ required: true, select: false })
   password: string;
 

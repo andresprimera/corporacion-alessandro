@@ -51,6 +51,17 @@ export async function updateUserCityApi(
   return res.json()
 }
 
+export async function updateUserCommissionApi(
+  userId: string,
+  commissionPercentage: number,
+): Promise<User> {
+  const res = await authFetch(`/api/users/${userId}/commission`, {
+    method: "PATCH",
+    body: JSON.stringify({ commissionPercentage }),
+  })
+  return res.json()
+}
+
 export async function removeUserApi(userId: string): Promise<void> {
   await authFetch(`/api/users/${userId}`, { method: "DELETE" })
 }

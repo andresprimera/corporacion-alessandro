@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { AddUserDialog } from "@/components/add-user-dialog"
 import { useTranslation } from "react-i18next"
 import {
@@ -13,6 +13,7 @@ import {
   updateUserRoleApi,
   updateUserStatusApi,
   updateUserCityApi,
+  updateUserCommissionApi,
   removeUserApi,
 } from "@/lib/users"
 import { fetchCityOptionsApi } from "@/lib/cities"
@@ -44,6 +45,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import { DataPagination } from "@/components/data-pagination"
 import {
@@ -57,6 +59,54 @@ function roleLabel(role: string, t: (key: string) => string): string {
   if (role === "admin") return t("Admin")
   if (role === "salesPerson") return t("Sales Person")
   return t("User")
+}
+
+function CommissionInput({
+  value,
+  disabled,
+  onCommit,
+}: {
+  value: number
+  disabled: boolean
+  onCommit: (next: number) => void
+}) {
+  const [local, setLocal] = useState(String(value))
+
+  useEffect(() => {
+    setLocal(String(value))
+  }, [value])
+
+  function commit() {
+    const parsed = Number(local)
+    if (!Number.isFinite(parsed) || parsed < 0 || parsed > 100) {
+      setLocal(String(value))
+      return
+    }
+    if (parsed === value) return
+    onCommit(parsed)
+  }
+
+  return (
+    <Input
+      type="number"
+      min={0}
+      max={100}
+      step={0.01}
+      value={local}
+      disabled={disabled}
+      className="w-20"
+      onChange={(e) => setLocal(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") {
+          e.currentTarget.blur()
+        } else if (e.key === "Escape") {
+          setLocal(String(value))
+          e.currentTarget.blur()
+        }
+      }}
+    />
+  )
 }
 
 export default function UsersPage() {
@@ -117,6 +167,23 @@ export default function UsersPage() {
     },
   })
 
+  const updateCommissionMutation = useMutation({
+    mutationFn: ({
+      userId,
+      commissionPercentage,
+    }: {
+      userId: string
+      commissionPercentage: number
+    }) => updateUserCommissionApi(userId, commissionPercentage),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["users"] })
+      toast.success(t("Commission updated"))
+    },
+    onError: (error: Error) => {
+      toast.error(t(error.message) || t("Failed to update commission"))
+    },
+  })
+
   const deleteMutation = useMutation({
     mutationFn: (userId: string) => removeUserApi(userId),
     onSuccess: () => {
@@ -173,6 +240,7 @@ export default function UsersPage() {
                 <TableHead>{t("Email")}</TableHead>
                 <TableHead>{t("Role")}</TableHead>
                 <TableHead>{t("City")}</TableHead>
+                <TableHead>{t("Commission %")}</TableHead>
                 <TableHead>{t("Status")}</TableHead>
                 <TableHead className="w-25">{t("Actions")}</TableHead>
               </TableRow>
@@ -192,6 +260,9 @@ export default function UsersPage() {
                     </TableCell>
                     <TableCell>
                       <Skeleton className="h-8 w-24" />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton className="h-8 w-20" />
                     </TableCell>
                     <TableCell>
                       <Skeleton className="h-6 w-20" />
@@ -259,6 +330,7 @@ export default function UsersPage() {
               <TableHead>{t("Email")}</TableHead>
               <TableHead>{t("Role")}</TableHead>
               <TableHead>{t("City")}</TableHead>
+              <TableHead>{t("Commission %")}</TableHead>
               <TableHead>{t("Status")}</TableHead>
               <TableHead className="w-25">{t("Actions")}</TableHead>
             </TableRow>
@@ -266,7 +338,7 @@ export default function UsersPage() {
           <TableBody>
             {users.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="h-24 text-center">
+                <TableCell colSpan={7} className="h-24 text-center">
                   {t("No users found.")}
                 </TableCell>
               </TableRow>
@@ -322,6 +394,22 @@ export default function UsersPage() {
                             ))}
                           </SelectContent>
                         </Select>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {isSalesPerson ? (
+                        <CommissionInput
+                          value={u.commissionPercentage ?? 3}
+                          disabled={isSelf || updateCommissionMutation.isPending}
+                          onCommit={(commissionPercentage) =>
+                            updateCommissionMutation.mutate({
+                              userId: u.id,
+                              commissionPercentage,
+                            })
+                          }
+                        />
                       ) : (
                         <span className="text-muted-foreground">—</span>
                       )}

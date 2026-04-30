@@ -31,6 +31,8 @@ import {
   type UpdateUserStatusInput,
   updateUserCitySchema,
   type UpdateUserCityInput,
+  updateUserCommissionSchema,
+  type UpdateUserCommissionInput,
   type PaginatedResponse,
   type SalesPersonOption,
   type User,
@@ -141,6 +143,31 @@ export class UsersController {
       status: dto.role === 'salesPerson' ? 'approved' : undefined,
       cityId: dto.cityId,
     });
+    return toUser(user);
+  }
+
+  @Patch(':id/commission')
+  @UseGuards(RolesGuard)
+  @Roles('admin')
+  async updateCommission(
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(updateUserCommissionSchema))
+    dto: UpdateUserCommissionInput,
+  ): Promise<User> {
+    const target = await this.usersService.findById(id);
+    if (!target) {
+      throw new NotFoundException('User not found');
+    }
+    if (target.role !== 'salesPerson') {
+      throw new BadRequestException('User is not a sales person');
+    }
+    const user = await this.usersService.updateCommission(
+      id,
+      dto.commissionPercentage,
+    );
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
     return toUser(user);
   }
 

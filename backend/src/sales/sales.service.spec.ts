@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getModelToken } from '@nestjs/mongoose';
-import { NotFoundException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { Types } from 'mongoose';
 import { SalesService } from './sales.service';
 import { Sale } from './schemas/sale.schema';
@@ -25,6 +26,10 @@ describe('SalesService', () => {
   const clientsService = { findById: jest.fn() };
   const usersService = { findById: jest.fn() };
   const citiesService = { findById: jest.fn() };
+  const configService = {
+    get: jest.fn(),
+    getOrThrow: jest.fn(),
+  };
 
   const VALID_PRODUCT_ID = '507f1f77bcf86cd799439011';
   const VALID_WAREHOUSE_A = '507f1f77bcf86cd799439021';
@@ -79,6 +84,7 @@ describe('SalesService', () => {
         { provide: ClientsService, useValue: clientsService },
         { provide: UsersService, useValue: usersService },
         { provide: CitiesService, useValue: citiesService },
+        { provide: ConfigService, useValue: configService },
       ],
     }).compile();
 
@@ -393,6 +399,153 @@ describe('SalesService', () => {
 
       expect(chainable.sort).toHaveBeenCalledWith({ createdAt: -1 });
       expect(result).toEqual({ data: [{ id: 'sale-1' }], total: 1 });
+    });
+  });
+
+  describe('PDF generation', () => {
+    const VALID_SALE_ID = '507f1f77bcf86cd799439061';
+
+    function buildSaleDoc(overrides: Partial<{ soldByUserId: string }> = {}) {
+      return {
+        id: VALID_SALE_ID,
+        saleNumber: 'S-2026-00001',
+        cityId: new Types.ObjectId(VALID_CITY_ID),
+        cityName: 'Caracas',
+        clientId: new Types.ObjectId(VALID_CLIENT_ID),
+        clientName: 'Bodega Local',
+        notes: undefined,
+        items: [
+          {
+            productId: new Types.ObjectId(VALID_PRODUCT_ID),
+            productName: 'Harina PAN 1kg',
+            productKind: 'groceries',
+            requestedQty: 5,
+            unitPrice: 2,
+            currency: 'USD',
+            allocations: [
+              {
+                warehouseId: new Types.ObjectId(VALID_WAREHOUSE_A),
+                warehouseName: 'Almacén Caracas',
+                qty: 5,
+              },
+            ],
+          },
+        ],
+        totalQty: 5,
+        totalAmount: 10,
+        currency: 'USD',
+        soldBy: {
+          userId: overrides.soldByUserId ?? VALID_SALES_PERSON_ID,
+          name: 'Sales User',
+        },
+        get: (key: string) =>
+          key === 'createdAt' ? new Date('2026-04-29T00:00:00Z') : undefined,
+      };
+    }
+
+    beforeEach(() => {
+      configService.getOrThrow.mockImplementation((key: string) => {
+        if (key === 'COMPANY_NAME') return 'Corporación Alessandro';
+        if (key === 'COMPANY_RIF') return '000.000.000-0';
+        return '';
+      });
+      configService.get.mockReturnValue('');
+    });
+
+    describe('generateDeliveryOrderPdf', () => {
+      it('returns a PDF buffer for an admin', async () => {
+        saleModel.findById.mockResolvedValue(buildSaleDoc());
+
+        const result = await service.generateDeliveryOrderPdf(VALID_SALE_ID, {
+          userId: 'someone-else',
+          role: 'admin',
+        });
+
+        expect(result.filename).toBe('orden-entrega-S-2026-00001.pdf');
+        expect(Buffer.isBuffer(result.buffer)).toBe(true);
+        expect(result.buffer.length).toBeGreaterThan(0);
+        expect(result.buffer.subarray(0, 4).toString()).toBe('%PDF');
+      });
+
+      it('returns a PDF for the salesperson who created the sale', async () => {
+        saleModel.findById.mockResolvedValue(buildSaleDoc());
+
+        const result = await service.generateDeliveryOrderPdf(VALID_SALE_ID, {
+          userId: VALID_SALES_PERSON_ID,
+          role: 'salesPerson',
+        });
+
+        expect(Buffer.isBuffer(result.buffer)).toBe(true);
+      });
+
+      it('throws ForbiddenException when another salesperson tries', async () => {
+        saleModel.findById.mockResolvedValue(buildSaleDoc());
+
+        await expect(
+          service.generateDeliveryOrderPdf(VALID_SALE_ID, {
+            userId: OTHER_SALES_PERSON_ID,
+            role: 'salesPerson',
+          }),
+        ).rejects.toThrow(ForbiddenException);
+      });
+
+      it('throws NotFoundException when the sale does not exist', async () => {
+        saleModel.findById.mockResolvedValue(null);
+
+        await expect(
+          service.generateDeliveryOrderPdf(VALID_SALE_ID, {
+            userId: VALID_SALES_PERSON_ID,
+            role: 'admin',
+          }),
+        ).rejects.toThrow(NotFoundException);
+      });
+    });
+
+    describe('generateInvoicePdf', () => {
+      const fullClient = {
+        id: VALID_CLIENT_ID,
+        name: 'Bodega Local',
+        rif: '123.456.789-0',
+        address: 'Av. Principal',
+        phone: '0212-1234567',
+      };
+
+      it('returns a PDF buffer for an admin', async () => {
+        saleModel.findById.mockResolvedValue(buildSaleDoc());
+        clientsService.findById.mockResolvedValue(fullClient);
+
+        const result = await service.generateInvoicePdf(VALID_SALE_ID, {
+          userId: 'admin-id',
+          role: 'admin',
+        });
+
+        expect(result.filename).toBe('factura-S-2026-00001.pdf');
+        expect(Buffer.isBuffer(result.buffer)).toBe(true);
+        expect(result.buffer.subarray(0, 4).toString()).toBe('%PDF');
+      });
+
+      it('throws NotFoundException when the client is missing', async () => {
+        saleModel.findById.mockResolvedValue(buildSaleDoc());
+        clientsService.findById.mockResolvedValue(null);
+
+        await expect(
+          service.generateInvoicePdf(VALID_SALE_ID, {
+            userId: 'admin-id',
+            role: 'admin',
+          }),
+        ).rejects.toThrow(NotFoundException);
+      });
+
+      it('throws ForbiddenException when another salesperson tries', async () => {
+        saleModel.findById.mockResolvedValue(buildSaleDoc());
+
+        await expect(
+          service.generateInvoicePdf(VALID_SALE_ID, {
+            userId: OTHER_SALES_PERSON_ID,
+            role: 'salesPerson',
+          }),
+        ).rejects.toThrow(ForbiddenException);
+      });
     });
   });
 

@@ -13,6 +13,8 @@ import { CitiesModule } from './cities/cities.module';
 import { WarehousesModule } from './warehouses/warehouses.module';
 import { InventoryModule } from './inventory/inventory.module';
 import { SalesModule } from './sales/sales.module';
+import { CommissionsModule } from './commissions/commissions.module';
+import { DashboardModule } from './dashboard/dashboard.module';
 import { ClientsModule } from './clients/clients.module';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 import { SeederModule } from './seeder/seeder.module';
@@ -40,6 +42,8 @@ import { SeederModule } from './seeder/seeder.module';
     WarehousesModule,
     InventoryModule,
     SalesModule,
+    CommissionsModule,
+    DashboardModule,
     ClientsModule,
     SeederModule,
   ],

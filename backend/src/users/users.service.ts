@@ -15,17 +15,26 @@ export type CreateUserData = {
   role: Role;
   status?: UserStatus;
   cityId?: string;
+  commissionPercentage?: number;
 };
+
+const DEFAULT_COMMISSION_PERCENTAGE = 3;
 
 @Injectable()
 export class UsersService {
   constructor(@InjectModel(User.name) private userModel: Model<User>) {}
 
   async create(data: CreateUserData): Promise<UserDocument> {
-    const { cityId, ...rest } = data;
+    const { cityId, commissionPercentage, role, ...rest } = data;
+    const commission =
+      role === 'salesPerson'
+        ? (commissionPercentage ?? DEFAULT_COMMISSION_PERCENTAGE)
+        : undefined;
     const created = await this.userModel.create({
       ...rest,
+      role,
       ...(cityId ? { cityId: new Types.ObjectId(cityId) } : {}),
+      ...(commission !== undefined ? { commissionPercentage: commission } : {}),
     });
     await created.populate('cityId', 'name');
     return created;
@@ -74,10 +83,16 @@ export class UsersService {
       if (user.status === undefined) {
         update.status = 'approved';
       }
+      if (user.commissionPercentage === undefined) {
+        update.commissionPercentage = DEFAULT_COMMISSION_PERCENTAGE;
+      }
     } else {
       const unset: Record<string, 1> = {};
       if (user.status !== undefined) unset.status = 1;
       if (user.cityId) unset.cityId = 1;
+      if (user.commissionPercentage !== undefined) {
+        unset.commissionPercentage = 1;
+      }
       if (Object.keys(unset).length > 0) {
         update.$unset = unset;
       }
@@ -85,6 +100,15 @@ export class UsersService {
 
     return this.userModel
       .findByIdAndUpdate(userId, update, { new: true })
+      .populate('cityId', 'name');
+  }
+
+  async updateCommission(
+    userId: string,
+    commissionPercentage: number,
+  ): Promise<UserDocument | null> {
+    return this.userModel
+      .findByIdAndUpdate(userId, { commissionPercentage }, { new: true })
       .populate('cityId', 'name');
   }
 

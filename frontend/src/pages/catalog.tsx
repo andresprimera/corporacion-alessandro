@@ -166,7 +166,7 @@ export default function CatalogPage() {
   )
 
   const filters = (
-    <div className="flex flex-wrap items-end gap-3">
+    <div className="flex flex-col gap-3 md:flex-row md:flex-wrap md:items-end">
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="catalog-search" className="text-sm font-medium">
           {t("Search")}
@@ -177,7 +177,7 @@ export default function CatalogPage() {
           placeholder={t("Search products")}
           value={searchInput}
           onChange={(e) => setSearchInput(e.target.value)}
-          className="w-56"
+          className="w-full md:w-56"
         />
       </div>
       <div className="flex flex-col gap-1.5">
@@ -188,7 +188,7 @@ export default function CatalogPage() {
           value={kind === "" ? KIND_ALL : kind}
           onValueChange={handleKindChange}
         >
-          <SelectTrigger id="catalog-kind" className="w-40">
+          <SelectTrigger id="catalog-kind" className="w-full md:w-40">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -207,7 +207,7 @@ export default function CatalogPage() {
           onValueChange={handleLiquorTypeChange}
           disabled={kind !== "liquor"}
         >
-          <SelectTrigger id="catalog-liquor-type" className="w-40">
+          <SelectTrigger id="catalog-liquor-type" className="w-full md:w-40">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -233,7 +233,7 @@ export default function CatalogPage() {
           inputMode="decimal"
           value={minPriceStr}
           onChange={(e) => handleMinPriceChange(e.target.value)}
-          className="w-28"
+          className="w-full md:w-28"
         />
       </div>
       <div className="flex flex-col gap-1.5">
@@ -248,10 +248,14 @@ export default function CatalogPage() {
           inputMode="decimal"
           value={maxPriceStr}
           onChange={(e) => handleMaxPriceChange(e.target.value)}
-          className="w-28"
+          className="w-full md:w-28"
         />
       </div>
-      <Button variant="ghost" onClick={handleResetFilters}>
+      <Button
+        variant="ghost"
+        onClick={handleResetFilters}
+        className="w-full md:w-auto"
+      >
         {t("Reset filters")}
       </Button>
     </div>
@@ -267,11 +271,11 @@ export default function CatalogPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>{t("Name")}</TableHead>
-                <TableHead>{t("Kind")}</TableHead>
-                <TableHead>{t("Liquor type")}</TableHead>
-                <TableHead>{t("Presentation")}</TableHead>
+                <TableHead className="hidden md:table-cell">{t("Kind")}</TableHead>
+                <TableHead className="hidden md:table-cell">{t("Liquor type")}</TableHead>
+                <TableHead className="hidden md:table-cell">{t("Presentation")}</TableHead>
                 <TableHead>{t("Price")}</TableHead>
-                <TableHead className="w-32">{t("Actions")}</TableHead>
+                <TableHead className="md:w-32">{t("Actions")}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -280,13 +284,13 @@ export default function CatalogPage() {
                   <TableCell>
                     <Skeleton className="h-4 w-32" />
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="hidden md:table-cell">
                     <Skeleton className="h-6 w-20" />
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="hidden md:table-cell">
                     <Skeleton className="h-4 w-16" />
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="hidden md:table-cell">
                     <Skeleton className="h-4 w-16" />
                   </TableCell>
                   <TableCell>
@@ -331,11 +335,11 @@ export default function CatalogPage() {
           <TableHeader>
             <TableRow>
               <TableHead>{t("Name")}</TableHead>
-              <TableHead>{t("Kind")}</TableHead>
-              <TableHead>{t("Liquor type")}</TableHead>
-              <TableHead>{t("Presentation")}</TableHead>
+              <TableHead className="hidden md:table-cell">{t("Kind")}</TableHead>
+              <TableHead className="hidden md:table-cell">{t("Liquor type")}</TableHead>
+              <TableHead className="hidden md:table-cell">{t("Presentation")}</TableHead>
               <TableHead>{t("Price")}</TableHead>
-              <TableHead className="w-32">{t("Actions")}</TableHead>
+              <TableHead className="md:w-32">{t("Actions")}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -360,20 +364,35 @@ export default function CatalogPage() {
             ) : (
               products.map((p) => (
                 <TableRow key={p.id}>
-                  <TableCell className="font-medium">{p.name}</TableCell>
-                  <TableCell>
+                  <TableCell className="font-medium">
+                    <div>{p.name}</div>
+                    <div className="mt-0.5 flex flex-wrap gap-1 text-xs text-muted-foreground md:hidden">
+                      <span>
+                        {p.kind === "liquor" ? t("Liquor") : t("Groceries")}
+                      </span>
+                      {p.kind === "liquor" && (
+                        <>
+                          <span>·</span>
+                          <span>{liquorTypeLabel(p.liquorType, t)}</span>
+                          <span>·</span>
+                          <span>{formatPresentation(p.presentation, t)}</span>
+                        </>
+                      )}
+                    </div>
+                  </TableCell>
+                  <TableCell className="hidden md:table-cell">
                     <Badge variant="secondary">
                       {p.kind === "liquor" ? t("Liquor") : t("Groceries")}
                     </Badge>
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="hidden md:table-cell">
                     {p.kind === "liquor" ? (
                       liquorTypeLabel(p.liquorType, t)
                     ) : (
                       <span className="text-muted-foreground">—</span>
                     )}
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="hidden md:table-cell">
                     {p.kind === "liquor" ? (
                       formatPresentation(p.presentation, t)
                     ) : (
@@ -389,7 +408,12 @@ export default function CatalogPage() {
                       onClick={() => handleAddToCart(p)}
                     >
                       <PlusIcon className="size-4" />
-                      {t("Add to cart")}
+                      <span className="hidden md:inline">
+                        {t("Add to cart")}
+                      </span>
+                      <span className="sr-only md:hidden">
+                        {t("Add to cart")}
+                      </span>
                     </Button>
                   </TableCell>
                 </TableRow>

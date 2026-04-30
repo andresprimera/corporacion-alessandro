@@ -5,8 +5,10 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
+import PDFDocument from 'pdfkit';
 import { Sale, SaleDocument } from './schemas/sale.schema';
 import { ProductsService } from '../products/products.service';
 import { WarehousesService } from '../warehouses/warehouses.service';
@@ -56,7 +58,268 @@ export class SalesService {
     private clientsService: ClientsService,
     private usersService: UsersService,
     private citiesService: CitiesService,
+    private configService: ConfigService,
   ) {}
+
+  async generateDeliveryOrderPdf(
+    id: string,
+    actor: { userId: string; role: Role },
+  ): Promise<{ filename: string; buffer: Buffer }> {
+    const sale = await this.assertCanPrint(id, actor);
+    const buffer = await this.buildPdf((doc) =>
+      this.renderDeliveryOrder(doc, sale),
+    );
+    return {
+      filename: `orden-entrega-${sale.saleNumber}.pdf`,
+      buffer,
+    };
+  }
+
+  async generateInvoicePdf(
+    id: string,
+    actor: { userId: string; role: Role },
+  ): Promise<{ filename: string; buffer: Buffer }> {
+    const sale = await this.assertCanPrint(id, actor);
+    const client = await this.clientsService.findById(sale.clientId.toString());
+    if (!client) {
+      throw new NotFoundException('Client not found');
+    }
+    const buffer = await this.buildPdf((doc) =>
+      this.renderInvoice(doc, sale, client),
+    );
+    return {
+      filename: `factura-${sale.saleNumber}.pdf`,
+      buffer,
+    };
+  }
+
+  private buildPdf(
+    render: (doc: PDFKit.PDFDocument) => void,
+  ): Promise<Buffer> {
+    return new Promise((resolve, reject) => {
+      const doc = new PDFDocument({ size: 'LETTER', margin: 50 });
+      const chunks: Buffer[] = [];
+      doc.on('data', (chunk: Buffer) => chunks.push(chunk));
+      doc.on('end', () => resolve(Buffer.concat(chunks)));
+      doc.on('error', reject);
+      render(doc);
+      doc.end();
+    });
+  }
+
+  private async assertCanPrint(
+    id: string,
+    actor: { userId: string; role: Role },
+  ): Promise<SaleDocument> {
+    const sale = await this.findById(id);
+    if (!sale) {
+      throw new NotFoundException('Sale not found');
+    }
+    if (actor.role !== 'admin' && sale.soldBy.userId !== actor.userId) {
+      throw new ForbiddenException('Not allowed to print this sale');
+    }
+    return sale;
+  }
+
+  private companyInfo(): {
+    name: string;
+    rif: string;
+    address: string;
+    phone: string;
+  } {
+    return {
+      name: this.configService.getOrThrow<string>('COMPANY_NAME'),
+      rif: this.configService.getOrThrow<string>('COMPANY_RIF'),
+      address: this.configService.get<string>('COMPANY_ADDRESS') ?? '',
+      phone: this.configService.get<string>('COMPANY_PHONE') ?? '',
+    };
+  }
+
+  private formatDate(date: Date): string {
+    return date.toLocaleDateString('es-VE', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+    });
+  }
+
+  private formatCurrency(amount: number, currency: string): string {
+    return new Intl.NumberFormat('es-VE', {
+      style: 'currency',
+      currency,
+    }).format(amount);
+  }
+
+  private renderDeliveryOrder(
+    doc: PDFKit.PDFDocument,
+    sale: SaleDocument,
+  ): void {
+    const company = this.companyInfo();
+    const createdAt = sale.get('createdAt') as Date;
+
+    doc.font('Helvetica-Bold').fontSize(18).text(company.name);
+    if (company.address) doc.font('Helvetica').fontSize(10).text(company.address);
+    if (company.phone) doc.fontSize(10).text(`Tel: ${company.phone}`);
+    doc.moveDown(0.5);
+
+    doc.font('Helvetica-Bold').fontSize(16).text('ORDEN DE ENTREGA', {
+      align: 'right',
+    });
+    doc
+      .font('Helvetica')
+      .fontSize(11)
+      .text(`N°: ${sale.saleNumber}`, { align: 'right' })
+      .text(`Fecha: ${this.formatDate(createdAt)}`, { align: 'right' });
+
+    doc.moveDown();
+    doc.moveTo(50, doc.y).lineTo(562, doc.y).stroke();
+    doc.moveDown();
+
+    doc.font('Helvetica-Bold').fontSize(11).text('Cliente:');
+    doc.font('Helvetica').fontSize(10).text(sale.clientName);
+    doc.fontSize(10).text(`Ciudad: ${sale.cityName}`);
+    doc.moveDown();
+
+    doc.font('Helvetica-Bold').fontSize(11).text('Productos a entregar:');
+    doc.moveDown(0.3);
+
+    const tableTop = doc.y;
+    const colProduct = 50;
+    const colQty = 320;
+    const colWarehouse = 380;
+    doc.font('Helvetica-Bold').fontSize(10);
+    doc.text('Producto', colProduct, tableTop);
+    doc.text('Cant.', colQty, tableTop);
+    doc.text('Almacén(es)', colWarehouse, tableTop);
+    doc.moveTo(50, tableTop + 15).lineTo(562, tableTop + 15).stroke();
+
+    let y = tableTop + 22;
+    doc.font('Helvetica').fontSize(10);
+    for (const item of sale.items) {
+      const warehouses = item.allocations
+        .map((a) => `${a.warehouseName} (${a.qty})`)
+        .join(', ');
+      doc.text(item.productName, colProduct, y, { width: 260 });
+      doc.text(String(item.requestedQty), colQty, y);
+      doc.text(warehouses, colWarehouse, y, { width: 180 });
+      y = doc.y + 8;
+    }
+
+    doc.moveDown(2);
+    doc
+      .font('Helvetica-Bold')
+      .fontSize(10)
+      .text(`Total unidades: ${sale.totalQty}`);
+    doc.moveDown(0.5);
+    doc.font('Helvetica').fontSize(10).text(`Vendido por: ${sale.soldBy.name}`);
+
+    if (sale.notes) {
+      doc.moveDown();
+      doc.font('Helvetica-Bold').fontSize(10).text('Notas:');
+      doc.font('Helvetica').fontSize(10).text(sale.notes);
+    }
+
+    doc.moveDown(3);
+    const sigY = doc.y;
+    doc.moveTo(80, sigY).lineTo(260, sigY).stroke();
+    doc.moveTo(330, sigY).lineTo(510, sigY).stroke();
+    doc.font('Helvetica').fontSize(9);
+    doc.text('Entregado por', 80, sigY + 5, { width: 180, align: 'center' });
+    doc.text('Recibido por', 330, sigY + 5, { width: 180, align: 'center' });
+  }
+
+  private renderInvoice(
+    doc: PDFKit.PDFDocument,
+    sale: SaleDocument,
+    client: {
+      name: string;
+      rif: string;
+      address: string;
+      phone: string;
+    },
+  ): void {
+    const company = this.companyInfo();
+    const createdAt = sale.get('createdAt') as Date;
+
+    doc.font('Helvetica-Bold').fontSize(18).text(company.name);
+    doc.font('Helvetica').fontSize(10).text(`RIF: ${company.rif}`);
+    if (company.address) doc.fontSize(10).text(company.address);
+    if (company.phone) doc.fontSize(10).text(`Tel: ${company.phone}`);
+    doc.moveDown(0.5);
+
+    doc.font('Helvetica-Bold').fontSize(16).text('FACTURA', { align: 'right' });
+    doc
+      .font('Helvetica')
+      .fontSize(11)
+      .text(`N°: ${sale.saleNumber}`, { align: 'right' })
+      .text(`Fecha: ${this.formatDate(createdAt)}`, { align: 'right' });
+
+    doc.moveDown();
+    doc.moveTo(50, doc.y).lineTo(562, doc.y).stroke();
+    doc.moveDown();
+
+    doc.font('Helvetica-Bold').fontSize(11).text('Cliente:');
+    doc.font('Helvetica').fontSize(10).text(client.name);
+    doc.fontSize(10).text(`RIF: ${client.rif}`);
+    doc.fontSize(10).text(client.address);
+    doc.fontSize(10).text(`Tel: ${client.phone}`);
+    doc.fontSize(10).text(`Ciudad: ${sale.cityName}`);
+    doc.moveDown();
+
+    const tableTop = doc.y;
+    const colProduct = 50;
+    const colQty = 300;
+    const colPrice = 360;
+    const colTotal = 470;
+    doc.font('Helvetica-Bold').fontSize(10);
+    doc.text('Producto', colProduct, tableTop);
+    doc.text('Cant.', colQty, tableTop, { width: 50, align: 'right' });
+    doc.text('Precio', colPrice, tableTop, { width: 100, align: 'right' });
+    doc.text('Total', colTotal, tableTop, { width: 90, align: 'right' });
+    doc.moveTo(50, tableTop + 15).lineTo(562, tableTop + 15).stroke();
+
+    let y = tableTop + 22;
+    doc.font('Helvetica').fontSize(10);
+    for (const item of sale.items) {
+      const lineTotal = item.unitPrice * item.requestedQty;
+      doc.text(item.productName, colProduct, y, { width: 240 });
+      doc.text(String(item.requestedQty), colQty, y, {
+        width: 50,
+        align: 'right',
+      });
+      doc.text(this.formatCurrency(item.unitPrice, item.currency), colPrice, y, {
+        width: 100,
+        align: 'right',
+      });
+      doc.text(this.formatCurrency(lineTotal, item.currency), colTotal, y, {
+        width: 90,
+        align: 'right',
+      });
+      y = doc.y + 8;
+    }
+
+    doc.moveTo(360, y + 4).lineTo(562, y + 4).stroke();
+    doc
+      .font('Helvetica-Bold')
+      .fontSize(11)
+      .text('Total:', colPrice, y + 12, { width: 100, align: 'right' });
+    doc
+      .font('Helvetica-Bold')
+      .fontSize(11)
+      .text(this.formatCurrency(sale.totalAmount, sale.currency), colTotal, y + 12, {
+        width: 90,
+        align: 'right',
+      });
+
+    if (sale.notes) {
+      doc.moveDown(3);
+      doc.font('Helvetica-Bold').fontSize(10).text('Notas:', 50);
+      doc.font('Helvetica').fontSize(10).text(sale.notes);
+    }
+
+    doc.moveDown(2);
+    doc.font('Helvetica').fontSize(10).text(`Vendido por: ${sale.soldBy.name}`, 50);
+  }
 
   async create(
     dto: CreateSaleInput,

@@ -45,3 +45,29 @@ export async function updateSaleApi(
 export async function removeSaleApi(id: string): Promise<void> {
   await authFetch(`/api/sales/${id}`, { method: "DELETE" })
 }
+
+export async function downloadDeliveryOrderApi(id: string): Promise<void> {
+  const res = await authFetch(`/api/sales/${id}/delivery-order`)
+  await triggerDownload(res, `orden-entrega-${id}.pdf`)
+}
+
+export async function downloadInvoiceApi(id: string): Promise<void> {
+  const res = await authFetch(`/api/sales/${id}/invoice`)
+  await triggerDownload(res, `factura-${id}.pdf`)
+}
+
+async function triggerDownload(
+  res: Response,
+  fallbackName: string,
+): Promise<void> {
+  const blob = await res.blob()
+  const cd = res.headers.get("content-disposition") ?? ""
+  const match = cd.match(/filename="?([^"]+)"?/)
+  const name = match?.[1] ?? fallbackName
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement("a")
+  a.href = url
+  a.download = name
+  a.click()
+  URL.revokeObjectURL(url)
+}

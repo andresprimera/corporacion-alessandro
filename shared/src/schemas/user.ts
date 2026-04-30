@@ -14,6 +14,7 @@ export const userSchema = z.object({
   status: userStatusEnum.optional(),
   cityId: z.string().optional(),
   cityName: z.string().optional(),
+  commissionPercentage: z.number().min(0).max(100).optional(),
 });
 
 export type User = z.infer<typeof userSchema>;

@@ -1,16 +1,12 @@
-import { ChartAreaInteractive } from "@/components/chart-area-interactive"
-import { DataTable } from "@/components/data-table"
-import { SectionCards } from "@/components/section-cards"
-import data from "@/data.json"
+import { useAuth } from "@/hooks/use-auth"
+import { AdminDashboard } from "@/components/admin-dashboard"
+import { SalesPersonDashboard } from "@/components/sales-person-dashboard"
+import { UserDashboard } from "@/components/user-dashboard"
 
 export default function DashboardPage() {
-  return (
-    <>
-      <SectionCards />
-      <div className="grid gap-4 lg:grid-cols-2">
-        <ChartAreaInteractive />
-        <DataTable data={data} />
-      </div>
-    </>
-  )
+  const { user } = useAuth()
+  if (!user) return null
+  if (user.role === "admin") return <AdminDashboard />
+  if (user.role === "salesPerson") return <SalesPersonDashboard />
+  return <UserDashboard />
 }

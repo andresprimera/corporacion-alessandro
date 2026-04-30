@@ -61,7 +61,7 @@ describe('UsersService', () => {
       expect(result).toBe(created);
     });
 
-    it('should pass the status field through when provided', async () => {
+    it('should pass the status field through and apply default commission for salesPerson', async () => {
       const data = {
         name: 'Sally',
         email: 'sally@example.com',
@@ -74,8 +74,46 @@ describe('UsersService', () => {
 
       const result = await service.create(data);
 
-      expect(model.create).toHaveBeenCalledWith(data);
+      expect(model.create).toHaveBeenCalledWith({
+        ...data,
+        commissionPercentage: 3,
+      });
       expect(result).toBe(created);
+    });
+
+    it('should use the provided commission percentage when creating a salesPerson', async () => {
+      const data = {
+        name: 'Sally',
+        email: 'sally@example.com',
+        password: 'hash',
+        role: 'salesPerson' as const,
+        status: 'approved' as const,
+        commissionPercentage: 7.5,
+      };
+      const created = mockCreatedDoc({ role: 'salesPerson' });
+      model.create.mockResolvedValue(created);
+
+      await service.create(data);
+
+      expect(model.create).toHaveBeenCalledWith(
+        expect.objectContaining({ commissionPercentage: 7.5 }),
+      );
+    });
+
+    it('should not set commission when creating a non-salesPerson', async () => {
+      const data = {
+        name: 'Test',
+        email: 'test@example.com',
+        password: 'hash',
+        role: 'user' as const,
+      };
+      const created = mockCreatedDoc();
+      model.create.mockResolvedValue(created);
+
+      await service.create(data);
+
+      const callArg = model.create.mock.calls[0][0];
+      expect(callArg.commissionPercentage).toBeUndefined();
     });
 
     it('should convert cityId to an ObjectId before storing and populate it', async () => {
@@ -209,9 +247,14 @@ describe('UsersService', () => {
       expect(result).toEqual(updated);
     });
 
-    it('should auto-approve when promoting to salesPerson without existing status', async () => {
+    it('should auto-approve and set default commission when promoting to salesPerson without existing status', async () => {
       model.findById.mockResolvedValue({ ...mockUser, role: 'user' });
-      const updated = { ...mockUser, role: 'salesPerson', status: 'approved' };
+      const updated = {
+        ...mockUser,
+        role: 'salesPerson',
+        status: 'approved',
+        commissionPercentage: 3,
+      };
       model.findByIdAndUpdate.mockReturnValue({
         populate: jest.fn().mockResolvedValue(updated),
       });
@@ -220,19 +263,29 @@ describe('UsersService', () => {
 
       expect(model.findByIdAndUpdate).toHaveBeenCalledWith(
         'user-1',
-        { role: 'salesPerson', status: 'approved' },
+        {
+          role: 'salesPerson',
+          status: 'approved',
+          commissionPercentage: 3,
+        },
         { new: true },
       );
       expect(result).toEqual(updated);
     });
 
-    it('should preserve existing status when role stays salesPerson', async () => {
+    it('should preserve existing status and commission when role stays salesPerson', async () => {
       model.findById.mockResolvedValue({
         ...mockUser,
         role: 'salesPerson',
         status: 'in_revision',
+        commissionPercentage: 5,
       });
-      const updated = { ...mockUser, role: 'salesPerson', status: 'in_revision' };
+      const updated = {
+        ...mockUser,
+        role: 'salesPerson',
+        status: 'in_revision',
+        commissionPercentage: 5,
+      };
       model.findByIdAndUpdate.mockReturnValue({
         populate: jest.fn().mockResolvedValue(updated),
       });
@@ -266,12 +319,13 @@ describe('UsersService', () => {
       );
     });
 
-    it('should clear cityId when demoting from salesPerson with a city', async () => {
+    it('should clear cityId and commission when demoting from salesPerson with a city and commission', async () => {
       model.findById.mockResolvedValue({
         ...mockUser,
         role: 'salesPerson',
         status: 'approved',
         cityId: 'city-1',
+        commissionPercentage: 3,
       });
       const updated = { ...mockUser, role: 'user' };
       model.findByIdAndUpdate.mockReturnValue({
@@ -282,7 +336,10 @@ describe('UsersService', () => {
 
       expect(model.findByIdAndUpdate).toHaveBeenCalledWith(
         'user-1',
-        { role: 'user', $unset: { status: 1, cityId: 1 } },
+        {
+          role: 'user',
+          $unset: { status: 1, cityId: 1, commissionPercentage: 1 },
+        },
         { new: true },
       );
     });
