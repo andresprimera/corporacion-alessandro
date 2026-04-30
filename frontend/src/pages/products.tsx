@@ -77,8 +77,8 @@ export default function ProductsPage() {
   const [deleteProductId, setDeleteProductId] = useState<string | null>(null)
 
   const { data, isLoading, isError, error, refetch } = useQuery({
-    queryKey: ["products", page, pageSize],
-    queryFn: () => fetchProductsApi(page, pageSize),
+    queryKey: ["products", { page, pageSize }],
+    queryFn: () => fetchProductsApi({ page, limit: pageSize }),
     placeholderData: keepPreviousData,
   })
 

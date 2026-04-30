@@ -69,6 +69,8 @@ export {
   type UpdateProductInput,
   productOptionSchema,
   type ProductOption,
+  productListQuerySchema,
+  type ProductListQuery,
 } from "./schemas/product";
 
 export {

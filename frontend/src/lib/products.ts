@@ -2,19 +2,35 @@ import {
   type Product,
   type ProductOption,
   type PaginatedResponse,
+  type ProductKind,
+  type LiquorType,
   type CreateProductInput,
   type UpdateProductInput,
 } from "@base-dashboard/shared"
 import { authFetch } from "@/lib/api"
 
+export interface FetchProductsArgs {
+  page: number
+  limit: number
+  kind?: ProductKind
+  liquorType?: LiquorType
+  minPrice?: number
+  maxPrice?: number
+  search?: string
+}
+
 export async function fetchProductsApi(
-  page: number,
-  limit: number,
+  args: FetchProductsArgs,
 ): Promise<PaginatedResponse<Product>> {
   const params = new URLSearchParams({
-    page: String(page),
-    limit: String(limit),
+    page: String(args.page),
+    limit: String(args.limit),
   })
+  if (args.kind) params.set("kind", args.kind)
+  if (args.liquorType) params.set("liquorType", args.liquorType)
+  if (args.minPrice !== undefined) params.set("minPrice", String(args.minPrice))
+  if (args.maxPrice !== undefined) params.set("maxPrice", String(args.maxPrice))
+  if (args.search) params.set("search", args.search)
   const res = await authFetch(`/api/products?${params}`)
   return res.json()
 }

@@ -1,5 +1,7 @@
 import { z } from "zod/v4";
 
+import { paginationQuerySchema } from "./pagination";
+
 export const currencyEnum = z.enum(["USD"]);
 export type Currency = z.infer<typeof currencyEnum>;
 
@@ -69,3 +71,12 @@ export const productOptionSchema = z.object({
   price: priceSchema,
 });
 export type ProductOption = z.infer<typeof productOptionSchema>;
+
+export const productListQuerySchema = paginationQuerySchema.extend({
+  kind: productKindEnum.optional(),
+  liquorType: liquorTypeEnum.optional(),
+  minPrice: z.coerce.number().nonnegative().optional(),
+  maxPrice: z.coerce.number().nonnegative().optional(),
+  search: z.string().min(1).optional(),
+});
+export type ProductListQuery = z.infer<typeof productListQuerySchema>;

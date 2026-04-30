@@ -3,6 +3,7 @@ import { Separator } from "@/components/ui/separator"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { LanguageToggle } from "@/components/language-toggle"
+import { SaleCartButton } from "@/components/sale-cart-button"
 
 export function SiteHeader() {
   const { t } = useTranslation()
@@ -17,6 +18,7 @@ export function SiteHeader() {
         />
         <h1 className="text-base font-medium">{t("Documents")}</h1>
         <div className="ml-auto flex items-center gap-1">
+          <SaleCartButton />
           <LanguageToggle />
           <ThemeToggle />
         </div>

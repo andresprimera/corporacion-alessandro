@@ -76,36 +76,162 @@ describe('ProductsService', () => {
   });
 
   describe('findAllPaginated', () => {
-    it('should return paginated data sorted by newest first with total count', async () => {
-      const chainable = {
+    function buildChain(data: unknown[]): {
+      sort: jest.Mock;
+      skip: jest.Mock;
+      limit: jest.Mock;
+    } {
+      return {
         sort: jest.fn().mockReturnThis(),
         skip: jest.fn().mockReturnThis(),
-        limit: jest.fn().mockResolvedValue([mockGrocery, mockLiquor]),
+        limit: jest.fn().mockResolvedValue(data),
       };
-      model.find.mockReturnValue(chainable);
+    }
+
+    it('should return alphabetically-sorted data with no filters', async () => {
+      const chain = buildChain([mockGrocery, mockLiquor]);
+      model.find.mockReturnValue(chain);
       model.countDocuments.mockResolvedValue(2);
 
-      const result = await service.findAllPaginated(1, 10);
+      const result = await service.findAllPaginated({ page: 1, limit: 10 });
 
-      expect(chainable.sort).toHaveBeenCalledWith({ createdAt: -1 });
-      expect(chainable.skip).toHaveBeenCalledWith(0);
-      expect(chainable.limit).toHaveBeenCalledWith(10);
+      expect(model.find).toHaveBeenCalledWith({});
+      expect(chain.sort).toHaveBeenCalledWith({ name: 1 });
+      expect(chain.skip).toHaveBeenCalledWith(0);
+      expect(chain.limit).toHaveBeenCalledWith(10);
+      expect(model.countDocuments).toHaveBeenCalledWith({});
       expect(result).toEqual({ data: [mockGrocery, mockLiquor], total: 2 });
     });
 
-    it('should calculate correct skip for page 3', async () => {
-      const chainable = {
-        sort: jest.fn().mockReturnThis(),
-        skip: jest.fn().mockReturnThis(),
-        limit: jest.fn().mockResolvedValue([]),
-      };
-      model.find.mockReturnValue(chainable);
+    it('should filter by kind', async () => {
+      const chain = buildChain([mockLiquor]);
+      model.find.mockReturnValue(chain);
+      model.countDocuments.mockResolvedValue(1);
+
+      await service.findAllPaginated({ page: 1, limit: 10, kind: 'liquor' });
+
+      expect(model.find).toHaveBeenCalledWith({ kind: 'liquor' });
+      expect(model.countDocuments).toHaveBeenCalledWith({ kind: 'liquor' });
+    });
+
+    it('should force kind=liquor when liquorType is provided', async () => {
+      const chain = buildChain([mockLiquor]);
+      model.find.mockReturnValue(chain);
+      model.countDocuments.mockResolvedValue(1);
+
+      await service.findAllPaginated({
+        page: 1,
+        limit: 10,
+        liquorType: 'rum',
+      });
+
+      expect(model.find).toHaveBeenCalledWith({
+        kind: 'liquor',
+        liquorType: 'rum',
+      });
+    });
+
+    it('should filter by full price range', async () => {
+      const chain = buildChain([mockGrocery]);
+      model.find.mockReturnValue(chain);
+      model.countDocuments.mockResolvedValue(1);
+
+      await service.findAllPaginated({
+        page: 1,
+        limit: 10,
+        minPrice: 5,
+        maxPrice: 50,
+      });
+
+      expect(model.find).toHaveBeenCalledWith({
+        'price.value': { $gte: 5, $lte: 50 },
+      });
+    });
+
+    it('should filter by minPrice only', async () => {
+      const chain = buildChain([]);
+      model.find.mockReturnValue(chain);
       model.countDocuments.mockResolvedValue(0);
 
-      await service.findAllPaginated(3, 20);
+      await service.findAllPaginated({ page: 1, limit: 10, minPrice: 5 });
 
-      expect(chainable.skip).toHaveBeenCalledWith(40);
-      expect(chainable.limit).toHaveBeenCalledWith(20);
+      expect(model.find).toHaveBeenCalledWith({
+        'price.value': { $gte: 5 },
+      });
+    });
+
+    it('should filter by maxPrice only', async () => {
+      const chain = buildChain([]);
+      model.find.mockReturnValue(chain);
+      model.countDocuments.mockResolvedValue(0);
+
+      await service.findAllPaginated({ page: 1, limit: 10, maxPrice: 50 });
+
+      expect(model.find).toHaveBeenCalledWith({
+        'price.value': { $lte: 50 },
+      });
+    });
+
+    it('should filter by case-insensitive name search', async () => {
+      const chain = buildChain([mockLiquor]);
+      model.find.mockReturnValue(chain);
+      model.countDocuments.mockResolvedValue(1);
+
+      await service.findAllPaginated({ page: 1, limit: 10, search: 'rum' });
+
+      expect(model.find).toHaveBeenCalledWith({
+        name: { $regex: 'rum', $options: 'i' },
+      });
+    });
+
+    it('should escape regex special characters in search', async () => {
+      const chain = buildChain([]);
+      model.find.mockReturnValue(chain);
+      model.countDocuments.mockResolvedValue(0);
+
+      await service.findAllPaginated({
+        page: 1,
+        limit: 10,
+        search: 'rum.* (special)',
+      });
+
+      expect(model.find).toHaveBeenCalledWith({
+        name: { $regex: 'rum\\.\\* \\(special\\)', $options: 'i' },
+      });
+    });
+
+    it('should combine all filters', async () => {
+      const chain = buildChain([mockLiquor]);
+      model.find.mockReturnValue(chain);
+      model.countDocuments.mockResolvedValue(1);
+
+      await service.findAllPaginated({
+        page: 1,
+        limit: 10,
+        kind: 'groceries',
+        liquorType: 'rum',
+        minPrice: 5,
+        maxPrice: 50,
+        search: 'bac',
+      });
+
+      expect(model.find).toHaveBeenCalledWith({
+        kind: 'liquor',
+        liquorType: 'rum',
+        'price.value': { $gte: 5, $lte: 50 },
+        name: { $regex: 'bac', $options: 'i' },
+      });
+    });
+
+    it('should compute skip from page and limit', async () => {
+      const chain = buildChain([]);
+      model.find.mockReturnValue(chain);
+      model.countDocuments.mockResolvedValue(0);
+
+      await service.findAllPaginated({ page: 3, limit: 20 });
+
+      expect(chain.skip).toHaveBeenCalledWith(40);
+      expect(chain.limit).toHaveBeenCalledWith(20);
     });
   });
 

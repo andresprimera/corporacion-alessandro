@@ -1,11 +1,16 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { FilterQuery, Model } from 'mongoose';
 import { Product, ProductDocument } from './schemas/product.schema';
 import type {
   CreateProductInput,
+  ProductListQuery,
   UpdateProductInput,
 } from '@base-dashboard/shared';
+
+function escapeRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
 
 @Injectable()
 export class ProductsService {
@@ -18,13 +23,30 @@ export class ProductsService {
   }
 
   async findAllPaginated(
-    page: number,
-    limit: number,
+    query: ProductListQuery,
   ): Promise<{ data: ProductDocument[]; total: number }> {
+    const { page, limit, kind, liquorType, minPrice, maxPrice, search } = query;
+    const filter: FilterQuery<Product> = {};
+
+    if (kind) filter.kind = kind;
+    if (liquorType) {
+      filter.kind = 'liquor';
+      filter.liquorType = liquorType;
+    }
+    if (minPrice !== undefined || maxPrice !== undefined) {
+      const priceRange: { $gte?: number; $lte?: number } = {};
+      if (minPrice !== undefined) priceRange.$gte = minPrice;
+      if (maxPrice !== undefined) priceRange.$lte = maxPrice;
+      filter['price.value'] = priceRange;
+    }
+    if (search) {
+      filter.name = { $regex: escapeRegex(search), $options: 'i' };
+    }
+
     const skip = (page - 1) * limit;
     const [data, total] = await Promise.all([
-      this.productModel.find().sort({ createdAt: -1 }).skip(skip).limit(limit),
-      this.productModel.countDocuments(),
+      this.productModel.find(filter).sort({ name: 1 }).skip(skip).limit(limit),
+      this.productModel.countDocuments(filter),
     ]);
     return { data, total };
   }

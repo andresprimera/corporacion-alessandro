@@ -9,6 +9,7 @@ import InventoryPage from "@/pages/inventory"
 import StockPage from "@/pages/stock"
 import SalesPage from "@/pages/sales"
 import ClientsPage from "@/pages/clients"
+import CatalogPage from "@/pages/catalog"
 import LoginPage from "@/pages/login"
 import SignupPage from "@/pages/signup"
 import ForgotPasswordPage from "@/pages/forgot-password"
@@ -113,6 +114,14 @@ export const router = createBrowserRouter([
         element: (
           <RoleRoute allowed={["admin", "salesPerson"]}>
             <ClientsPage />
+          </RoleRoute>
+        ),
+      },
+      {
+        path: "catalog",
+        element: (
+          <RoleRoute allowed={["admin", "salesPerson"]}>
+            <CatalogPage />
           </RoleRoute>
         ),
       },

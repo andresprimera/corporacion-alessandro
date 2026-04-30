@@ -1,9 +1,8 @@
-import { useEffect, useRef, useState } from "react"
+import { useState } from "react"
 import { useTranslation } from "react-i18next"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import {
   type Currency,
-  type ProductKind,
   type ProductOption,
 } from "@base-dashboard/shared"
 import { fetchProductOptionsApi } from "@/lib/products"
@@ -12,6 +11,7 @@ import { fetchClientOptionsApi } from "@/lib/clients"
 import { fetchCityOptionsApi } from "@/lib/cities"
 import { createSaleApi } from "@/lib/sales"
 import { useAuth } from "@/hooks/use-auth"
+import { useSaleCart, type CartItem } from "@/hooks/use-sale-cart"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
 import {
@@ -53,53 +53,6 @@ import {
 } from "@/components/ui/combobox"
 import { Button } from "@/components/ui/button"
 import { MinusIcon, PlusIcon, TrashIcon } from "lucide-react"
-
-interface CartItem {
-  productId: string
-  productName: string
-  productKind: ProductKind
-  requestedQty: number
-  unitPrice: number
-  currency: Currency
-}
-
-interface PersistedCart {
-  cityId?: string
-  clientId: string
-  notes: string
-  items: CartItem[]
-}
-
-const STORAGE_KEY_PREFIX = "sale-cart-v1:"
-
-function loadCart(userId: string): PersistedCart | null {
-  try {
-    const raw = localStorage.getItem(`${STORAGE_KEY_PREFIX}${userId}`)
-    if (!raw) return null
-    return JSON.parse(raw) as PersistedCart
-  } catch {
-    return null
-  }
-}
-
-function saveCart(userId: string, cart: PersistedCart): void {
-  try {
-    localStorage.setItem(
-      `${STORAGE_KEY_PREFIX}${userId}`,
-      JSON.stringify(cart),
-    )
-  } catch {
-    // storage full or disabled — ignore
-  }
-}
-
-function clearCart(userId: string): void {
-  try {
-    localStorage.removeItem(`${STORAGE_KEY_PREFIX}${userId}`)
-  } catch {
-    // ignore
-  }
-}
 
 function formatPrice(value: number, currency: Currency): string {
   return `${currency} ${value.toFixed(2)}`
@@ -194,38 +147,11 @@ export function SaleFormDialog({
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const { user } = useAuth()
+  const cart = useSaleCart()
   const isAdmin = user?.role === "admin"
-  const userId = user?.id
-
-  const [cityId, setCityId] = useState<string | undefined>(undefined)
-  const [clientId, setClientId] = useState<string>("")
-  const [notes, setNotes] = useState<string>("")
-  const [items, setItems] = useState<CartItem[]>([])
 
   const [draftProduct, setDraftProduct] = useState<ProductOption | null>(null)
   const [draftQty, setDraftQty] = useState<number>(1)
-
-  const initializedRef = useRef(false)
-  useEffect(() => {
-    if (open && userId && !initializedRef.current) {
-      initializedRef.current = true
-      const saved = loadCart(userId)
-      if (saved) {
-        setCityId(saved.cityId)
-        setClientId(saved.clientId)
-        setNotes(saved.notes)
-        setItems(saved.items)
-      }
-    }
-    if (!open) {
-      initializedRef.current = false
-    }
-  }, [open, userId])
-
-  useEffect(() => {
-    if (!open || !userId) return
-    saveCart(userId, { cityId, clientId, notes, items })
-  }, [open, userId, cityId, clientId, notes, items])
 
   const { data: productOptions = [] } = useQuery({
     queryKey: ["products", "options"],
@@ -245,9 +171,9 @@ export function SaleFormDialog({
     enabled: open && isAdmin,
   })
 
-  const effectiveCityId = isAdmin ? cityId : user?.cityId
+  const effectiveCityId = isAdmin ? cart.cityId : user?.cityId
   const effectiveCityName = isAdmin
-    ? cityOptions.find((c) => c.id === cityId)?.name
+    ? cityOptions.find((c) => c.id === cart.cityId)?.name
     : user?.cityName
 
   const draftStockQuery = useQuery({
@@ -265,76 +191,19 @@ export function SaleFormDialog({
     staleTime: 30_000,
   })
 
-  function changeCityId(next: string | undefined): void {
-    if (next !== cityId && items.length > 0) {
-      setItems([])
-    }
-    setCityId(next)
-  }
-
-  function changeClientId(next: string): void {
-    if (next !== clientId && items.length > 0) {
-      setItems([])
-    }
-    setClientId(next)
-  }
-
   function handleAddToOrder(): void {
     if (!draftProduct || draftQty < 1) return
-    setItems((prev) => {
-      const existing = prev.find((i) => i.productId === draftProduct.id)
-      if (existing) {
-        return prev.map((i) =>
-          i.productId === draftProduct.id
-            ? { ...i, requestedQty: i.requestedQty + draftQty }
-            : i,
-        )
-      }
-      return [
-        ...prev,
-        {
-          productId: draftProduct.id,
-          productName: draftProduct.name,
-          productKind: draftProduct.kind,
-          requestedQty: draftQty,
-          unitPrice: draftProduct.price.value,
-          currency: draftProduct.price.currency,
-        },
-      ]
-    })
+    cart.addItem(draftProduct, draftQty)
     setDraftProduct(null)
     setDraftQty(1)
   }
 
-  function handleQtyChange(productId: string, qty: number): void {
-    if (qty < 1) return
-    setItems((prev) =>
-      prev.map((i) =>
-        i.productId === productId ? { ...i, requestedQty: qty } : i,
-      ),
-    )
-  }
-
-  function handleRemove(productId: string): void {
-    setItems((prev) => prev.filter((i) => i.productId !== productId))
-  }
-
-  function handleClearOrder(): void {
-    setItems([])
-    setNotes("")
-  }
-
-  const totalQty = items.reduce((s, i) => s + i.requestedQty, 0)
-  const totalAmount = items.reduce(
-    (s, i) => s + i.requestedQty * i.unitPrice,
-    0,
-  )
-  const totalCurrency = items[0]?.currency ?? "USD"
+  const totalCurrency = cart.totalCurrency
 
   const salesPersonMissingCity = !isAdmin && !user?.cityId
   const submitDisabled =
-    items.length === 0 ||
-    !clientId ||
+    cart.items.length === 0 ||
+    !cart.clientId ||
     !effectiveCityId ||
     salesPersonMissingCity
 
@@ -345,11 +214,7 @@ export function SaleFormDialog({
       queryClient.invalidateQueries({ queryKey: ["inventory"] })
       queryClient.invalidateQueries({ queryKey: ["stock"] })
       toast.success(t("Sale created"))
-      if (userId) clearCart(userId)
-      setCityId(undefined)
-      setClientId("")
-      setNotes("")
-      setItems([])
+      cart.resetAll()
       onOpenChange(false)
     },
     onError: (err: Error) => {
@@ -361,10 +226,10 @@ export function SaleFormDialog({
     e.preventDefault()
     if (submitDisabled) return
     mutation.mutate({
-      cityId: isAdmin ? cityId : undefined,
-      clientId,
-      notes: notes.trim() || undefined,
-      items: items.map((i) => ({
+      cityId: isAdmin ? cart.cityId : undefined,
+      clientId: cart.clientId,
+      notes: cart.notes.trim() || undefined,
+      items: cart.items.map((i) => ({
         productId: i.productId,
         requestedQty: i.requestedQty,
         unitPrice: i.unitPrice,
@@ -397,8 +262,8 @@ export function SaleFormDialog({
               <Field>
                 <FieldLabel>{t("City")}</FieldLabel>
                 <Select
-                  value={cityId ?? ""}
-                  onValueChange={(val) => changeCityId(val || undefined)}
+                  value={cart.cityId ?? ""}
+                  onValueChange={(val) => cart.setCityId(val || undefined)}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder={t("Select city")} />
@@ -416,8 +281,8 @@ export function SaleFormDialog({
             <Field>
               <FieldLabel>{t("Client")}</FieldLabel>
               <Select
-                value={clientId || ""}
-                onValueChange={(val) => val && changeClientId(val)}
+                value={cart.clientId || ""}
+                onValueChange={(val) => val && cart.setClientId(val)}
               >
                 <SelectTrigger>
                   <SelectValue placeholder={t("Select client")} />
@@ -514,46 +379,46 @@ export function SaleFormDialog({
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <div className="text-sm font-medium">{t("Order")}</div>
-                {items.length > 0 && (
+                {cart.items.length > 0 && (
                   <Button
                     type="button"
                     variant="ghost"
                     size="sm"
-                    onClick={handleClearOrder}
+                    onClick={cart.clearItems}
                   >
                     {t("Clear order")}
                   </Button>
                 )}
               </div>
-              {items.length === 0 ? (
+              {cart.items.length === 0 ? (
                 <div className="rounded-lg border border-dashed px-4 py-6 text-center text-sm text-muted-foreground">
                   {t("No products added yet")}
                 </div>
               ) : (
                 <div className="rounded-lg border divide-y">
-                  {items.map((item) => (
+                  {cart.items.map((item) => (
                     <CartRow
                       key={item.productId}
                       item={item}
                       cityId={effectiveCityId}
                       onQtyChange={(qty) =>
-                        handleQtyChange(item.productId, qty)
+                        cart.updateQty(item.productId, qty)
                       }
-                      onRemove={() => handleRemove(item.productId)}
+                      onRemove={() => cart.removeItem(item.productId)}
                     />
                   ))}
                 </div>
               )}
             </div>
 
-            {items.length > 0 && (
+            {cart.items.length > 0 && (
               <div className="flex items-center justify-between rounded-lg bg-muted px-4 py-2">
                 <span className="text-sm font-medium">
-                  {t("Total qty")}: {totalQty}
+                  {t("Total qty")}: {cart.totalQty}
                 </span>
                 <span className="text-sm font-medium">
                   {t("Total amount")}:{" "}
-                  {formatPrice(totalAmount, totalCurrency)}
+                  {formatPrice(cart.totalAmount, totalCurrency)}
                 </span>
               </div>
             )}
@@ -563,8 +428,8 @@ export function SaleFormDialog({
               <Input
                 id="sale-notes"
                 type="text"
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
+                value={cart.notes}
+                onChange={(e) => cart.setNotes(e.target.value)}
               />
             </Field>
           </FieldGroup>

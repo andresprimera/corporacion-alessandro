@@ -28,9 +28,9 @@ import {
   type Currency,
 } from '@base-dashboard/shared';
 import {
-  paginationQuerySchema,
-  type PaginationQuery,
-} from '../common/dto/pagination-query.dto';
+  productListQuerySchema,
+  type ProductListQuery,
+} from './dto/list-product.dto';
 import {
   createProductSchema,
   type CreateProductInput,
@@ -67,14 +67,12 @@ export class ProductsController {
   constructor(private productsService: ProductsService) {}
 
   @Get()
+  @Roles('admin', 'salesPerson')
   async findAll(
-    @Query(new ZodValidationPipe(paginationQuerySchema))
-    query: PaginationQuery,
+    @Query(new ZodValidationPipe(productListQuerySchema))
+    query: ProductListQuery,
   ): Promise<PaginatedResponse<Product>> {
-    const { data, total } = await this.productsService.findAllPaginated(
-      query.page,
-      query.limit,
-    );
+    const { data, total } = await this.productsService.findAllPaginated(query);
     return {
       data: data.map(toProduct),
       meta: {

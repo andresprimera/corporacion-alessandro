@@ -103,7 +103,10 @@ export class SeederService implements OnModuleInit {
   }
 
   private async seedProducts(): Promise<void> {
-    const { total } = await this.productsService.findAllPaginated(1, 1);
+    const { total } = await this.productsService.findAllPaginated({
+      page: 1,
+      limit: 1,
+    });
     if (total > 0) return;
 
     for (const product of demoProducts) {
