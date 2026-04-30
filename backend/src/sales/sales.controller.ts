@@ -60,6 +60,8 @@ function toSale(doc: SaleDocument): Sale {
   return {
     id: doc.id,
     saleNumber: doc.saleNumber,
+    cityId: doc.cityId.toString(),
+    cityName: doc.cityName,
     clientId: doc.clientId.toString(),
     clientName: doc.clientName,
     notes: doc.notes,

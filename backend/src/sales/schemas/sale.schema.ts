@@ -60,6 +60,12 @@ export class Sale {
   @Prop({ required: true, unique: true })
   saleNumber: string;
 
+  @Prop({ type: SchemaTypes.ObjectId, ref: 'City', required: true })
+  cityId: Types.ObjectId;
+
+  @Prop({ required: true })
+  cityName: string;
+
   @Prop({ type: SchemaTypes.ObjectId, ref: 'Client', required: true })
   clientId: Types.ObjectId;
 

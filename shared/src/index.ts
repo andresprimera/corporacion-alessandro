@@ -114,6 +114,10 @@ export {
   type ProductStockAggregated,
   stockByWarehouseQuerySchema,
   type StockByWarehouseQuery,
+  cityStockQuerySchema,
+  type CityStockQuery,
+  cityStockSchema,
+  type CityStock,
 } from "./schemas/inventory";
 
 export {

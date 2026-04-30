@@ -30,6 +30,8 @@ export type SaleSoldBy = z.infer<typeof saleSoldBySchema>;
 export const saleSchema = z.object({
   id: z.string(),
   saleNumber: z.string(),
+  cityId: z.string(),
+  cityName: z.string(),
   clientId: z.string(),
   clientName: z.string(),
   notes: z.string().optional(),
@@ -43,30 +45,15 @@ export const saleSchema = z.object({
 });
 export type Sale = z.infer<typeof saleSchema>;
 
-const saleItemInputBase = z.object({
+const saleItemInputSchema = z.object({
   productId: z.string().min(1, "Product is required"),
   requestedQty: z.number().int().positive("Quantity must be positive"),
   unitPrice: z.number().nonnegative("Unit price must be zero or greater"),
-  allocations: z
-    .array(
-      z.object({
-        warehouseId: z.string().min(1, "Warehouse is required"),
-        qty: z.number().int().positive("Quantity must be positive"),
-      }),
-    )
-    .min(1, "At least one warehouse is required"),
 });
-
-const saleItemInputSchema = saleItemInputBase.refine(
-  (item) => item.allocations.reduce((sum, a) => sum + a.qty, 0) === item.requestedQty,
-  {
-    message: "Allocation quantities must sum to the requested quantity",
-    path: ["allocations"],
-  },
-);
 export type SaleItemInput = z.infer<typeof saleItemInputSchema>;
 
 export const createSaleSchema = z.object({
+  cityId: z.string().optional(),
   clientId: z.string().min(1, "Client is required"),
   notes: z.string().optional(),
   items: z.array(saleItemInputSchema).min(1, "At least one item is required"),

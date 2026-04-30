@@ -12,6 +12,8 @@ import { ProductsService } from '../products/products.service';
 import { WarehousesService } from '../warehouses/warehouses.service';
 import { InventoryService } from '../inventory/inventory.service';
 import { ClientsService } from '../clients/clients.service';
+import { UsersService } from '../users/users.service';
+import { CitiesService } from '../cities/cities.service';
 import { isDuplicateKeyError } from '../common/utils/mongo-errors';
 import { readPopulatedRef } from '../common/utils/populated-ref';
 import type {
@@ -37,6 +39,11 @@ interface ResolvedItem {
   allocations: ResolvedAllocation[];
 }
 
+interface ResolvedCity {
+  id: string;
+  name: string;
+}
+
 @Injectable()
 export class SalesService {
   private readonly logger = new Logger(SalesService.name);
@@ -47,6 +54,8 @@ export class SalesService {
     private warehousesService: WarehousesService,
     private inventoryService: InventoryService,
     private clientsService: ClientsService,
+    private usersService: UsersService,
+    private citiesService: CitiesService,
   ) {}
 
   async create(
@@ -54,6 +63,8 @@ export class SalesService {
     soldBy: SaleSoldBy,
     actor: { role: Role },
   ): Promise<SaleDocument> {
+    const city = await this.resolveCity(dto, soldBy, actor);
+
     const client = await this.clientsService.findById(dto.clientId);
     if (!client) {
       throw new NotFoundException('Client not found');
@@ -67,7 +78,34 @@ export class SalesService {
       );
     }
 
-    const resolvedItems = await this.resolveAndValidateItems(dto);
+    const productInfos = await Promise.all(
+      dto.items.map(async (item) => {
+        const product = await this.productsService.findById(item.productId);
+        if (!product) {
+          throw new NotFoundException(`Product not found: ${item.productId}`);
+        }
+        return {
+          productId: item.productId,
+          productName: product.name,
+          productKind: product.kind,
+          currency: product.price.currency,
+          requestedQty: item.requestedQty,
+          unitPrice: item.unitPrice,
+        };
+      }),
+    );
+
+    await this.assertSufficientCityStock(productInfos, city);
+
+    const resolvedItems: ResolvedItem[] = [];
+    for (const info of productInfos) {
+      const allocations = await this.autoAllocate(
+        info.productId,
+        info.requestedQty,
+        city.id,
+      );
+      resolvedItems.push({ ...info, allocations });
+    }
 
     const totalQty = resolvedItems.reduce(
       (sum, item) => sum + item.requestedQty,
@@ -79,8 +117,6 @@ export class SalesService {
     );
     const currency = resolvedItems[0]?.currency ?? 'USD';
 
-    // Persist the sale first (with retry on the unique saleNumber index)
-    // so that a race for the same number can't double-deduct inventory.
     const created = await this.persistSale(
       resolvedItems,
       totalQty,
@@ -89,6 +125,7 @@ export class SalesService {
       soldBy,
       dto,
       { id: client.id, name: client.name },
+      city,
     );
 
     const batch = `SALE-${created.saleNumber}`;
@@ -110,9 +147,112 @@ export class SalesService {
     }
 
     this.logger.log(
-      `Sale ${created.saleNumber} created by ${soldBy.name} (${totalQty} units, ${totalAmount} ${currency})`,
+      `Sale ${created.saleNumber} created by ${soldBy.name} in ${city.name} (${totalQty} units, ${totalAmount} ${currency})`,
     );
     return created;
+  }
+
+  private async resolveCity(
+    dto: CreateSaleInput,
+    soldBy: SaleSoldBy,
+    actor: { role: Role },
+  ): Promise<ResolvedCity> {
+    let cityId: string;
+    if (actor.role === 'salesPerson') {
+      const seller = await this.usersService.findById(soldBy.userId);
+      if (!seller?.cityId) {
+        throw new BadRequestException('Sales person has no assigned city');
+      }
+      cityId = readPopulatedRef(seller.cityId).id;
+    } else {
+      if (!dto.cityId) {
+        throw new BadRequestException('City is required');
+      }
+      cityId = dto.cityId;
+    }
+    const city = await this.citiesService.findById(cityId);
+    if (!city) {
+      throw new NotFoundException('City not found');
+    }
+    if (!city.isActive) {
+      throw new BadRequestException('City is inactive');
+    }
+    return { id: cityId, name: city.name };
+  }
+
+  private async assertSufficientCityStock(
+    items: { productId: string; productName: string; requestedQty: number }[],
+    city: ResolvedCity,
+  ): Promise<void> {
+    const requested = new Map<
+      string,
+      { productName: string; qty: number }
+    >();
+    for (const item of items) {
+      const existing = requested.get(item.productId);
+      if (existing) {
+        existing.qty += item.requestedQty;
+      } else {
+        requested.set(item.productId, {
+          productName: item.productName,
+          qty: item.requestedQty,
+        });
+      }
+    }
+
+    for (const [productId, entry] of requested) {
+      const available = await this.inventoryService.findCityStockForProduct(
+        productId,
+        city.id,
+      );
+      if (entry.qty > available) {
+        throw new BadRequestException(
+          `Insufficient stock for "${entry.productName}" in "${city.name}" (requested ${entry.qty}, available ${available})`,
+        );
+      }
+    }
+  }
+
+  private async autoAllocate(
+    productId: string,
+    requestedQty: number,
+    cityId: string,
+  ): Promise<ResolvedAllocation[]> {
+    const warehouses = await this.warehousesService.findActiveByCity(cityId);
+    const withStock = await Promise.all(
+      warehouses.map(async (w) => ({
+        id: w.id as string,
+        name: w.name,
+        available: await this.inventoryService.findAvailableStock(
+          productId,
+          w.id as string,
+        ),
+      })),
+    );
+    withStock.sort(
+      (a, b) =>
+        b.available - a.available || a.name.localeCompare(b.name),
+    );
+
+    const allocations: ResolvedAllocation[] = [];
+    let remaining = requestedQty;
+    for (const w of withStock) {
+      if (remaining <= 0) break;
+      if (w.available <= 0) continue;
+      const take = Math.min(remaining, w.available);
+      allocations.push({
+        warehouseId: w.id,
+        warehouseName: w.name,
+        qty: take,
+      });
+      remaining -= take;
+    }
+    if (remaining > 0) {
+      throw new BadRequestException(
+        'Stock changed during sale creation; please retry',
+      );
+    }
+    return allocations;
   }
 
   private async persistSale(
@@ -123,12 +263,15 @@ export class SalesService {
     soldBy: SaleSoldBy,
     dto: CreateSaleInput,
     client: { id: string; name: string },
+    city: ResolvedCity,
     retriesLeft = 3,
   ): Promise<SaleDocument> {
     const saleNumber = await this.generateSaleNumber();
     try {
       return await this.saleModel.create({
         saleNumber,
+        cityId: new Types.ObjectId(city.id),
+        cityName: city.name,
         clientId: new Types.ObjectId(client.id),
         clientName: client.name,
         notes: dto.notes,
@@ -160,6 +303,7 @@ export class SalesService {
           soldBy,
           dto,
           client,
+          city,
           retriesLeft - 1,
         );
       }
@@ -216,93 +360,6 @@ export class SalesService {
 
     await this.saleModel.findByIdAndDelete(id);
     this.logger.log(`Sale ${sale.saleNumber} reversed and deleted`);
-  }
-
-  private async resolveAndValidateItems(
-    dto: CreateSaleInput,
-  ): Promise<ResolvedItem[]> {
-    const resolved: ResolvedItem[] = [];
-    for (const item of dto.items) {
-      const product = await this.productsService.findById(item.productId);
-      if (!product) {
-        throw new NotFoundException(`Product not found: ${item.productId}`);
-      }
-
-      const allocations: ResolvedAllocation[] = [];
-      for (const allocation of item.allocations) {
-        const warehouse = await this.warehousesService.findById(
-          allocation.warehouseId,
-        );
-        if (!warehouse) {
-          throw new NotFoundException(
-            `Warehouse not found: ${allocation.warehouseId}`,
-          );
-        }
-        if (!warehouse.isActive) {
-          throw new BadRequestException(
-            `Warehouse is inactive: ${warehouse.name}`,
-          );
-        }
-        allocations.push({
-          warehouseId: allocation.warehouseId,
-          warehouseName: warehouse.name,
-          qty: allocation.qty,
-        });
-      }
-
-      resolved.push({
-        productId: item.productId,
-        productName: product.name,
-        productKind: product.kind,
-        requestedQty: item.requestedQty,
-        unitPrice: item.unitPrice,
-        currency: product.price.currency,
-        allocations,
-      });
-    }
-
-    await this.assertSufficientStock(resolved);
-    return resolved;
-  }
-
-  private async assertSufficientStock(items: ResolvedItem[]): Promise<void> {
-    // Aggregate requested quantity by (productId, warehouseId) so a single
-    // item with two allocations to the same warehouse — or multiple items
-    // hitting the same (productId, warehouseId) — gets validated against
-    // available stock once, not per-allocation.
-    const requested = new Map<
-      string,
-      { productId: string; productName: string; warehouseId: string; warehouseName: string; qty: number }
-    >();
-    for (const item of items) {
-      for (const allocation of item.allocations) {
-        const key = `${item.productId}::${allocation.warehouseId}`;
-        const existing = requested.get(key);
-        if (existing) {
-          existing.qty += allocation.qty;
-        } else {
-          requested.set(key, {
-            productId: item.productId,
-            productName: item.productName,
-            warehouseId: allocation.warehouseId,
-            warehouseName: allocation.warehouseName,
-            qty: allocation.qty,
-          });
-        }
-      }
-    }
-
-    for (const entry of requested.values()) {
-      const available = await this.inventoryService.findAvailableStock(
-        entry.productId,
-        entry.warehouseId,
-      );
-      if (entry.qty > available) {
-        throw new BadRequestException(
-          `Insufficient stock for "${entry.productName}" at "${entry.warehouseName}" (requested ${entry.qty}, available ${available})`,
-        );
-      }
-    }
   }
 
   private async generateSaleNumber(): Promise<string> {

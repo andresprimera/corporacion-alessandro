@@ -236,4 +236,22 @@ describe('WarehousesService', () => {
       expect(await service.existsByCity('city-1')).toBe(false);
     });
   });
+
+  describe('findActiveByCity', () => {
+    it('should filter by city ObjectId and isActive, sorted by name', async () => {
+      const chainable = {
+        sort: jest.fn().mockResolvedValue([mockWarehouse]),
+      };
+      warehouseModel.find.mockReturnValue(chainable);
+
+      const result = await service.findActiveByCity(cityOid);
+
+      const call = warehouseModel.find.mock.calls[0][0];
+      expect(call.isActive).toBe(true);
+      expect(call.cityId).toBeInstanceOf(Types.ObjectId);
+      expect(call.cityId.toString()).toBe(cityOid);
+      expect(chainable.sort).toHaveBeenCalledWith({ name: 1 });
+      expect(result).toEqual([mockWarehouse]);
+    });
+  });
 });

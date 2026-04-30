@@ -197,6 +197,33 @@ export class InventoryService {
     return result?.totalQty ?? 0;
   }
 
+  async findCityStockForProduct(
+    productId: string,
+    cityId: string,
+  ): Promise<number> {
+    const warehouses = await this.warehousesService.findActiveByCity(cityId);
+    if (warehouses.length === 0) return 0;
+    const warehouseIds = warehouses.map(
+      (w) => new Types.ObjectId(w.id as string),
+    );
+
+    const [result] = await this.inventoryModel.aggregate<{ totalQty: number }>([
+      {
+        $match: {
+          productId: new Types.ObjectId(productId),
+          warehouseId: { $in: warehouseIds },
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          totalQty: signedQtySum,
+        },
+      },
+    ]);
+    return result?.totalQty ?? 0;
+  }
+
   async findStockByWarehouse(
     query: StockByWarehouseQuery,
   ): Promise<{ data: ProductStockByWarehouse[]; total: number }> {

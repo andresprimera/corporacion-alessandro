@@ -94,6 +94,10 @@ export class ProductsController {
       id: o.id,
       name: o.name,
       kind: o.kind as ProductKind,
+      price: {
+        value: o.price.value,
+        currency: o.price.currency as Currency,
+      },
     }));
   }
 

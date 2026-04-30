@@ -123,3 +123,31 @@ export const stockByWarehouseQuerySchema = paginationQuerySchema.extend({
   productId: z.string().optional(),
 });
 export type StockByWarehouseQuery = z.infer<typeof stockByWarehouseQuerySchema>;
+
+export const cityStockQuerySchema = z.object({
+  productId: z.string().min(1, "Product is required"),
+  cityId: z.string().min(1, "City is required"),
+});
+export type CityStockQuery = z.infer<typeof cityStockQuerySchema>;
+
+export const cityStockSchema = z.object({
+  productId: z.string(),
+  cityId: z.string(),
+  totalQty: z.number(),
+});
+export type CityStock = z.infer<typeof cityStockSchema>;
+
+export const aggregatedCityStockQuerySchema = z.object({
+  cityId: z.string().min(1, "City is required"),
+});
+export type AggregatedCityStockQuery = z.infer<
+  typeof aggregatedCityStockQuerySchema
+>;
+
+export const aggregatedCityStockEntrySchema = z.object({
+  productId: z.string(),
+  totalQty: z.number(),
+});
+export type AggregatedCityStockEntry = z.infer<
+  typeof aggregatedCityStockEntrySchema
+>;

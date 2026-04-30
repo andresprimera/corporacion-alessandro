@@ -23,6 +23,9 @@ import {
   readPopulatedRef,
 } from '../common/utils/populated-ref';
 import {
+  type CityStock,
+  cityStockQuerySchema,
+  type CityStockQuery,
   type InventoryTransaction,
   type PaginatedResponse,
   type ProductKind,
@@ -102,6 +105,23 @@ export class InventoryController {
         total,
         totalPages: Math.ceil(total / query.limit) || 1,
       },
+    };
+  }
+
+  @Get('stock/by-city')
+  @Roles('admin', 'salesPerson')
+  async findStockByCity(
+    @Query(new ZodValidationPipe(cityStockQuerySchema))
+    query: CityStockQuery,
+  ): Promise<CityStock> {
+    const totalQty = await this.inventoryService.findCityStockForProduct(
+      query.productId,
+      query.cityId,
+    );
+    return {
+      productId: query.productId,
+      cityId: query.cityId,
+      totalQty,
     };
   }
 

@@ -14,7 +14,7 @@ describe('InventoryService', () => {
   let service: InventoryService;
   let model: Record<string, jest.Mock>;
   let productsService: { findById: jest.Mock };
-  let warehousesService: { findById: jest.Mock };
+  let warehousesService: { findById: jest.Mock; findActiveByCity: jest.Mock };
 
   const createdBy = { userId: 'user-1', name: 'Alice' };
   const validInbound = {
@@ -47,7 +47,7 @@ describe('InventoryService', () => {
       exists: jest.fn(),
     };
     productsService = { findById: jest.fn() };
-    warehousesService = { findById: jest.fn() };
+    warehousesService = { findById: jest.fn(), findActiveByCity: jest.fn() };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -278,6 +278,51 @@ describe('InventoryService', () => {
       const result = await service.findStockAggregated({ page: 1, limit: 10 });
 
       expect(result).toEqual({ data: [], total: 0 });
+    });
+  });
+
+  describe('findCityStockForProduct', () => {
+    it('should return 0 when no active warehouses in the city', async () => {
+      warehousesService.findActiveByCity.mockResolvedValue([]);
+
+      const result = await service.findCityStockForProduct(
+        productOid,
+        new Types.ObjectId().toString(),
+      );
+
+      expect(result).toBe(0);
+      expect(model.aggregate).not.toHaveBeenCalled();
+    });
+
+    it('should aggregate signed qty across all warehouses in the city', async () => {
+      const w1Id = new Types.ObjectId().toString();
+      const w2Id = new Types.ObjectId().toString();
+      warehousesService.findActiveByCity.mockResolvedValue([
+        { id: w1Id },
+        { id: w2Id },
+      ]);
+      model.aggregate.mockResolvedValue([{ totalQty: 75 }]);
+
+      const cityId = new Types.ObjectId().toString();
+      const result = await service.findCityStockForProduct(productOid, cityId);
+
+      expect(warehousesService.findActiveByCity).toHaveBeenCalledWith(cityId);
+      expect(model.aggregate).toHaveBeenCalled();
+      expect(result).toBe(75);
+    });
+
+    it('should return 0 when aggregation has no result', async () => {
+      warehousesService.findActiveByCity.mockResolvedValue([
+        { id: new Types.ObjectId().toString() },
+      ]);
+      model.aggregate.mockResolvedValue([]);
+
+      const result = await service.findCityStockForProduct(
+        productOid,
+        new Types.ObjectId().toString(),
+      );
+
+      expect(result).toBe(0);
     });
   });
 

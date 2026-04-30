@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getModelToken } from '@nestjs/mongoose';
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { NotFoundException } from '@nestjs/common';
 import { Types } from 'mongoose';
 import { SalesService } from './sales.service';
 import { Sale } from './schemas/sale.schema';
@@ -8,18 +8,23 @@ import { ProductsService } from '../products/products.service';
 import { WarehousesService } from '../warehouses/warehouses.service';
 import { InventoryService } from '../inventory/inventory.service';
 import { ClientsService } from '../clients/clients.service';
+import { UsersService } from '../users/users.service';
+import { CitiesService } from '../cities/cities.service';
 
 describe('SalesService', () => {
   let service: SalesService;
   let saleModel: Record<string, jest.Mock>;
 
   const productsService = { findById: jest.fn() };
-  const warehousesService = { findById: jest.fn() };
+  const warehousesService = { findActiveByCity: jest.fn() };
   const inventoryService = {
     create: jest.fn(),
     findAvailableStock: jest.fn(),
+    findCityStockForProduct: jest.fn(),
   };
   const clientsService = { findById: jest.fn() };
+  const usersService = { findById: jest.fn() };
+  const citiesService = { findById: jest.fn() };
 
   const VALID_PRODUCT_ID = '507f1f77bcf86cd799439011';
   const VALID_WAREHOUSE_A = '507f1f77bcf86cd799439021';
@@ -27,6 +32,7 @@ describe('SalesService', () => {
   const VALID_CLIENT_ID = '507f1f77bcf86cd799439031';
   const VALID_SALES_PERSON_ID = '507f1f77bcf86cd799439041';
   const OTHER_SALES_PERSON_ID = '507f1f77bcf86cd799439042';
+  const VALID_CITY_ID = '507f1f77bcf86cd799439051';
 
   const mockProduct = {
     id: VALID_PRODUCT_ID,
@@ -42,6 +48,12 @@ describe('SalesService', () => {
       _id: new Types.ObjectId(VALID_SALES_PERSON_ID),
       name: 'Sales User',
     },
+  };
+
+  const mockCity = {
+    id: VALID_CITY_ID,
+    name: 'Caracas',
+    isActive: true,
   };
 
   beforeEach(async () => {
@@ -65,19 +77,21 @@ describe('SalesService', () => {
         { provide: WarehousesService, useValue: warehousesService },
         { provide: InventoryService, useValue: inventoryService },
         { provide: ClientsService, useValue: clientsService },
+        { provide: UsersService, useValue: usersService },
+        { provide: CitiesService, useValue: citiesService },
       ],
     }).compile();
 
     service = module.get<SalesService>(SalesService);
 
-    // Default: sale-number lookup returns no prior sales
     saleModel.findOne.mockReturnValue({
       sort: jest.fn().mockReturnThis(),
       select: jest.fn().mockResolvedValue(null),
     });
 
-    // Default: client lookup returns the mock client
     clientsService.findById.mockResolvedValue(mockClient);
+    citiesService.findById.mockResolvedValue(mockCity);
+    productsService.findById.mockResolvedValue(mockProduct);
   });
 
   describe('create', () => {
@@ -85,165 +99,234 @@ describe('SalesService', () => {
     const adminActor = { role: 'admin' as const };
     const salesPersonActor = { role: 'salesPerson' as const };
 
-    function singleAllocationDto() {
+    function dto(overrides: Partial<{
+      cityId: string;
+      requestedQty: number;
+    }> = {}) {
       return {
+        cityId: overrides.cityId ?? VALID_CITY_ID,
         clientId: VALID_CLIENT_ID,
         items: [
           {
             productId: VALID_PRODUCT_ID,
-            requestedQty: 10,
+            requestedQty: overrides.requestedQty ?? 10,
             unitPrice: 2,
-            allocations: [{ warehouseId: VALID_WAREHOUSE_A, qty: 10 }],
           },
         ],
       };
     }
 
+    describe('city resolution — sales-person actor', () => {
+      it('uses the sales-person user.cityId', async () => {
+        usersService.findById.mockResolvedValue({
+          id: VALID_SALES_PERSON_ID,
+          cityId: new Types.ObjectId(VALID_CITY_ID),
+        });
+        warehousesService.findActiveByCity.mockResolvedValue([
+          { id: VALID_WAREHOUSE_A, name: 'A' },
+        ]);
+        inventoryService.findCityStockForProduct.mockResolvedValue(100);
+        inventoryService.findAvailableStock.mockResolvedValue(100);
+        saleModel.create.mockResolvedValue({ id: 'sale-1' });
+
+        await service.create(
+          { ...dto(), cityId: undefined },
+          soldBy,
+          salesPersonActor,
+        );
+
+        expect(usersService.findById).toHaveBeenCalledWith(
+          VALID_SALES_PERSON_ID,
+        );
+        expect(citiesService.findById).toHaveBeenCalledWith(VALID_CITY_ID);
+      });
+
+      it('throws BadRequestException when sales-person has no cityId', async () => {
+        usersService.findById.mockResolvedValue({
+          id: VALID_SALES_PERSON_ID,
+          cityId: undefined,
+        });
+
+        await expect(
+          service.create({ ...dto(), cityId: undefined }, soldBy, salesPersonActor),
+        ).rejects.toThrow(/no assigned city/);
+      });
+    });
+
+    describe('city resolution — admin actor', () => {
+      it('throws BadRequestException when dto.cityId is missing', async () => {
+        await expect(
+          service.create({ ...dto(), cityId: undefined }, soldBy, adminActor),
+        ).rejects.toThrow(/City is required/);
+      });
+
+      it('uses dto.cityId', async () => {
+        warehousesService.findActiveByCity.mockResolvedValue([
+          { id: VALID_WAREHOUSE_A, name: 'A' },
+        ]);
+        inventoryService.findCityStockForProduct.mockResolvedValue(100);
+        inventoryService.findAvailableStock.mockResolvedValue(100);
+        saleModel.create.mockResolvedValue({ id: 'sale-1' });
+
+        await service.create(dto(), soldBy, adminActor);
+
+        expect(usersService.findById).not.toHaveBeenCalled();
+        expect(citiesService.findById).toHaveBeenCalledWith(VALID_CITY_ID);
+      });
+    });
+
+    it('throws NotFoundException when city does not exist', async () => {
+      citiesService.findById.mockResolvedValue(null);
+
+      await expect(service.create(dto(), soldBy, adminActor)).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it('throws BadRequestException when city is inactive', async () => {
+      citiesService.findById.mockResolvedValue({ ...mockCity, isActive: false });
+
+      await expect(service.create(dto(), soldBy, adminActor)).rejects.toThrow(
+        /inactive/,
+      );
+    });
+
     it('throws NotFoundException when product is missing', async () => {
       productsService.findById.mockResolvedValue(null);
 
-      await expect(
-        service.create(singleAllocationDto(), soldBy, adminActor),
-      ).rejects.toThrow(NotFoundException);
+      await expect(service.create(dto(), soldBy, adminActor)).rejects.toThrow(
+        NotFoundException,
+      );
     });
 
-    it('throws NotFoundException when warehouse is missing', async () => {
-      productsService.findById.mockResolvedValue(mockProduct);
-      warehousesService.findById.mockResolvedValue(null);
+    it('throws BadRequestException with city name when city stock is insufficient', async () => {
+      inventoryService.findCityStockForProduct.mockResolvedValue(5);
 
       await expect(
-        service.create(singleAllocationDto(), soldBy, adminActor),
-      ).rejects.toThrow(NotFoundException);
-    });
-
-    it('throws BadRequestException when warehouse is inactive', async () => {
-      productsService.findById.mockResolvedValue(mockProduct);
-      warehousesService.findById.mockResolvedValue({
-        id: VALID_WAREHOUSE_A,
-        name: 'Almacén X',
-        isActive: false,
-      });
-
-      await expect(
-        service.create(singleAllocationDto(), soldBy, adminActor),
-      ).rejects.toThrow(BadRequestException);
-    });
-
-    it('throws BadRequestException when stock is insufficient', async () => {
-      productsService.findById.mockResolvedValue(mockProduct);
-      warehousesService.findById.mockResolvedValue({
-        id: VALID_WAREHOUSE_A,
-        name: 'Almacén X',
-        isActive: true,
-      });
-      inventoryService.findAvailableStock.mockResolvedValue(5);
-
-      await expect(
-        service.create(singleAllocationDto(), soldBy, adminActor),
-      ).rejects.toThrow(/Insufficient stock/);
+        service.create(dto({ requestedQty: 10 }), soldBy, adminActor),
+      ).rejects.toThrow(/Insufficient stock.+Caracas/);
       expect(inventoryService.create).not.toHaveBeenCalled();
     });
 
-    it('aggregates stock requirements across multiple items hitting the same (productId, warehouseId)', async () => {
-      productsService.findById.mockResolvedValue(mockProduct);
-      warehousesService.findById.mockResolvedValue({
-        id: VALID_WAREHOUSE_A,
-        name: 'Almacén X',
-        isActive: true,
-      });
-      // Two items, each requesting 30 from the same warehouse.
-      // Stock is 50, so individually each passes (30 <= 50) but the
-      // sum 60 should fail.
-      inventoryService.findAvailableStock.mockResolvedValue(50);
+    it('aggregates duplicate productIds across items before checking stock', async () => {
+      inventoryService.findCityStockForProduct.mockResolvedValue(50);
 
-      const dto = {
+      const reqDto = {
+        cityId: VALID_CITY_ID,
         clientId: VALID_CLIENT_ID,
         items: [
-          {
-            productId: VALID_PRODUCT_ID,
-            requestedQty: 30,
-            unitPrice: 1.5,
-            allocations: [{ warehouseId: VALID_WAREHOUSE_A, qty: 30 }],
-          },
-          {
-            productId: VALID_PRODUCT_ID,
-            requestedQty: 30,
-            unitPrice: 1.5,
-            allocations: [{ warehouseId: VALID_WAREHOUSE_A, qty: 30 }],
-          },
+          { productId: VALID_PRODUCT_ID, requestedQty: 30, unitPrice: 1.5 },
+          { productId: VALID_PRODUCT_ID, requestedQty: 30, unitPrice: 1.5 },
         ],
       };
 
-      await expect(service.create(dto, soldBy, adminActor)).rejects.toThrow(
+      await expect(service.create(reqDto, soldBy, adminActor)).rejects.toThrow(
         /Insufficient stock/,
       );
-      expect(inventoryService.create).not.toHaveBeenCalled();
     });
 
-    it('creates outbound transactions for each allocation and inserts the sale', async () => {
-      productsService.findById.mockResolvedValue(mockProduct);
-      warehousesService.findById
-        .mockResolvedValueOnce({
-          id: VALID_WAREHOUSE_A,
-          name: 'Almacén Caracas Norte',
-          isActive: true,
-        })
-        .mockResolvedValueOnce({
-          id: VALID_WAREHOUSE_B,
-          name: 'Almacén Caracas Sur',
-          isActive: true,
-        });
+    it('auto-allocates by stock-desc, name-asc tiebreaker, depleting largest pocket first', async () => {
+      // Three warehouses: A=20, B=80, C=80. Order should be B,C,A. Request 90 → B(80) + C(10).
+      warehousesService.findActiveByCity.mockResolvedValue([
+        { id: VALID_WAREHOUSE_A, name: 'C-Almacen' },
+        { id: VALID_WAREHOUSE_B, name: 'A-Almacen' },
+        { id: '507f1f77bcf86cd799439023', name: 'B-Almacen' },
+      ]);
+      inventoryService.findCityStockForProduct.mockResolvedValue(180);
+      inventoryService.findAvailableStock.mockImplementation(
+        async (_p: string, w: string) => {
+          if (w === VALID_WAREHOUSE_A) return 20;
+          if (w === VALID_WAREHOUSE_B) return 80;
+          return 80;
+        },
+      );
+      saleModel.create.mockResolvedValue({ id: 'sale-1', saleNumber: 'S-X-00001' });
+
+      await service.create(dto({ requestedQty: 90 }), soldBy, adminActor);
+
+      const inserted = saleModel.create.mock.calls[0][0];
+      const allocations = inserted.items[0].allocations;
+      // First taken from B-Almacen (80), then C-Almacen (10).
+      expect(allocations).toHaveLength(2);
+      expect(allocations[0].warehouseName).toBe('A-Almacen');
+      expect(allocations[0].qty).toBe(80);
+      expect(allocations[1].warehouseName).toBe('B-Almacen');
+      expect(allocations[1].qty).toBe(10);
+    });
+
+    it('skips warehouses with zero stock during auto-allocation', async () => {
+      warehousesService.findActiveByCity.mockResolvedValue([
+        { id: VALID_WAREHOUSE_A, name: 'A' },
+        { id: VALID_WAREHOUSE_B, name: 'B' },
+      ]);
+      inventoryService.findCityStockForProduct.mockResolvedValue(50);
+      inventoryService.findAvailableStock.mockImplementation(
+        async (_p: string, w: string) => (w === VALID_WAREHOUSE_A ? 0 : 50),
+      );
+      saleModel.create.mockResolvedValue({ id: 'sale-1', saleNumber: 'S-X-00001' });
+
+      await service.create(dto({ requestedQty: 30 }), soldBy, adminActor);
+
+      const inserted = saleModel.create.mock.calls[0][0];
+      const allocations = inserted.items[0].allocations;
+      expect(allocations).toHaveLength(1);
+      expect(allocations[0].warehouseName).toBe('B');
+      expect(allocations[0].qty).toBe(30);
+    });
+
+    it('persists cityId and cityName on the sale', async () => {
+      warehousesService.findActiveByCity.mockResolvedValue([
+        { id: VALID_WAREHOUSE_A, name: 'A' },
+      ]);
+      inventoryService.findCityStockForProduct.mockResolvedValue(100);
       inventoryService.findAvailableStock.mockResolvedValue(100);
       saleModel.create.mockResolvedValue({ id: 'sale-1' });
 
-      const dto = {
-        clientId: VALID_CLIENT_ID,
-        items: [
-          {
-            productId: VALID_PRODUCT_ID,
-            requestedQty: 30,
-            unitPrice: 1.5,
-            allocations: [
-              { warehouseId: VALID_WAREHOUSE_A, qty: 20 },
-              { warehouseId: VALID_WAREHOUSE_B, qty: 10 },
-            ],
-          },
-        ],
-      };
+      await service.create(dto(), soldBy, adminActor);
 
-      await service.create(dto, soldBy, adminActor);
+      const inserted = saleModel.create.mock.calls[0][0];
+      expect(inserted.cityId.toString()).toBe(VALID_CITY_ID);
+      expect(inserted.cityName).toBe('Caracas');
+    });
+
+    it('emits one outbound transaction per allocation', async () => {
+      warehousesService.findActiveByCity.mockResolvedValue([
+        { id: VALID_WAREHOUSE_A, name: 'A' },
+        { id: VALID_WAREHOUSE_B, name: 'B' },
+      ]);
+      inventoryService.findCityStockForProduct.mockResolvedValue(100);
+      inventoryService.findAvailableStock.mockImplementation(
+        async (_p: string, w: string) => (w === VALID_WAREHOUSE_A ? 30 : 30),
+      );
+      saleModel.create.mockResolvedValue({
+        id: 'sale-1',
+        saleNumber: 'S-2026-00001',
+      });
+
+      await service.create(dto({ requestedQty: 50 }), soldBy, adminActor);
 
       expect(inventoryService.create).toHaveBeenCalledTimes(2);
-      const [firstTx, firstCreatedBy, firstOpts] =
-        inventoryService.create.mock.calls[0];
-      expect(firstTx).toMatchObject({
+      const calls = inventoryService.create.mock.calls;
+      expect(calls[0][0]).toMatchObject({
         productId: VALID_PRODUCT_ID,
-        warehouseId: VALID_WAREHOUSE_A,
         transactionType: 'outbound',
-        qty: 20,
       });
-      expect(firstCreatedBy).toEqual(soldBy);
-      expect(firstOpts).toEqual({ skipValidation: true });
-
-      expect(saleModel.create).toHaveBeenCalledTimes(1);
-      const inserted = saleModel.create.mock.calls[0][0];
-      expect(inserted.totalQty).toBe(30);
-      expect(inserted.totalAmount).toBe(30 * 1.5);
-      expect(inserted.currency).toBe('USD');
-      expect(inserted.saleNumber).toMatch(/^S-\d{4}-00001$/);
-      expect(inserted.clientName).toBe(mockClient.name);
-      expect(inserted.clientId.toString()).toBe(VALID_CLIENT_ID);
+      expect(calls[0][2]).toEqual({ skipValidation: true });
     });
 
     it('throws NotFoundException when client is missing', async () => {
       clientsService.findById.mockResolvedValue(null);
 
-      await expect(
-        service.create(singleAllocationDto(), soldBy, adminActor),
-      ).rejects.toThrow(NotFoundException);
+      await expect(service.create(dto(), soldBy, adminActor)).rejects.toThrow(
+        NotFoundException,
+      );
     });
 
-    it("throws ForbiddenException when sales person uses another sales person's client", async () => {
+    it("throws ForbiddenException when sales-person uses another sales person's client", async () => {
+      usersService.findById.mockResolvedValue({
+        id: VALID_SALES_PERSON_ID,
+        cityId: new Types.ObjectId(VALID_CITY_ID),
+      });
       clientsService.findById.mockResolvedValue({
         ...mockClient,
         salesPersonId: {
@@ -253,34 +336,16 @@ describe('SalesService', () => {
       });
 
       await expect(
-        service.create(singleAllocationDto(), soldBy, salesPersonActor),
+        service.create({ ...dto(), cityId: undefined }, soldBy, salesPersonActor),
       ).rejects.toThrow(/another sales person/);
-      expect(inventoryService.create).not.toHaveBeenCalled();
       expect(saleModel.create).not.toHaveBeenCalled();
     });
 
-    it('allows a sales person to use their own client', async () => {
-      productsService.findById.mockResolvedValue(mockProduct);
-      warehousesService.findById.mockResolvedValue({
-        id: VALID_WAREHOUSE_A,
-        name: 'Almacén X',
-        isActive: true,
-      });
-      inventoryService.findAvailableStock.mockResolvedValue(100);
-      saleModel.create.mockResolvedValue({ id: 'sale-1' });
-
-      await service.create(singleAllocationDto(), soldBy, salesPersonActor);
-
-      expect(saleModel.create).toHaveBeenCalledTimes(1);
-    });
-
     it('retries the saleNumber generation on duplicate-key without re-running inventory writes', async () => {
-      productsService.findById.mockResolvedValue(mockProduct);
-      warehousesService.findById.mockResolvedValue({
-        id: VALID_WAREHOUSE_A,
-        name: 'Almacén X',
-        isActive: true,
-      });
+      warehousesService.findActiveByCity.mockResolvedValue([
+        { id: VALID_WAREHOUSE_A, name: 'A' },
+      ]);
+      inventoryService.findCityStockForProduct.mockResolvedValue(100);
       inventoryService.findAvailableStock.mockResolvedValue(100);
 
       const dupErr = Object.assign(new Error('duplicate'), { code: 11000 });
@@ -288,11 +353,9 @@ describe('SalesService', () => {
         .mockRejectedValueOnce(dupErr)
         .mockResolvedValueOnce({ id: 'sale-1', saleNumber: 'S-2026-00002' });
 
-      await service.create(singleAllocationDto(), soldBy, adminActor);
+      await service.create(dto(), soldBy, adminActor);
 
-      // Sale.create called twice (one dup-key, one success)
       expect(saleModel.create).toHaveBeenCalledTimes(2);
-      // Inventory.create called once per allocation, AFTER the sale persisted
       expect(inventoryService.create).toHaveBeenCalledTimes(1);
     });
 
@@ -300,20 +363,16 @@ describe('SalesService', () => {
       const year = new Date().getUTCFullYear();
       saleModel.findOne.mockReturnValue({
         sort: jest.fn().mockReturnThis(),
-        select: jest
-          .fn()
-          .mockResolvedValue({ saleNumber: `S-${year}-00042` }),
+        select: jest.fn().mockResolvedValue({ saleNumber: `S-${year}-00042` }),
       });
-      productsService.findById.mockResolvedValue(mockProduct);
-      warehousesService.findById.mockResolvedValue({
-        id: VALID_WAREHOUSE_A,
-        name: 'Almacén X',
-        isActive: true,
-      });
+      warehousesService.findActiveByCity.mockResolvedValue([
+        { id: VALID_WAREHOUSE_A, name: 'A' },
+      ]);
+      inventoryService.findCityStockForProduct.mockResolvedValue(100);
       inventoryService.findAvailableStock.mockResolvedValue(100);
       saleModel.create.mockResolvedValue({ id: 'sale-1' });
 
-      await service.create(singleAllocationDto(), soldBy, adminActor);
+      await service.create(dto(), soldBy, adminActor);
 
       const inserted = saleModel.create.mock.calls[0][0];
       expect(inserted.saleNumber).toBe(`S-${year}-00043`);

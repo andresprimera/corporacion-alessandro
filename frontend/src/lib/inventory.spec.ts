@@ -5,6 +5,7 @@ import {
   removeInventoryTransactionApi,
   fetchStockAggregatedApi,
   fetchStockByWarehouseApi,
+  fetchCityStockApi,
 } from "@/lib/inventory"
 import { authFetch } from "@/lib/api"
 
@@ -170,6 +171,24 @@ describe("inventory API", () => {
       expect(authFetch).toHaveBeenCalledWith(
         "/api/inventory-transactions/stock/by-warehouse?page=1&limit=100&productId=p1",
       )
+    })
+  })
+
+  describe("fetchCityStockApi", () => {
+    it("should GET /api/inventory-transactions/stock/by-city with productId and cityId", async () => {
+      vi.mocked(authFetch).mockResolvedValue(
+        mockJsonResponse({ productId: "p1", cityId: "c1", totalQty: 75 }),
+      )
+
+      const result = await fetchCityStockApi({
+        productId: "p1",
+        cityId: "c1",
+      })
+
+      expect(authFetch).toHaveBeenCalledWith(
+        "/api/inventory-transactions/stock/by-city?productId=p1&cityId=c1",
+      )
+      expect(result).toEqual({ productId: "p1", cityId: "c1", totalQty: 75 })
     })
   })
 })

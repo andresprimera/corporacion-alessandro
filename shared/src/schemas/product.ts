@@ -66,5 +66,6 @@ export const productOptionSchema = z.object({
   id: z.string(),
   name: z.string(),
   kind: productKindEnum,
+  price: priceSchema,
 });
 export type ProductOption = z.infer<typeof productOptionSchema>;

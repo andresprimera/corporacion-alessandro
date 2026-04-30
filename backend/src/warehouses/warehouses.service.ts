@@ -138,4 +138,10 @@ export class WarehousesService {
     const result = await this.warehouseModel.exists({ cityId });
     return result !== null;
   }
+
+  async findActiveByCity(cityId: string): Promise<WarehouseDocument[]> {
+    return this.warehouseModel
+      .find({ cityId: new Types.ObjectId(cityId), isActive: true })
+      .sort({ name: 1 });
+  }
 }

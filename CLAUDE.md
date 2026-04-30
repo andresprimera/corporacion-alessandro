@@ -4,6 +4,12 @@
 
 pnpm monorepo with three packages: `backend` (NestJS 11 + Mongoose), `frontend` (Vite + React 19 + React Router v7), and `shared` (`@base-dashboard/shared` — Zod schemas and types). All entity/API types are defined in `shared/` and imported by both backend and frontend. Never duplicate types across packages. The shared package has no build step — it exports raw TS via `"main": "src/index.ts"`.
 
+## Planning
+
+Before implementing any new feature that spans more than ~3 files or touches both backend and frontend, invoke the `plan-detailed` skill first to produce plan files under `.claude/plans/<feature>/`. Only proceed to implementation after the plan exists. Bug fixes, single-file edits, and trivial tweaks do not require a plan.
+
+The skill embeds the relevant CLAUDE.md rules inline in each step, so the implementing agent (whether you continue or hand off) does not need to re-derive conventions. If you delegate implementation to a subagent, point it at the generated `overview.md` first.
+
 ## Enforcement Layers
 
 The rules below are split between what the toolchain enforces automatically and what requires judgment. Don't memorize the auto-enforced ones — the build will tell you.

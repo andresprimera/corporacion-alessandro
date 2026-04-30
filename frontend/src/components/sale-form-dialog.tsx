@@ -1,21 +1,18 @@
+import { useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
-import {
-  useForm,
-  useFieldArray,
-  useWatch,
-  Controller,
-  type Control,
-} from "react-hook-form"
-import { standardSchemaResolver } from "@hookform/resolvers/standard-schema"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import {
-  createSaleSchema,
-  type CreateSaleInput,
+  type Currency,
+  type ProductKind,
+  type ProductOption,
 } from "@base-dashboard/shared"
 import { fetchProductOptionsApi } from "@/lib/products"
-import { fetchStockByWarehouseApi } from "@/lib/inventory"
+import { fetchCityStockApi } from "@/lib/inventory"
 import { fetchClientOptionsApi } from "@/lib/clients"
+import { fetchCityOptionsApi } from "@/lib/cities"
 import { createSaleApi } from "@/lib/sales"
+import { useAuth } from "@/hooks/use-auth"
+import { cn } from "@/lib/utils"
 import { toast } from "sonner"
 import {
   Dialog,
@@ -25,6 +22,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
 import {
   Field,
   FieldDescription,
@@ -39,153 +42,144 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import {
+  Combobox,
+  ComboboxCollection,
+  ComboboxContent,
+  ComboboxEmpty,
+  ComboboxInput,
+  ComboboxItem,
+  ComboboxList,
+} from "@/components/ui/combobox"
 import { Button } from "@/components/ui/button"
-import { PlusIcon, TrashIcon } from "lucide-react"
+import { MinusIcon, PlusIcon, TrashIcon } from "lucide-react"
 
-const defaultItem: CreateSaleInput["items"][number] = {
-  productId: "",
-  requestedQty: 1,
-  unitPrice: 0,
-  allocations: [{ warehouseId: "", qty: 1 }],
+interface CartItem {
+  productId: string
+  productName: string
+  productKind: ProductKind
+  requestedQty: number
+  unitPrice: number
+  currency: Currency
 }
 
-const defaultValues: CreateSaleInput = {
-  clientId: "",
-  notes: "",
-  items: [defaultItem],
+interface PersistedCart {
+  cityId?: string
+  clientId: string
+  notes: string
+  items: CartItem[]
 }
 
-interface AllocationFieldsProps {
-  control: Control<CreateSaleInput>
-  itemIndex: number
+const STORAGE_KEY_PREFIX = "sale-cart-v1:"
+
+function loadCart(userId: string): PersistedCart | null {
+  try {
+    const raw = localStorage.getItem(`${STORAGE_KEY_PREFIX}${userId}`)
+    if (!raw) return null
+    return JSON.parse(raw) as PersistedCart
+  } catch {
+    return null
+  }
 }
 
-function AllocationFields({ control, itemIndex }: AllocationFieldsProps) {
+function saveCart(userId: string, cart: PersistedCart): void {
+  try {
+    localStorage.setItem(
+      `${STORAGE_KEY_PREFIX}${userId}`,
+      JSON.stringify(cart),
+    )
+  } catch {
+    // storage full or disabled — ignore
+  }
+}
+
+function clearCart(userId: string): void {
+  try {
+    localStorage.removeItem(`${STORAGE_KEY_PREFIX}${userId}`)
+  } catch {
+    // ignore
+  }
+}
+
+function formatPrice(value: number, currency: Currency): string {
+  return `${currency} ${value.toFixed(2)}`
+}
+
+interface CartRowProps {
+  item: CartItem
+  cityId: string | undefined
+  onQtyChange: (qty: number) => void
+  onRemove: () => void
+}
+
+function CartRow({
+  item,
+  cityId,
+  onQtyChange,
+  onRemove,
+}: CartRowProps) {
   const { t } = useTranslation()
-  const { fields, append, remove } = useFieldArray({
-    control,
-    name: `items.${itemIndex}.allocations`,
-  })
-  const productId = useWatch({
-    control,
-    name: `items.${itemIndex}.productId`,
-  })
-  const liveAllocations = useWatch({
-    control,
-    name: `items.${itemIndex}.allocations`,
-  })
-  const { data: stockData } = useQuery({
-    queryKey: ["stock", "by-warehouse", { productId }],
+  const { data: stock } = useQuery({
+    queryKey: ["stock", "by-city", { productId: item.productId, cityId }],
     queryFn: () =>
-      fetchStockByWarehouseApi({ productId, page: 1, limit: 100 }),
-    enabled: !!productId,
+      fetchCityStockApi({ productId: item.productId, cityId: cityId ?? "" }),
+    enabled: !!cityId,
     staleTime: 30_000,
   })
-  const stockRows = stockData?.data ?? []
+  const insufficient =
+    stock != null && cityId != null && item.requestedQty > stock.totalQty
+  const subtotal = item.unitPrice * item.requestedQty
+
+  const isOne = item.requestedQty === 1
 
   return (
-    <div className="space-y-2 pl-4 border-l">
-      <div className="text-sm font-medium text-muted-foreground">
-        {t("Warehouse allocations")}
-      </div>
-      {fields.map((field, idx) => {
-        const selectedWarehouseId = liveAllocations?.[idx]?.warehouseId
-        const stockRow = stockRows.find(
-          (s) => s.warehouseId === selectedWarehouseId,
-        )
-        return (
-          <div key={field.id} className="flex items-end gap-2">
-            <Field className="flex-1">
-              <FieldLabel
-                htmlFor={`items.${itemIndex}.allocations.${idx}.warehouseId`}
-              >
-                {t("Warehouse")}
-              </FieldLabel>
-              <Controller
-                name={`items.${itemIndex}.allocations.${idx}.warehouseId`}
-                control={control}
-                render={({ field: warehouseField }) => (
-                  <Select
-                    value={warehouseField.value || ""}
-                    onValueChange={(val) => val && warehouseField.onChange(val)}
-                    disabled={!productId}
-                  >
-                    <SelectTrigger
-                      id={`items.${itemIndex}.allocations.${idx}.warehouseId`}
-                      size="sm"
-                    >
-                      <SelectValue
-                        placeholder={
-                          productId
-                            ? t("Select warehouse")
-                            : t("Pick a product first")
-                        }
-                      />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {stockRows.map((row) => (
-                        <SelectItem
-                          key={row.warehouseId}
-                          value={row.warehouseId}
-                        >
-                          {row.warehouseName} ({t("stock")}: {row.totalQty})
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
-              />
-              {stockRow && (
-                <FieldDescription>
-                  {t("Available")}: {stockRow.totalQty}
-                </FieldDescription>
-              )}
-            </Field>
-            <Field className="w-28">
-              <FieldLabel
-                htmlFor={`items.${itemIndex}.allocations.${idx}.qty`}
-              >
-                {t("Qty")}
-              </FieldLabel>
-              <Controller
-                name={`items.${itemIndex}.allocations.${idx}.qty`}
-                control={control}
-                render={({ field: qtyField }) => (
-                  <Input
-                    id={`items.${itemIndex}.allocations.${idx}.qty`}
-                    type="number"
-                    min={1}
-                    step={1}
-                    value={qtyField.value}
-                    onChange={(e) =>
-                      qtyField.onChange(Number(e.target.value) || 0)
-                    }
-                  />
-                )}
-              />
-            </Field>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              onClick={() => fields.length > 1 && remove(idx)}
-              disabled={fields.length <= 1}
-            >
-              <TrashIcon className="size-4" />
-            </Button>
+    <div className="space-y-2 p-3">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex-1 min-w-0">
+          <div className="text-sm font-medium truncate">
+            {item.productName}
           </div>
-        )
-      })}
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        onClick={() => append({ warehouseId: "", qty: 1 })}
-        disabled={!productId}
-      >
-        <PlusIcon className="size-4" />
-        {t("Add warehouse")}
-      </Button>
+          <div className="text-xs text-muted-foreground">
+            {formatPrice(item.unitPrice, item.currency)}
+          </div>
+        </div>
+        <div className="text-base font-semibold tabular-nums whitespace-nowrap">
+          {formatPrice(subtotal, item.currency)}
+        </div>
+      </div>
+      <div className="flex items-center gap-2">
+        <Button
+          type="button"
+          variant="outline"
+          size="icon"
+          onClick={isOne ? onRemove : () => onQtyChange(item.requestedQty - 1)}
+          aria-label={isOne ? t("Remove item") : t("Decrease quantity")}
+        >
+          {isOne ? (
+            <TrashIcon className="size-4" />
+          ) : (
+            <MinusIcon className="size-4" />
+          )}
+        </Button>
+        <div
+          className={cn(
+            "min-w-10 text-center text-base font-semibold tabular-nums",
+            insufficient && "text-destructive",
+          )}
+          aria-label={t("Qty")}
+        >
+          {item.requestedQty}
+        </div>
+        <Button
+          type="button"
+          variant="outline"
+          size="icon"
+          onClick={() => onQtyChange(item.requestedQty + 1)}
+          aria-label={t("Increase quantity")}
+        >
+          <PlusIcon className="size-4" />
+        </Button>
+      </div>
     </div>
   )
 }
@@ -199,6 +193,39 @@ export function SaleFormDialog({
 }) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
+  const { user } = useAuth()
+  const isAdmin = user?.role === "admin"
+  const userId = user?.id
+
+  const [cityId, setCityId] = useState<string | undefined>(undefined)
+  const [clientId, setClientId] = useState<string>("")
+  const [notes, setNotes] = useState<string>("")
+  const [items, setItems] = useState<CartItem[]>([])
+
+  const [draftProduct, setDraftProduct] = useState<ProductOption | null>(null)
+  const [draftQty, setDraftQty] = useState<number>(1)
+
+  const initializedRef = useRef(false)
+  useEffect(() => {
+    if (open && userId && !initializedRef.current) {
+      initializedRef.current = true
+      const saved = loadCart(userId)
+      if (saved) {
+        setCityId(saved.cityId)
+        setClientId(saved.clientId)
+        setNotes(saved.notes)
+        setItems(saved.items)
+      }
+    }
+    if (!open) {
+      initializedRef.current = false
+    }
+  }, [open, userId])
+
+  useEffect(() => {
+    if (!open || !userId) return
+    saveCart(userId, { cityId, clientId, notes, items })
+  }, [open, userId, cityId, clientId, notes, items])
 
   const { data: productOptions = [] } = useQuery({
     queryKey: ["products", "options"],
@@ -212,34 +239,104 @@ export function SaleFormDialog({
     enabled: open,
   })
 
-  const {
-    register,
-    handleSubmit,
-    control,
-    reset,
-    formState: { errors, isSubmitting },
-  } = useForm<CreateSaleInput>({
-    resolver: standardSchemaResolver(createSaleSchema),
-    defaultValues,
+  const { data: cityOptions = [] } = useQuery({
+    queryKey: ["cities", "options"],
+    queryFn: fetchCityOptionsApi,
+    enabled: open && isAdmin,
   })
 
-  const {
-    fields: itemFields,
-    append: appendItem,
-    remove: removeItem,
-  } = useFieldArray({ control, name: "items" })
+  const effectiveCityId = isAdmin ? cityId : user?.cityId
+  const effectiveCityName = isAdmin
+    ? cityOptions.find((c) => c.id === cityId)?.name
+    : user?.cityName
 
-  const items = useWatch({ control, name: "items" }) ?? []
-  const totalQty = items.reduce(
-    (sum, item) => sum + (Number(item?.requestedQty) || 0),
-    0,
-  )
+  const draftStockQuery = useQuery({
+    queryKey: [
+      "stock",
+      "by-city",
+      { productId: draftProduct?.id, cityId: effectiveCityId },
+    ],
+    queryFn: () =>
+      fetchCityStockApi({
+        productId: draftProduct!.id,
+        cityId: effectiveCityId!,
+      }),
+    enabled: !!draftProduct && !!effectiveCityId,
+    staleTime: 30_000,
+  })
+
+  function changeCityId(next: string | undefined): void {
+    if (next !== cityId && items.length > 0) {
+      setItems([])
+    }
+    setCityId(next)
+  }
+
+  function changeClientId(next: string): void {
+    if (next !== clientId && items.length > 0) {
+      setItems([])
+    }
+    setClientId(next)
+  }
+
+  function handleAddToOrder(): void {
+    if (!draftProduct || draftQty < 1) return
+    setItems((prev) => {
+      const existing = prev.find((i) => i.productId === draftProduct.id)
+      if (existing) {
+        return prev.map((i) =>
+          i.productId === draftProduct.id
+            ? { ...i, requestedQty: i.requestedQty + draftQty }
+            : i,
+        )
+      }
+      return [
+        ...prev,
+        {
+          productId: draftProduct.id,
+          productName: draftProduct.name,
+          productKind: draftProduct.kind,
+          requestedQty: draftQty,
+          unitPrice: draftProduct.price.value,
+          currency: draftProduct.price.currency,
+        },
+      ]
+    })
+    setDraftProduct(null)
+    setDraftQty(1)
+  }
+
+  function handleQtyChange(productId: string, qty: number): void {
+    if (qty < 1) return
+    setItems((prev) =>
+      prev.map((i) =>
+        i.productId === productId ? { ...i, requestedQty: qty } : i,
+      ),
+    )
+  }
+
+  function handleRemove(productId: string): void {
+    setItems((prev) => prev.filter((i) => i.productId !== productId))
+  }
+
+  function handleClearOrder(): void {
+    setItems([])
+    setNotes("")
+  }
+
+  const totalQty = items.reduce((s, i) => s + i.requestedQty, 0)
   const totalAmount = items.reduce(
-    (sum, item) =>
-      sum +
-      (Number(item?.requestedQty) || 0) * (Number(item?.unitPrice) || 0),
+    (s, i) => s + i.requestedQty * i.unitPrice,
     0,
   )
+  const totalCurrency = items[0]?.currency ?? "USD"
+
+  const salesPersonMissingCity = !isAdmin && !user?.cityId
+  const submitDisabled =
+    items.length === 0 ||
+    !clientId ||
+    !effectiveCityId ||
+    salesPersonMissingCity
 
   const mutation = useMutation({
     mutationFn: createSaleApi,
@@ -248,202 +345,241 @@ export function SaleFormDialog({
       queryClient.invalidateQueries({ queryKey: ["inventory"] })
       queryClient.invalidateQueries({ queryKey: ["stock"] })
       toast.success(t("Sale created"))
-      reset(defaultValues)
+      if (userId) clearCart(userId)
+      setCityId(undefined)
+      setClientId("")
+      setNotes("")
+      setItems([])
       onOpenChange(false)
     },
-    onError: (error: Error) => {
-      toast.error(t(error.message) || t("Failed to create sale"))
+    onError: (err: Error) => {
+      toast.error(t(err.message) || t("Failed to create sale"))
     },
   })
 
-  function onSubmit(values: CreateSaleInput) {
+  function handleSubmit(e: React.FormEvent): void {
+    e.preventDefault()
+    if (submitDisabled) return
     mutation.mutate({
-      clientId: values.clientId,
-      notes: values.notes?.trim() || undefined,
-      items: values.items.map((item) => ({
-        productId: item.productId,
-        requestedQty: Number(item.requestedQty),
-        unitPrice: Number(item.unitPrice),
-        allocations: item.allocations.map((a) => ({
-          warehouseId: a.warehouseId,
-          qty: Number(a.qty),
-        })),
+      cityId: isAdmin ? cityId : undefined,
+      clientId,
+      notes: notes.trim() || undefined,
+      items: items.map((i) => ({
+        productId: i.productId,
+        requestedQty: i.requestedQty,
+        unitPrice: i.unitPrice,
       })),
     })
   }
 
-  function handleOpenChange(next: boolean) {
-    if (!next) {
-      reset(defaultValues)
-    }
-    onOpenChange(next)
-  }
-
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{t("New sale")}</DialogTitle>
           <DialogDescription>
             {t(
-              "Pick products and the warehouse(s) they ship from. Mix warehouses if a single one doesn't have enough stock.",
+              "Pick products. Stock is checked across all warehouses in the city.",
             )}
           </DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSubmit(onSubmit)}>
+        {salesPersonMissingCity && (
+          <div
+            role="alert"
+            className="rounded-md border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+          >
+            {t("Your account has no assigned city. Contact an admin.")}
+          </div>
+        )}
+        <form onSubmit={handleSubmit}>
           <FieldGroup>
+            {isAdmin && (
+              <Field>
+                <FieldLabel>{t("City")}</FieldLabel>
+                <Select
+                  value={cityId ?? ""}
+                  onValueChange={(val) => changeCityId(val || undefined)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder={t("Select city")} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {cityOptions.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </Field>
+            )}
             <Field>
               <FieldLabel>{t("Client")}</FieldLabel>
-              <Controller
-                name="clientId"
-                control={control}
-                render={({ field }) => (
-                  <Select
-                    value={field.value || ""}
-                    onValueChange={(val) => val && field.onChange(val)}
+              <Select
+                value={clientId || ""}
+                onValueChange={(val) => val && changeClientId(val)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder={t("Select client")} />
+                </SelectTrigger>
+                <SelectContent>
+                  {clientOptions.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.name} ({c.rif})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-sm">
+                  {t("Add product to order")}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <Field>
+                  <FieldLabel>{t("Product")}</FieldLabel>
+                  <Combobox<ProductOption>
+                    items={productOptions}
+                    value={draftProduct}
+                    onValueChange={(val) => setDraftProduct(val)}
+                    itemToStringLabel={(item) => item.name}
+                    itemToStringValue={(item) => item.id}
                   >
-                    <SelectTrigger>
-                      <SelectValue placeholder={t("Select client")} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {clientOptions.map((c) => (
-                        <SelectItem key={c.id} value={c.id}>
-                          {c.name} ({c.rif})
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
-              />
-              {errors.clientId && (
-                <FieldDescription className="text-destructive">
-                  {t(errors.clientId.message ?? "")}
-                </FieldDescription>
-              )}
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="sale-notes">{t("Notes")}</FieldLabel>
-              <Input id="sale-notes" type="text" {...register("notes")} />
-            </Field>
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="text-sm font-medium">{t("Items")}</div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => appendItem(defaultItem)}
-                >
-                  <PlusIcon className="size-4" />
-                  {t("Add item")}
-                </Button>
-              </div>
-              {itemFields.map((field, idx) => (
-                <div
-                  key={field.id}
-                  className="space-y-3 rounded-lg border p-3"
-                >
-                  <div className="flex items-end gap-2">
-                    <Field className="flex-1">
-                      <FieldLabel htmlFor={`items.${idx}.productId`}>
-                        {t("Product")}
-                      </FieldLabel>
-                      <Controller
-                        name={`items.${idx}.productId`}
-                        control={control}
-                        render={({ field: productField }) => (
-                          <Select
-                            value={productField.value || ""}
-                            onValueChange={(val) =>
-                              val && productField.onChange(val)
-                            }
-                          >
-                            <SelectTrigger
-                              id={`items.${idx}.productId`}
-                              size="sm"
-                            >
-                              <SelectValue
-                                placeholder={t("Select product")}
-                              />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {productOptions.map((p) => (
-                                <SelectItem key={p.id} value={p.id}>
-                                  {p.name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        )}
-                      />
-                    </Field>
-                    <Field className="w-28">
-                      <FieldLabel htmlFor={`items.${idx}.requestedQty`}>
-                        {t("Qty")}
-                      </FieldLabel>
-                      <Input
-                        id={`items.${idx}.requestedQty`}
-                        type="number"
-                        min={1}
-                        step={1}
-                        {...register(`items.${idx}.requestedQty`, {
-                          valueAsNumber: true,
-                        })}
-                      />
-                    </Field>
-                    <Field className="w-28">
-                      <FieldLabel htmlFor={`items.${idx}.unitPrice`}>
-                        {t("Unit price")}
-                      </FieldLabel>
-                      <Input
-                        id={`items.${idx}.unitPrice`}
-                        type="number"
-                        min={0}
-                        step="0.01"
-                        {...register(`items.${idx}.unitPrice`, {
-                          valueAsNumber: true,
-                        })}
-                      />
-                    </Field>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      disabled={itemFields.length <= 1}
-                      onClick={() =>
-                        itemFields.length > 1 && removeItem(idx)
+                    <ComboboxInput
+                      placeholder={t("Search product")}
+                      className="w-full"
+                    />
+                    <ComboboxContent>
+                      <ComboboxEmpty>{t("No products found")}</ComboboxEmpty>
+                      <ComboboxList>
+                        <ComboboxCollection>
+                          {(item: ProductOption) => (
+                            <ComboboxItem key={item.id} value={item}>
+                              {item.name}
+                              {" — "}
+                              <span className="text-xs text-muted-foreground">
+                                {formatPrice(item.price.value, item.price.currency)}
+                              </span>
+                            </ComboboxItem>
+                          )}
+                        </ComboboxCollection>
+                      </ComboboxList>
+                    </ComboboxContent>
+                  </Combobox>
+                  {draftProduct && effectiveCityId && (
+                    <FieldDescription
+                      className={
+                        draftStockQuery.data &&
+                        draftQty > draftStockQuery.data.totalQty
+                          ? "text-destructive"
+                          : undefined
                       }
                     >
-                      <TrashIcon className="size-4" />
-                    </Button>
-                  </div>
-                  <AllocationFields control={control} itemIndex={idx} />
-                  {errors.items?.[idx]?.allocations?.message && (
-                    <FieldDescription className="text-destructive">
-                      {t(errors.items[idx]?.allocations?.message ?? "")}
+                      {t("Available in {{city}}: {{qty}}", {
+                        city: effectiveCityName ?? "",
+                        qty: draftStockQuery.data?.totalQty ?? 0,
+                      })}
                     </FieldDescription>
                   )}
+                </Field>
+                <div className="flex items-end gap-2">
+                  <Field className="w-28">
+                    <FieldLabel htmlFor="draft-qty">{t("Qty")}</FieldLabel>
+                    <Input
+                      id="draft-qty"
+                      type="number"
+                      min={1}
+                      step={1}
+                      value={draftQty}
+                      onChange={(e) =>
+                        setDraftQty(Number(e.target.value) || 1)
+                      }
+                    />
+                  </Field>
+                  <div className="flex-1" />
+                  <Button
+                    type="button"
+                    onClick={handleAddToOrder}
+                    disabled={!draftProduct || draftQty < 1}
+                  >
+                    <PlusIcon className="size-4" />
+                    {t("Add to order")}
+                  </Button>
                 </div>
-              ))}
+              </CardContent>
+            </Card>
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="text-sm font-medium">{t("Order")}</div>
+                {items.length > 0 && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleClearOrder}
+                  >
+                    {t("Clear order")}
+                  </Button>
+                )}
+              </div>
+              {items.length === 0 ? (
+                <div className="rounded-lg border border-dashed px-4 py-6 text-center text-sm text-muted-foreground">
+                  {t("No products added yet")}
+                </div>
+              ) : (
+                <div className="rounded-lg border divide-y">
+                  {items.map((item) => (
+                    <CartRow
+                      key={item.productId}
+                      item={item}
+                      cityId={effectiveCityId}
+                      onQtyChange={(qty) =>
+                        handleQtyChange(item.productId, qty)
+                      }
+                      onRemove={() => handleRemove(item.productId)}
+                    />
+                  ))}
+                </div>
+              )}
             </div>
-            <div className="flex items-center justify-between rounded-lg bg-muted px-4 py-2">
-              <span className="text-sm font-medium">
-                {t("Total qty")}: {totalQty}
-              </span>
-              <span className="text-sm font-medium">
-                {t("Total amount")}: ${totalAmount.toFixed(2)}
-              </span>
-            </div>
+
+            {items.length > 0 && (
+              <div className="flex items-center justify-between rounded-lg bg-muted px-4 py-2">
+                <span className="text-sm font-medium">
+                  {t("Total qty")}: {totalQty}
+                </span>
+                <span className="text-sm font-medium">
+                  {t("Total amount")}:{" "}
+                  {formatPrice(totalAmount, totalCurrency)}
+                </span>
+              </div>
+            )}
+
+            <Field>
+              <FieldLabel htmlFor="sale-notes">{t("Notes")}</FieldLabel>
+              <Input
+                id="sale-notes"
+                type="text"
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+              />
+            </Field>
           </FieldGroup>
           <DialogFooter className="mt-4">
             <Button
               type="button"
               variant="outline"
-              onClick={() => handleOpenChange(false)}
+              onClick={() => onOpenChange(false)}
             >
               {t("Cancel")}
             </Button>
-            <Button type="submit" disabled={isSubmitting || mutation.isPending}>
+            <Button
+              type="submit"
+              disabled={submitDisabled || mutation.isPending}
+            >
               {mutation.isPending ? t("Creating...") : t("Create sale")}
             </Button>
           </DialogFooter>
