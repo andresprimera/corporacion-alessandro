@@ -15,7 +15,18 @@ COPY shared ./shared
 COPY frontend ./frontend
 
 ARG VITE_API_URL
+ARG VITE_SUPPORTED_LOCALES
 ENV VITE_API_URL=$VITE_API_URL
+ENV VITE_SUPPORTED_LOCALES=$VITE_SUPPORTED_LOCALES
+
+RUN echo "==> Frontend build args:" \
+ && echo "    VITE_API_URL=${VITE_API_URL:-<UNSET>}" \
+ && echo "    VITE_SUPPORTED_LOCALES=${VITE_SUPPORTED_LOCALES:-<UNSET>}" \
+ && if [ -z "$VITE_API_URL" ]; then \
+      echo "ERROR: VITE_API_URL build arg is empty. The bundle will call /api on its own origin and fail in production." >&2; \
+      echo "       Pass --build-arg VITE_API_URL=https://your-api.example.com (or set it in Dokploy build args)." >&2; \
+      exit 1; \
+    fi
 
 RUN pnpm --filter frontend build
 
