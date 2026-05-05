@@ -71,6 +71,14 @@ export function SignupForm({ ...props }: React.ComponentProps<typeof Card>) {
       await signup(values.name, values.email, values.password, values.cityId)
       navigate("/dashboard")
     } catch (error) {
+      if (
+        error instanceof Error &&
+        error.message === "Account created, pending approval"
+      ) {
+        toast.success(t("Account created, pending approval"))
+        navigate("/")
+        return
+      }
       toast.error(error instanceof Error ? t(error.message) : t("Signup failed"))
     } finally {
       setIsSubmitting(false)
@@ -128,6 +136,9 @@ export function SignupForm({ ...props }: React.ComponentProps<typeof Card>) {
                       if (val) field.onChange(val)
                     }}
                     disabled={isLoadingCities}
+                    items={Object.fromEntries(
+                      cityOptions.map((c) => [c.id, c.name]),
+                    )}
                   >
                     <SelectTrigger id="city">
                       <SelectValue placeholder={t("Select a city")} />

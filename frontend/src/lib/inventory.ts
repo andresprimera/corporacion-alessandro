@@ -1,4 +1,5 @@
 import {
+  type AggregatedCityStockEntry,
   type CityStock,
   type CreateInventoryTransactionInput,
   type InventoryTransaction,
@@ -83,6 +84,16 @@ export async function fetchCityStockApi(args: {
   })
   const res = await authFetch(
     `/api/inventory-transactions/stock/by-city?${params}`,
+  )
+  return res.json()
+}
+
+export async function fetchAggregatedCityStockApi(
+  cityId: string,
+): Promise<AggregatedCityStockEntry[]> {
+  const params = new URLSearchParams({ cityId })
+  const res = await authFetch(
+    `/api/inventory-transactions/stock/by-city/aggregated?${params}`,
   )
   return res.json()
 }

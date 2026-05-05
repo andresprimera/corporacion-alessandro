@@ -173,7 +173,6 @@ export function SaleCartProvider({
   }
 
   function setClientId(next: string): void {
-    if (next !== clientId && items.length > 0) setItems([])
     setClientIdState(next)
   }
 

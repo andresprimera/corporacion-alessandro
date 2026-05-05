@@ -148,6 +148,9 @@ export function WarehouseFormDialog({
                   <Select
                     value={field.value || ""}
                     onValueChange={field.onChange}
+                    items={Object.fromEntries(
+                      cities.map((c) => [c.id, c.name]),
+                    )}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder={t("Select city")} />

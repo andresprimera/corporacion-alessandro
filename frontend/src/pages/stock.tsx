@@ -205,6 +205,15 @@ function ByWarehouseTab() {
             setWarehouseFilter(v)
             setPage(1)
           }}
+          items={{
+            [ALL_WAREHOUSES]: t("All warehouses"),
+            ...Object.fromEntries(
+              warehouses.map((w) => [
+                w.id,
+                w.cityName ? `${w.name} — ${w.cityName}` : w.name,
+              ]),
+            ),
+          }}
         >
           <SelectTrigger className="w-64">
             <SelectValue />

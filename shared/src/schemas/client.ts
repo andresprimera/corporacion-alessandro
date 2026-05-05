@@ -2,12 +2,14 @@ import { z } from "zod/v4";
 
 import { paginationQuerySchema } from "./pagination";
 
+const RIF_REGEX = /^[VEJPG]-\d{8,9}-\d$/;
+const RIF_MESSAGE =
+  "RIF must be in format X-999999999-9 (X is V, E, J, P, or G)";
+
 export const clientSchema = z.object({
   id: z.string(),
   name: z.string().min(1, "Name is required"),
-  rif: z
-    .string()
-    .regex(/^\d{3}\.\d{3}\.\d{3}-\d$/, "RIF must be in format 999.999.999-9"),
+  rif: z.string().regex(RIF_REGEX, RIF_MESSAGE),
   address: z.string().min(1, "Address is required"),
   phone: z.string().min(1, "Phone is required"),
   salesPersonId: z.string(),
@@ -19,9 +21,7 @@ export type Client = z.infer<typeof clientSchema>;
 
 export const createClientSchema = z.object({
   name: z.string().min(1, "Name is required"),
-  rif: z
-    .string()
-    .regex(/^\d{3}\.\d{3}\.\d{3}-\d$/, "RIF must be in format 999.999.999-9"),
+  rif: z.string().regex(RIF_REGEX, RIF_MESSAGE),
   address: z.string().min(1, "Address is required"),
   phone: z.string().min(1, "Phone is required"),
   salesPersonId: z.string().optional(),

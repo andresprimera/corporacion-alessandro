@@ -8,7 +8,9 @@ import type {
   ProductKind,
 } from "@base-dashboard/shared"
 import { fetchProductsApi } from "@/lib/products"
+import { fetchAggregatedCityStockApi } from "@/lib/inventory"
 import { useSaleCart } from "@/hooks/use-sale-cart"
+import { useAuth } from "@/hooks/use-auth"
 import {
   Table,
   TableBody,
@@ -66,7 +68,10 @@ function liquorTypeLabel(
 
 export default function CatalogPage() {
   const { t } = useTranslation()
+  const { user } = useAuth()
   const cart = useSaleCart()
+  const isAdmin = user?.role === "admin"
+  const stockCityId = isAdmin ? cart.cityId : user?.cityId
 
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
@@ -107,6 +112,22 @@ export default function CatalogPage() {
     queryFn: () => fetchProductsApi(filterArgs),
     placeholderData: keepPreviousData,
   })
+
+  const stockQuery = useQuery({
+    queryKey: ["stock", "by-city", "aggregated", stockCityId],
+    queryFn: () => fetchAggregatedCityStockApi(stockCityId!),
+    enabled: !!stockCityId,
+    staleTime: 30_000,
+  })
+
+  const stockMap = new Map<string, number>(
+    (stockQuery.data ?? []).map((e) => [e.productId, e.totalQty]),
+  )
+
+  function stockForProduct(productId: string): number | undefined {
+    if (!stockCityId) return undefined
+    return stockMap.get(productId) ?? 0
+  }
 
   const products = data?.data ?? []
   const meta = data?.meta
@@ -187,6 +208,11 @@ export default function CatalogPage() {
         <Select
           value={kind === "" ? KIND_ALL : kind}
           onValueChange={handleKindChange}
+          items={{
+            [KIND_ALL]: t("All"),
+            groceries: t("Groceries"),
+            liquor: t("Liquor"),
+          }}
         >
           <SelectTrigger id="catalog-kind" className="w-full md:w-40">
             <SelectValue />
@@ -206,6 +232,15 @@ export default function CatalogPage() {
           value={liquorType === "" ? LIQUOR_TYPE_ALL : liquorType}
           onValueChange={handleLiquorTypeChange}
           disabled={kind !== "liquor"}
+          items={{
+            [LIQUOR_TYPE_ALL]: t("All"),
+            rum: t("Rum"),
+            whisky: t("Whisky"),
+            vodka: t("Vodka"),
+            gin: t("Gin"),
+            tequila: t("Tequila"),
+            other: t("Other"),
+          }}
         >
           <SelectTrigger id="catalog-liquor-type" className="w-full md:w-40">
             <SelectValue />
@@ -362,62 +397,74 @@ export default function CatalogPage() {
                 </TableCell>
               </TableRow>
             ) : (
-              products.map((p) => (
-                <TableRow key={p.id}>
-                  <TableCell className="font-medium">
-                    <div>{p.name}</div>
-                    <div className="mt-0.5 flex flex-wrap gap-1 text-xs text-muted-foreground md:hidden">
-                      <span>
+              products.map((p) => {
+                const available = stockForProduct(p.id)
+                const outOfStock = available !== undefined && available <= 0
+                return (
+                  <TableRow key={p.id}>
+                    <TableCell className="font-medium">
+                      <div className="flex items-center gap-2">
+                        <span>{p.name}</span>
+                        {outOfStock && (
+                          <Badge variant="outline" className="text-destructive border-destructive/40">
+                            {t("Out of stock")}
+                          </Badge>
+                        )}
+                      </div>
+                      <div className="mt-0.5 flex flex-wrap gap-1 text-xs text-muted-foreground md:hidden">
+                        <span>
+                          {p.kind === "liquor" ? t("Liquor") : t("Groceries")}
+                        </span>
+                        {p.kind === "liquor" && (
+                          <>
+                            <span>·</span>
+                            <span>{liquorTypeLabel(p.liquorType, t)}</span>
+                            <span>·</span>
+                            <span>{formatPresentation(p.presentation, t)}</span>
+                          </>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell className="hidden md:table-cell">
+                      <Badge variant="secondary">
                         {p.kind === "liquor" ? t("Liquor") : t("Groceries")}
-                      </span>
-                      {p.kind === "liquor" && (
-                        <>
-                          <span>·</span>
-                          <span>{liquorTypeLabel(p.liquorType, t)}</span>
-                          <span>·</span>
-                          <span>{formatPresentation(p.presentation, t)}</span>
-                        </>
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="hidden md:table-cell">
+                      {p.kind === "liquor" ? (
+                        liquorTypeLabel(p.liquorType, t)
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
                       )}
-                    </div>
-                  </TableCell>
-                  <TableCell className="hidden md:table-cell">
-                    <Badge variant="secondary">
-                      {p.kind === "liquor" ? t("Liquor") : t("Groceries")}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="hidden md:table-cell">
-                    {p.kind === "liquor" ? (
-                      liquorTypeLabel(p.liquorType, t)
-                    ) : (
-                      <span className="text-muted-foreground">—</span>
-                    )}
-                  </TableCell>
-                  <TableCell className="hidden md:table-cell">
-                    {p.kind === "liquor" ? (
-                      formatPresentation(p.presentation, t)
-                    ) : (
-                      <span className="text-muted-foreground">—</span>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    {formatPrice(p.price.value, p.price.currency)}
-                  </TableCell>
-                  <TableCell>
-                    <Button
-                      size="sm"
-                      onClick={() => handleAddToCart(p)}
-                    >
-                      <PlusIcon className="size-4" />
-                      <span className="hidden md:inline">
-                        {t("Add to cart")}
-                      </span>
-                      <span className="sr-only md:hidden">
-                        {t("Add to cart")}
-                      </span>
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))
+                    </TableCell>
+                    <TableCell className="hidden md:table-cell">
+                      {p.kind === "liquor" ? (
+                        formatPresentation(p.presentation, t)
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {formatPrice(p.price.value, p.price.currency)}
+                    </TableCell>
+                    <TableCell>
+                      <Button
+                        size="sm"
+                        onClick={() => handleAddToCart(p)}
+                        disabled={outOfStock}
+                      >
+                        <PlusIcon className="size-4" />
+                        <span className="hidden md:inline">
+                          {t("Add to cart")}
+                        </span>
+                        <span className="sr-only md:hidden">
+                          {t("Add to cart")}
+                        </span>
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                )
+              })
             )}
           </TableBody>
         </Table>

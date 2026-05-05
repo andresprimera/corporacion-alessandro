@@ -1,4 +1,5 @@
 import * as React from "react"
+import { Link } from "react-router"
 
 import {
   SidebarGroup,
@@ -6,6 +7,7 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  useSidebar,
 } from "@/components/ui/sidebar"
 
 export function NavSecondary({
@@ -18,13 +20,20 @@ export function NavSecondary({
     icon: React.ReactNode
   }[]
 } & React.ComponentPropsWithoutRef<typeof SidebarGroup>) {
+  const { isMobile, setOpenMobile } = useSidebar()
+  const handleNav = (): void => {
+    if (isMobile) setOpenMobile(false)
+  }
+
   return (
     <SidebarGroup {...props}>
       <SidebarGroupContent>
         <SidebarMenu>
           {items.map((item) => (
             <SidebarMenuItem key={item.title}>
-              <SidebarMenuButton render={<a href={item.url} />}>
+              <SidebarMenuButton
+                render={<Link to={item.url} onClick={handleNav} />}
+              >
                 {item.icon}
                 <span>{item.title}</span>
               </SidebarMenuButton>

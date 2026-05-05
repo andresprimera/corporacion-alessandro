@@ -12,6 +12,7 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  useSidebar,
 } from "@/components/ui/sidebar"
 import {
   LayoutDashboardIcon,
@@ -34,8 +35,13 @@ import { Link } from "react-router"
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { t } = useTranslation()
   const { user } = useAuth()
+  const { isMobile, setOpenMobile } = useSidebar()
   const isAdmin = user?.role === "admin"
   const isSalesPerson = user?.role === "salesPerson"
+
+  const handleNav = (): void => {
+    if (isMobile) setOpenMobile(false)
+  }
 
   const adminNavMain = [
     { title: t("Dashboard"), url: "/dashboard", icon: <LayoutDashboardIcon /> },
@@ -74,7 +80,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           <SidebarMenuItem>
             <SidebarMenuButton
               className="data-[slot=sidebar-menu-button]:p-1.5!"
-              render={<Link to="/dashboard" />}
+              render={<Link to="/dashboard" onClick={handleNav} />}
             >
               <CommandIcon className="size-5!" />
               <span className="font-display text-xl font-semibold italic tracking-wide">

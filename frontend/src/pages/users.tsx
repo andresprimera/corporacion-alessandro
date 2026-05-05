@@ -360,6 +360,11 @@ export default function UsersPage() {
                           onValueChange={(val) =>
                             val && handleRoleChange(u.id, val)
                           }
+                          items={{
+                            admin: t("Admin"),
+                            user: t("User"),
+                            salesPerson: t("Sales Person"),
+                          }}
                         >
                           <SelectTrigger size="sm">
                             <SelectValue />
@@ -382,6 +387,9 @@ export default function UsersPage() {
                             val && handleCityChange(u.id, val)
                           }
                           disabled={isSelf}
+                          items={Object.fromEntries(
+                            cityOptions.map((c) => [c.id, c.name]),
+                          )}
                         >
                           <SelectTrigger size="sm">
                             <SelectValue placeholder={t("Select a city")} />

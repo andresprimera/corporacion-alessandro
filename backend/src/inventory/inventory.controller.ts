@@ -23,6 +23,9 @@ import {
   readPopulatedRef,
 } from '../common/utils/populated-ref';
 import {
+  type AggregatedCityStockEntry,
+  aggregatedCityStockQuerySchema,
+  type AggregatedCityStockQuery,
   type CityStock,
   cityStockQuerySchema,
   type CityStockQuery,
@@ -123,6 +126,15 @@ export class InventoryController {
       cityId: query.cityId,
       totalQty,
     };
+  }
+
+  @Get('stock/by-city/aggregated')
+  @Roles('admin', 'salesPerson')
+  async findAggregatedCityStock(
+    @Query(new ZodValidationPipe(aggregatedCityStockQuerySchema))
+    query: AggregatedCityStockQuery,
+  ): Promise<AggregatedCityStockEntry[]> {
+    return this.inventoryService.findAggregatedCityStock(query.cityId);
   }
 
   @Get('stock/aggregated')

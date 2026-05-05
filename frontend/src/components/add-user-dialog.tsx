@@ -185,6 +185,11 @@ export function AddUserDialog({
                     onValueChange={(val) => {
                       if (val) field.onChange(val)
                     }}
+                    items={{
+                      user: t("User"),
+                      admin: t("Admin"),
+                      salesPerson: t("Sales Person"),
+                    }}
                   >
                     <SelectTrigger>
                       <SelectValue />
@@ -221,6 +226,9 @@ export function AddUserDialog({
                       if (val) field.onChange(val)
                     }}
                     disabled={isLoadingCities}
+                    items={Object.fromEntries(
+                      cityOptions.map((c) => [c.id, c.name]),
+                    )}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder={t("Select a city")} />

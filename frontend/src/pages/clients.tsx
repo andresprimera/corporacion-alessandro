@@ -151,6 +151,10 @@ export default function ClientsPage() {
           <Select
             value={salesPersonFilter}
             onValueChange={handleSalesPersonFilterChange}
+            items={{
+              [SALES_PERSON_FILTER_ALL]: t("All sales people"),
+              ...Object.fromEntries(salesPersons.map((s) => [s.id, s.name])),
+            }}
           >
             <SelectTrigger className="w-56">
               <SelectValue placeholder={t("Filter by sales person")} />

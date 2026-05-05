@@ -202,6 +202,10 @@ export function ProductFormDialog({
                     value={field.value}
                     onValueChange={field.onChange}
                     disabled={isEdit}
+                    items={{
+                      groceries: t("Groceries"),
+                      liquor: t("Liquor"),
+                    }}
                   >
                     <SelectTrigger>
                       <SelectValue />
@@ -287,6 +291,14 @@ export function ProductFormDialog({
                       <Select
                         value={field.value ?? ""}
                         onValueChange={field.onChange}
+                        items={{
+                          rum: t("Rum"),
+                          whisky: t("Whisky"),
+                          vodka: t("Vodka"),
+                          gin: t("Gin"),
+                          tequila: t("Tequila"),
+                          other: t("Other"),
+                        }}
                       >
                         <SelectTrigger>
                           <SelectValue placeholder={t("Select type")} />
@@ -319,6 +331,10 @@ export function ProductFormDialog({
                       <Select
                         value={field.value ?? ""}
                         onValueChange={field.onChange}
+                        items={{
+                          L1: t("1 L"),
+                          ML750: t("750 ml"),
+                        }}
                       >
                         <SelectTrigger>
                           <SelectValue placeholder={t("Select presentation")} />

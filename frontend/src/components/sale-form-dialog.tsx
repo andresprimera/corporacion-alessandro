@@ -1,11 +1,6 @@
-import { useState } from "react"
 import { useTranslation } from "react-i18next"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import {
-  type Currency,
-  type ProductOption,
-} from "@base-dashboard/shared"
-import { fetchProductOptionsApi } from "@/lib/products"
+import { type Currency } from "@base-dashboard/shared"
 import { fetchCityStockApi } from "@/lib/inventory"
 import { fetchClientOptionsApi } from "@/lib/clients"
 import { fetchCityOptionsApi } from "@/lib/cities"
@@ -23,14 +18,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
-import {
   Field,
-  FieldDescription,
   FieldGroup,
   FieldLabel,
 } from "@/components/ui/field"
@@ -42,15 +30,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import {
-  Combobox,
-  ComboboxCollection,
-  ComboboxContent,
-  ComboboxEmpty,
-  ComboboxInput,
-  ComboboxItem,
-  ComboboxList,
-} from "@/components/ui/combobox"
 import { Button } from "@/components/ui/button"
 import { MinusIcon, PlusIcon, TrashIcon } from "lucide-react"
 
@@ -150,15 +129,6 @@ export function SaleFormDialog({
   const cart = useSaleCart()
   const isAdmin = user?.role === "admin"
 
-  const [draftProduct, setDraftProduct] = useState<ProductOption | null>(null)
-  const [draftQty, setDraftQty] = useState<number>(1)
-
-  const { data: productOptions = [] } = useQuery({
-    queryKey: ["products", "options"],
-    queryFn: fetchProductOptionsApi,
-    enabled: open,
-  })
-
   const { data: clientOptions = [] } = useQuery({
     queryKey: ["clients", "options"],
     queryFn: fetchClientOptionsApi,
@@ -172,31 +142,6 @@ export function SaleFormDialog({
   })
 
   const effectiveCityId = isAdmin ? cart.cityId : user?.cityId
-  const effectiveCityName = isAdmin
-    ? cityOptions.find((c) => c.id === cart.cityId)?.name
-    : user?.cityName
-
-  const draftStockQuery = useQuery({
-    queryKey: [
-      "stock",
-      "by-city",
-      { productId: draftProduct?.id, cityId: effectiveCityId },
-    ],
-    queryFn: () =>
-      fetchCityStockApi({
-        productId: draftProduct!.id,
-        cityId: effectiveCityId!,
-      }),
-    enabled: !!draftProduct && !!effectiveCityId,
-    staleTime: 30_000,
-  })
-
-  function handleAddToOrder(): void {
-    if (!draftProduct || draftQty < 1) return
-    cart.addItem(draftProduct, draftQty)
-    setDraftProduct(null)
-    setDraftQty(1)
-  }
 
   const totalCurrency = cart.totalCurrency
 
@@ -239,13 +184,11 @@ export function SaleFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{t("New sale")}</DialogTitle>
+          <DialogTitle>{t("Sale Confirmation")}</DialogTitle>
           <DialogDescription>
-            {t(
-              "Pick products. Stock is checked across all warehouses in the city.",
-            )}
+            {t("Review your order before confirming.")}
           </DialogDescription>
         </DialogHeader>
         {salesPersonMissingCity && (
@@ -264,8 +207,11 @@ export function SaleFormDialog({
                 <Select
                   value={cart.cityId ?? ""}
                   onValueChange={(val) => cart.setCityId(val || undefined)}
+                  items={Object.fromEntries(
+                    cityOptions.map((c) => [c.id, c.name]),
+                  )}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="w-full">
                     <SelectValue placeholder={t("Select city")} />
                   </SelectTrigger>
                   <SelectContent>
@@ -283,8 +229,11 @@ export function SaleFormDialog({
               <Select
                 value={cart.clientId || ""}
                 onValueChange={(val) => val && cart.setClientId(val)}
+                items={Object.fromEntries(
+                  clientOptions.map((c) => [c.id, `${c.name} (${c.rif})`]),
+                )}
               >
-                <SelectTrigger>
+                <SelectTrigger className="w-full">
                   <SelectValue placeholder={t("Select client")} />
                 </SelectTrigger>
                 <SelectContent>
@@ -296,85 +245,6 @@ export function SaleFormDialog({
                 </SelectContent>
               </Select>
             </Field>
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-sm">
-                  {t("Add product to order")}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <Field>
-                  <FieldLabel>{t("Product")}</FieldLabel>
-                  <Combobox<ProductOption>
-                    items={productOptions}
-                    value={draftProduct}
-                    onValueChange={(val) => setDraftProduct(val)}
-                    itemToStringLabel={(item) => item.name}
-                    itemToStringValue={(item) => item.id}
-                  >
-                    <ComboboxInput
-                      placeholder={t("Search product")}
-                      className="w-full"
-                    />
-                    <ComboboxContent>
-                      <ComboboxEmpty>{t("No products found")}</ComboboxEmpty>
-                      <ComboboxList>
-                        <ComboboxCollection>
-                          {(item: ProductOption) => (
-                            <ComboboxItem key={item.id} value={item}>
-                              {item.name}
-                              {" — "}
-                              <span className="text-xs text-muted-foreground">
-                                {formatPrice(item.price.value, item.price.currency)}
-                              </span>
-                            </ComboboxItem>
-                          )}
-                        </ComboboxCollection>
-                      </ComboboxList>
-                    </ComboboxContent>
-                  </Combobox>
-                  {draftProduct && effectiveCityId && (
-                    <FieldDescription
-                      className={
-                        draftStockQuery.data &&
-                        draftQty > draftStockQuery.data.totalQty
-                          ? "text-destructive"
-                          : undefined
-                      }
-                    >
-                      {t("Available in {{city}}: {{qty}}", {
-                        city: effectiveCityName ?? "",
-                        qty: draftStockQuery.data?.totalQty ?? 0,
-                      })}
-                    </FieldDescription>
-                  )}
-                </Field>
-                <div className="flex items-end gap-2">
-                  <Field className="w-28">
-                    <FieldLabel htmlFor="draft-qty">{t("Qty")}</FieldLabel>
-                    <Input
-                      id="draft-qty"
-                      type="number"
-                      min={1}
-                      step={1}
-                      value={draftQty}
-                      onChange={(e) =>
-                        setDraftQty(Number(e.target.value) || 1)
-                      }
-                    />
-                  </Field>
-                  <div className="flex-1" />
-                  <Button
-                    type="button"
-                    onClick={handleAddToOrder}
-                    disabled={!draftProduct || draftQty < 1}
-                  >
-                    <PlusIcon className="size-4" />
-                    {t("Add to order")}
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
 
             <div className="space-y-2">
               <div className="flex items-center justify-between">

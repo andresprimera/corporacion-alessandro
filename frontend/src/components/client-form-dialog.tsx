@@ -47,13 +47,20 @@ const defaultValues: CreateClientInput = {
   salesPersonId: "",
 }
 
+const RIF_PREFIXES = new Set(["V", "E", "J", "P", "G"])
+
 function formatRif(input: string): string {
-  const digits = input.replace(/\D/g, "").slice(0, 10)
-  if (digits.length <= 3) return digits
-  if (digits.length <= 6) return `${digits.slice(0, 3)}.${digits.slice(3)}`
-  if (digits.length <= 9)
-    return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6)}`
-  return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6, 9)}-${digits.slice(9)}`
+  const upper = input.toUpperCase()
+  const firstChar = upper.charAt(0)
+  const prefix = RIF_PREFIXES.has(firstChar) ? firstChar : ""
+  const digits = upper.slice(prefix ? 1 : 0).replace(/\D/g, "").slice(0, 10)
+  if (!prefix && digits.length === 0) return ""
+  if (!prefix) return digits
+  if (digits.length === 0) return `${prefix}-`
+  if (digits.length <= 8) return `${prefix}-${digits}`
+  const middle = digits.slice(0, digits.length - 1)
+  const check = digits.slice(-1)
+  return `${prefix}-${middle}-${check}`
 }
 
 function clientToFormValues(client: Client): CreateClientInput {
@@ -159,8 +166,7 @@ export function ClientFormDialog({
                   <Input
                     id="client-rif"
                     type="text"
-                    inputMode="numeric"
-                    placeholder="999.999.999-9"
+                    placeholder="J-999999999-9"
                     value={field.value ?? ""}
                     onChange={(e) =>
                       field.onChange(formatRif(e.target.value))
@@ -206,6 +212,9 @@ export function ClientFormDialog({
                     <Select
                       value={field.value || ""}
                       onValueChange={field.onChange}
+                      items={Object.fromEntries(
+                        salesPersons.map((s) => [s.id, s.name]),
+                      )}
                     >
                       <SelectTrigger>
                         <SelectValue placeholder={t("Select sales person")} />

@@ -171,6 +171,9 @@ export function InventoryFormDialog({
                   <Select
                     value={field.value || ""}
                     onValueChange={field.onChange}
+                    items={Object.fromEntries(
+                      products.map((p) => [p.id, p.name]),
+                    )}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder={t("Select product")} />
@@ -200,6 +203,12 @@ export function InventoryFormDialog({
                   <Select
                     value={field.value || ""}
                     onValueChange={field.onChange}
+                    items={Object.fromEntries(
+                      warehouses.map((w) => [
+                        w.id,
+                        w.cityName ? `${w.name} — ${w.cityName}` : w.name,
+                      ]),
+                    )}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder={t("Select warehouse")} />
@@ -229,6 +238,12 @@ export function InventoryFormDialog({
                   <Select
                     value={field.value}
                     onValueChange={field.onChange}
+                    items={Object.fromEntries(
+                      transactionTypeEnum.options.map((tt) => [
+                        tt,
+                        t(transactionTypeLabelKey(tt)),
+                      ]),
+                    )}
                   >
                     <SelectTrigger>
                       <SelectValue />

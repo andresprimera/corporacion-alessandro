@@ -142,7 +142,7 @@ describe("useSaleCart", () => {
     expect(result.current.items).toEqual([])
   })
 
-  it("setClientId clears items when client changes and items is non-empty", () => {
+  it("setClientId preserves items when client changes", () => {
     const { result } = renderHook(() => useSaleCart(), { wrapper: wrap })
 
     act(() => result.current.setClientId("client-a"))
@@ -150,7 +150,8 @@ describe("useSaleCart", () => {
     act(() => result.current.setClientId("client-b"))
 
     expect(result.current.clientId).toBe("client-b")
-    expect(result.current.items).toEqual([])
+    expect(result.current.items).toHaveLength(1)
+    expect(result.current.items[0].productId).toBe(liquor.id)
   })
 
   it("derives totalQty, totalAmount and totalCurrency from items", () => {

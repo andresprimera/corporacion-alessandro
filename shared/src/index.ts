@@ -122,6 +122,10 @@ export {
   type CityStockQuery,
   cityStockSchema,
   type CityStock,
+  aggregatedCityStockQuerySchema,
+  type AggregatedCityStockQuery,
+  aggregatedCityStockEntrySchema,
+  type AggregatedCityStockEntry,
 } from "./schemas/inventory";
 
 export {

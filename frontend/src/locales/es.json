@@ -459,7 +459,6 @@
   "Client not found": "Cliente no encontrado",
   "RIF": "RIF",
   "RIF is required": "El RIF es obligatorio",
-  "RIF must be in format 999.999.999-9": "El RIF debe tener el formato 999.999.999-9",
   "Phone": "Teléfono",
   "Phone is required": "El teléfono es obligatorio",
   "Address is required": "La dirección es obligatoria",
@@ -524,5 +523,9 @@
   "Retry": "Reintentar",
   "Rank": "Posición",
   "Amount": "Monto",
-  "Commission": "Comisión"
+  "Commission": "Comisión",
+  "Out of stock": "Sin existencias",
+  "Sale Confirmation": "Confirmación de venta",
+  "Review your order before confirming.": "Revisa tu pedido antes de confirmar.",
+  "RIF must be in format X-999999999-9 (X is V, E, J, P, or G)": "El RIF debe tener el formato X-999999999-9 (X es V, E, J, P o G)"
 }

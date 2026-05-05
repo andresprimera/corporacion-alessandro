@@ -14,6 +14,7 @@ import {
 import { ProductsService } from '../products/products.service';
 import { WarehousesService } from '../warehouses/warehouses.service';
 import type {
+  AggregatedCityStockEntry,
   CreateInventoryTransactionInput,
   InventoryTransactionCreatedBy,
   PaginationQuery,
@@ -222,6 +223,33 @@ export class InventoryService {
       },
     ]);
     return result?.totalQty ?? 0;
+  }
+
+  async findAggregatedCityStock(
+    cityId: string,
+  ): Promise<AggregatedCityStockEntry[]> {
+    const warehouses = await this.warehousesService.findActiveByCity(cityId);
+    if (warehouses.length === 0) return [];
+    const warehouseIds = warehouses.map(
+      (w) => new Types.ObjectId(w.id as string),
+    );
+
+    return this.inventoryModel.aggregate<AggregatedCityStockEntry>([
+      { $match: { warehouseId: { $in: warehouseIds } } },
+      {
+        $group: {
+          _id: '$productId',
+          totalQty: signedQtySum,
+        },
+      },
+      {
+        $project: {
+          _id: 0,
+          productId: { $toString: '$_id' },
+          totalQty: 1,
+        },
+      },
+    ]);
   }
 
   async findStockByWarehouse(
