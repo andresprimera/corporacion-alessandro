@@ -126,6 +126,7 @@ export default function CatalogPage() {
 
   function stockForProduct(productId: string): number | undefined {
     if (!stockCityId) return undefined
+    if (stockQuery.data === undefined) return undefined
     return stockMap.get(productId) ?? 0
   }
 
@@ -403,10 +404,13 @@ export default function CatalogPage() {
                 return (
                   <TableRow key={p.id}>
                     <TableCell className="font-medium">
-                      <div className="flex items-center gap-2">
-                        <span>{p.name}</span>
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                        <span className="wrap-break-word">{p.name}</span>
                         {outOfStock && (
-                          <Badge variant="outline" className="text-destructive border-destructive/40">
+                          <Badge
+                            variant="outline"
+                            className="text-destructive border-destructive/40"
+                          >
                             {t("Out of stock")}
                           </Badge>
                         )}
