@@ -2,12 +2,9 @@ import { useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { i18n } from "@/lib/i18n"
 import { keepPreviousData, useQuery } from "@tanstack/react-query"
-import type {
-  LiquorType,
-  Product,
-  ProductKind,
-} from "@base-dashboard/shared"
+import type { Product, ProductKind } from "@base-dashboard/shared"
 import { fetchProductsApi } from "@/lib/products"
+import { fetchLiquorTypeOptionsApi } from "@/lib/liquor-types"
 import { fetchAggregatedCityStockApi } from "@/lib/inventory"
 import { useSaleCart } from "@/hooks/use-sale-cart"
 import { useAuth } from "@/hooks/use-auth"
@@ -48,24 +45,6 @@ function formatPrice(value: number, currency: string): string {
   }).format(value)
 }
 
-function formatPresentation(value: string, t: (key: string) => string): string {
-  if (value === "L1") return t("1 L")
-  if (value === "ML750") return t("750 ml")
-  return value
-}
-
-function liquorTypeLabel(
-  value: string,
-  t: (key: string) => string,
-): string {
-  if (value === "rum") return t("Rum")
-  if (value === "whisky") return t("Whisky")
-  if (value === "vodka") return t("Vodka")
-  if (value === "gin") return t("Gin")
-  if (value === "tequila") return t("Tequila")
-  return t("Other")
-}
-
 export default function CatalogPage() {
   const { t } = useTranslation()
   const { user } = useAuth()
@@ -78,7 +57,7 @@ export default function CatalogPage() {
   const [searchInput, setSearchInput] = useState("")
   const [search, setSearch] = useState("")
   const [kind, setKind] = useState<ProductKind | "">("")
-  const [liquorType, setLiquorType] = useState<LiquorType | "">("")
+  const [liquorTypeId, setLiquorTypeId] = useState<string>("")
   const [minPriceStr, setMinPriceStr] = useState("")
   const [maxPriceStr, setMaxPriceStr] = useState("")
 
@@ -97,7 +76,7 @@ export default function CatalogPage() {
     page,
     limit: pageSize,
     kind: kind || undefined,
-    liquorType: kind === "liquor" ? liquorType || undefined : undefined,
+    liquorTypeId: kind === "liquor" ? liquorTypeId || undefined : undefined,
     minPrice,
     maxPrice,
     search: search || undefined,
@@ -107,11 +86,17 @@ export default function CatalogPage() {
     queryKey: [
       "products",
       "catalog",
-      { page, pageSize, kind, liquorType, minPrice, maxPrice, search },
+      { page, pageSize, kind, liquorTypeId, minPrice, maxPrice, search },
     ],
     queryFn: () => fetchProductsApi(filterArgs),
     placeholderData: keepPreviousData,
   })
+
+  const liquorTypesQuery = useQuery({
+    queryKey: ["liquor-types", "options"],
+    queryFn: fetchLiquorTypeOptionsApi,
+  })
+  const liquorTypes = liquorTypesQuery.data ?? []
 
   const stockQuery = useQuery({
     queryKey: ["stock", "by-city", "aggregated", stockCityId],
@@ -138,14 +123,13 @@ export default function CatalogPage() {
     const next: ProductKind | "" =
       !value || value === KIND_ALL ? "" : (value as ProductKind)
     setKind(next)
-    if (next !== "liquor") setLiquorType("")
+    if (next !== "liquor") setLiquorTypeId("")
     setPage(1)
   }
 
   function handleLiquorTypeChange(value: string | null): void {
-    const next: LiquorType | "" =
-      !value || value === LIQUOR_TYPE_ALL ? "" : (value as LiquorType)
-    setLiquorType(next)
+    const next = !value || value === LIQUOR_TYPE_ALL ? "" : value
+    setLiquorTypeId(next)
     setPage(1)
   }
 
@@ -168,7 +152,7 @@ export default function CatalogPage() {
     setSearchInput("")
     setSearch("")
     setKind("")
-    setLiquorType("")
+    setLiquorTypeId("")
     setMinPriceStr("")
     setMaxPriceStr("")
     setPage(1)
@@ -230,17 +214,12 @@ export default function CatalogPage() {
           {t("Liquor type")}
         </Label>
         <Select
-          value={liquorType === "" ? LIQUOR_TYPE_ALL : liquorType}
+          value={liquorTypeId === "" ? LIQUOR_TYPE_ALL : liquorTypeId}
           onValueChange={handleLiquorTypeChange}
           disabled={kind !== "liquor"}
           items={{
             [LIQUOR_TYPE_ALL]: t("All"),
-            rum: t("Rum"),
-            whisky: t("Whisky"),
-            vodka: t("Vodka"),
-            gin: t("Gin"),
-            tequila: t("Tequila"),
-            other: t("Other"),
+            ...Object.fromEntries(liquorTypes.map((l) => [l.id, l.name])),
           }}
         >
           <SelectTrigger id="catalog-liquor-type" className="w-full md:w-40">
@@ -248,12 +227,11 @@ export default function CatalogPage() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value={LIQUOR_TYPE_ALL}>{t("All")}</SelectItem>
-            <SelectItem value="rum">{t("Rum")}</SelectItem>
-            <SelectItem value="whisky">{t("Whisky")}</SelectItem>
-            <SelectItem value="vodka">{t("Vodka")}</SelectItem>
-            <SelectItem value="gin">{t("Gin")}</SelectItem>
-            <SelectItem value="tequila">{t("Tequila")}</SelectItem>
-            <SelectItem value="other">{t("Other")}</SelectItem>
+            {liquorTypes.map((l) => (
+              <SelectItem key={l.id} value={l.id}>
+                {l.name}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
       </div>
@@ -422,9 +400,9 @@ export default function CatalogPage() {
                         {p.kind === "liquor" && (
                           <>
                             <span>·</span>
-                            <span>{liquorTypeLabel(p.liquorType, t)}</span>
+                            <span>{p.liquorType?.name ?? "—"}</span>
                             <span>·</span>
-                            <span>{formatPresentation(p.presentation, t)}</span>
+                            <span>{p.presentation?.name ?? "—"}</span>
                           </>
                         )}
                       </div>
@@ -436,14 +414,14 @@ export default function CatalogPage() {
                     </TableCell>
                     <TableCell className="hidden md:table-cell">
                       {p.kind === "liquor" ? (
-                        liquorTypeLabel(p.liquorType, t)
+                        (p.liquorType?.name ?? "—")
                       ) : (
                         <span className="text-muted-foreground">—</span>
                       )}
                     </TableCell>
                     <TableCell className="hidden md:table-cell">
                       {p.kind === "liquor" ? (
-                        formatPresentation(p.presentation, t)
+                        (p.presentation?.name ?? "—")
                       ) : (
                         <span className="text-muted-foreground">—</span>
                       )}

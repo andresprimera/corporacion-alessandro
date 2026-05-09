@@ -9,6 +9,28 @@ import { WarehousesService } from '../warehouses/warehouses.service';
 
 const productOid = new Types.ObjectId().toString();
 const warehouseOid = new Types.ObjectId().toString();
+const basicUnitOid = new Types.ObjectId().toString();
+const packageUnitOid = new Types.ObjectId().toString();
+
+const buildProduct = (
+  overrides: Partial<{
+    basicUnitId: string;
+    packageUnitId?: string;
+    unitsPerPackage?: number;
+  }> = {},
+): {
+  id: string;
+  basicUnitId: Types.ObjectId;
+  packageUnitId?: Types.ObjectId;
+  unitsPerPackage?: number;
+} => ({
+  id: productOid,
+  basicUnitId: new Types.ObjectId(overrides.basicUnitId ?? basicUnitOid),
+  packageUnitId: overrides.packageUnitId
+    ? new Types.ObjectId(overrides.packageUnitId)
+    : undefined,
+  unitsPerPackage: overrides.unitsPerPackage,
+});
 
 describe('InventoryService', () => {
   let service: InventoryService;
@@ -30,6 +52,7 @@ describe('InventoryService', () => {
   ): { populate: jest.Mock } => {
     const chain: { populate: jest.Mock } = { populate: jest.fn() };
     chain.populate
+      .mockReturnValueOnce(chain)
       .mockReturnValueOnce(chain)
       .mockResolvedValueOnce(resolved);
     return chain;
@@ -62,39 +85,117 @@ describe('InventoryService', () => {
   });
 
   describe('create', () => {
-    it('should create a transaction when product and warehouse are valid', async () => {
-      productsService.findById.mockResolvedValue({ id: productOid });
+    it('should default qty to basic units when no enteredUnitId is provided', async () => {
+      productsService.findById.mockResolvedValue(buildProduct());
       warehousesService.findById.mockResolvedValue({
         id: warehouseOid,
         isActive: true,
       });
       const populate = jest.fn().mockResolvedValue(undefined);
-      const created = {
-        id: 'tx-1',
-        ...validInbound,
-        createdBy,
-        populate,
-      };
-      model.create.mockResolvedValue(created);
+      model.create.mockResolvedValue({ id: 'tx-1', populate });
 
-      const result = await service.create(validInbound, createdBy);
+      await service.create(validInbound, createdBy);
 
-      expect(productsService.findById).toHaveBeenCalledWith(productOid);
-      expect(warehousesService.findById).toHaveBeenCalledWith(warehouseOid);
       expect(model.create).toHaveBeenCalledWith(
         expect.objectContaining({
-          batch: 'BATCH-001',
           qty: 100,
-          transactionType: 'inbound',
-          createdBy,
+          enteredQty: 100,
+          unitsPerPackageAtEntry: undefined,
         }),
       );
-      expect(populate).toHaveBeenCalled();
-      expect(result).toBe(created);
+    });
+
+    it('should convert package units to basic units when enteredUnitId is the package', async () => {
+      productsService.findById.mockResolvedValue(
+        buildProduct({ packageUnitId: packageUnitOid, unitsPerPackage: 12 }),
+      );
+      warehousesService.findById.mockResolvedValue({
+        id: warehouseOid,
+        isActive: true,
+      });
+      const populate = jest.fn().mockResolvedValue(undefined);
+      model.create.mockResolvedValue({ id: 'tx-1', populate });
+
+      await service.create(
+        { ...validInbound, qty: 3, enteredUnitId: packageUnitOid },
+        createdBy,
+      );
+
+      expect(model.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          qty: 36,
+          enteredQty: 3,
+          unitsPerPackageAtEntry: 12,
+        }),
+      );
+    });
+
+    it('should keep qty as-is when enteredUnitId matches the basic unit', async () => {
+      productsService.findById.mockResolvedValue(
+        buildProduct({ packageUnitId: packageUnitOid, unitsPerPackage: 12 }),
+      );
+      warehousesService.findById.mockResolvedValue({
+        id: warehouseOid,
+        isActive: true,
+      });
+      const populate = jest.fn().mockResolvedValue(undefined);
+      model.create.mockResolvedValue({ id: 'tx-1', populate });
+
+      await service.create(
+        { ...validInbound, qty: 50, enteredUnitId: basicUnitOid },
+        createdBy,
+      );
+
+      expect(model.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          qty: 50,
+          enteredQty: 50,
+          unitsPerPackageAtEntry: undefined,
+        }),
+      );
+    });
+
+    it('should throw when enteredUnitId is neither basic nor package', async () => {
+      productsService.findById.mockResolvedValue(
+        buildProduct({ packageUnitId: packageUnitOid, unitsPerPackage: 12 }),
+      );
+      warehousesService.findById.mockResolvedValue({
+        id: warehouseOid,
+        isActive: true,
+      });
+      const otherUnit = new Types.ObjectId().toString();
+
+      await expect(
+        service.create(
+          { ...validInbound, enteredUnitId: otherUnit },
+          createdBy,
+        ),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should throw when package is selected but product has no unitsPerPackage', async () => {
+      productsService.findById.mockResolvedValue(
+        buildProduct({ packageUnitId: packageUnitOid }),
+      );
+      warehousesService.findById.mockResolvedValue({
+        id: warehouseOid,
+        isActive: true,
+      });
+
+      await expect(
+        service.create(
+          { ...validInbound, enteredUnitId: packageUnitOid },
+          createdBy,
+        ),
+      ).rejects.toThrow(BadRequestException);
     });
 
     it('should throw NotFoundException when product is missing', async () => {
       productsService.findById.mockResolvedValue(null);
+      warehousesService.findById.mockResolvedValue({
+        id: warehouseOid,
+        isActive: true,
+      });
 
       await expect(service.create(validInbound, createdBy)).rejects.toThrow(
         NotFoundException,
@@ -103,7 +204,7 @@ describe('InventoryService', () => {
     });
 
     it('should throw NotFoundException when warehouse is missing', async () => {
-      productsService.findById.mockResolvedValue({ id: productOid });
+      productsService.findById.mockResolvedValue(buildProduct());
       warehousesService.findById.mockResolvedValue(null);
 
       await expect(service.create(validInbound, createdBy)).rejects.toThrow(
@@ -112,7 +213,7 @@ describe('InventoryService', () => {
     });
 
     it('should throw BadRequestException when warehouse is inactive', async () => {
-      productsService.findById.mockResolvedValue({ id: productOid });
+      productsService.findById.mockResolvedValue(buildProduct());
       warehousesService.findById.mockResolvedValue({
         id: warehouseOid,
         isActive: false,
@@ -132,8 +233,8 @@ describe('InventoryService', () => {
         limit: jest.fn().mockReturnThis(),
         populate: jest.fn().mockReturnThis(),
       };
-      // Last populate resolves to data
       chainable.populate
+        .mockReturnValueOnce(chainable)
         .mockReturnValueOnce(chainable)
         .mockResolvedValueOnce([{ id: 'tx-1' }]);
       model.find.mockReturnValue(chainable);
@@ -148,7 +249,7 @@ describe('InventoryService', () => {
   });
 
   describe('findById', () => {
-    it('should populate product and warehouse', async () => {
+    it('should populate product, warehouse, and entered unit', async () => {
       model.findById.mockReturnValue(populatedChain({ id: 'tx-1' }));
 
       const result = await service.findById('tx-1');
@@ -159,29 +260,53 @@ describe('InventoryService', () => {
   });
 
   describe('update', () => {
-    it('should update without re-checking refs when product/warehouse not changed', async () => {
+    it('should re-convert qty when only qty changes (uses existing entered unit)', async () => {
       model.findById.mockResolvedValue({
         id: 'tx-1',
         qty: 100,
+        enteredQty: 100,
+        enteredUnitId: new Types.ObjectId(basicUnitOid),
+        productId: new Types.ObjectId(productOid),
         transactionType: 'inbound',
       });
+      productsService.findById.mockResolvedValue(buildProduct());
       model.findByIdAndUpdate.mockReturnValue(
         populatedChain({ id: 'tx-1', qty: 120 }),
       );
 
       const result = await service.update('tx-1', { qty: 120 });
 
-      expect(productsService.findById).not.toHaveBeenCalled();
-      expect(warehousesService.findById).not.toHaveBeenCalled();
+      expect(productsService.findById).toHaveBeenCalledWith(productOid);
       expect(model.findByIdAndUpdate).toHaveBeenCalledWith(
         'tx-1',
-        expect.objectContaining({ qty: 120 }),
+        expect.objectContaining({ qty: 120, enteredQty: 120 }),
         { new: true },
       );
       expect(result).toEqual({ id: 'tx-1', qty: 120 });
     });
 
-    it('should re-validate refs when productId changes', async () => {
+    it('should not load the product when neither qty nor unit changes', async () => {
+      model.findById.mockResolvedValue({
+        id: 'tx-1',
+        qty: 100,
+        productId: new Types.ObjectId(productOid),
+        transactionType: 'inbound',
+      });
+      model.findByIdAndUpdate.mockReturnValue(
+        populatedChain({ id: 'tx-1', batch: 'B2' }),
+      );
+
+      const result = await service.update('tx-1', { batch: 'B2' });
+
+      expect(productsService.findById).not.toHaveBeenCalled();
+      expect(result).toEqual({ id: 'tx-1', batch: 'B2' });
+    });
+
+    it('should validate the new product when productId changes', async () => {
+      model.findById.mockResolvedValue({
+        id: 'tx-1',
+        productId: new Types.ObjectId(productOid),
+      });
       productsService.findById.mockResolvedValue(null);
 
       await expect(
@@ -193,8 +318,12 @@ describe('InventoryService', () => {
       model.findById.mockResolvedValue({
         id: 'tx-1',
         qty: 100,
+        enteredQty: 100,
+        enteredUnitId: new Types.ObjectId(basicUnitOid),
+        productId: new Types.ObjectId(productOid),
         transactionType: 'inbound',
       });
+      productsService.findById.mockResolvedValue(buildProduct());
 
       await expect(service.update('tx-1', { qty: -5 })).rejects.toThrow(
         BadRequestException,
@@ -206,8 +335,12 @@ describe('InventoryService', () => {
       model.findById.mockResolvedValue({
         id: 'tx-1',
         qty: 100,
+        enteredQty: 100,
+        enteredUnitId: new Types.ObjectId(basicUnitOid),
+        productId: new Types.ObjectId(productOid),
         transactionType: 'adjustment',
       });
+      productsService.findById.mockResolvedValue(buildProduct());
       model.findByIdAndUpdate.mockReturnValue(
         populatedChain({ id: 'tx-1', qty: -5 }),
       );
@@ -215,6 +348,35 @@ describe('InventoryService', () => {
       const result = await service.update('tx-1', { qty: -5 });
 
       expect(result).toEqual({ id: 'tx-1', qty: -5 });
+    });
+
+    it('should re-run conversion with current unitsPerPackage when unit changes to package', async () => {
+      model.findById.mockResolvedValue({
+        id: 'tx-1',
+        qty: 100,
+        enteredQty: 100,
+        enteredUnitId: new Types.ObjectId(basicUnitOid),
+        productId: new Types.ObjectId(productOid),
+        transactionType: 'inbound',
+      });
+      productsService.findById.mockResolvedValue(
+        buildProduct({ packageUnitId: packageUnitOid, unitsPerPackage: 12 }),
+      );
+      model.findByIdAndUpdate.mockReturnValue(
+        populatedChain({ id: 'tx-1', qty: 36 }),
+      );
+
+      await service.update('tx-1', { qty: 3, enteredUnitId: packageUnitOid });
+
+      expect(model.findByIdAndUpdate).toHaveBeenCalledWith(
+        'tx-1',
+        expect.objectContaining({
+          qty: 36,
+          enteredQty: 3,
+          unitsPerPackageAtEntry: 12,
+        }),
+        { new: true },
+      );
     });
   });
 

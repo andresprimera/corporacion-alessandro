@@ -9,6 +9,9 @@ import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { ProductsModule } from './products/products.module';
+import { UnitsModule } from './units/units.module';
+import { PresentationsModule } from './presentations/presentations.module';
+import { LiquorTypesModule } from './liquor-types/liquor-types.module';
 import { CitiesModule } from './cities/cities.module';
 import { WarehousesModule } from './warehouses/warehouses.module';
 import { InventoryModule } from './inventory/inventory.module';
@@ -38,6 +41,9 @@ import { SeederModule } from './seeder/seeder.module';
     AuthModule,
     UsersModule,
     ProductsModule,
+    UnitsModule,
+    PresentationsModule,
+    LiquorTypesModule,
     CitiesModule,
     WarehousesModule,
     InventoryModule,

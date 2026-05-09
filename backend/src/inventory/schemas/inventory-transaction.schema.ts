@@ -43,6 +43,15 @@ export class InventoryTransaction {
   @Prop({ required: false })
   expirationDate?: Date;
 
+  @Prop({ required: false })
+  enteredQty?: number;
+
+  @Prop({ type: SchemaTypes.ObjectId, ref: 'Unit', required: false })
+  enteredUnitId?: Types.ObjectId;
+
+  @Prop({ required: false })
+  unitsPerPackageAtEntry?: number;
+
   @Prop({ type: TransactionCreatedBySchema, required: true })
   createdBy: TransactionCreatedBy;
 }

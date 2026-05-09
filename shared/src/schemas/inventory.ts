@@ -2,6 +2,7 @@ import { z } from "zod/v4";
 
 import { paginationQuerySchema } from "./pagination";
 import { productKindEnum } from "./product";
+import { unitRefSchema } from "./unit";
 
 export const transactionTypeEnum = z.enum([
   "inbound",
@@ -28,6 +29,10 @@ export const inventoryTransactionSchema = z.object({
   qty: z.number(),
   notes: z.string().optional(),
   expirationDate: z.string().optional(),
+  enteredQty: z.number().optional(),
+  enteredUnitId: z.string().optional(),
+  unitsPerPackageAtEntry: z.number().int().optional(),
+  enteredUnit: unitRefSchema.optional(),
   createdBy: inventoryTransactionCreatedBySchema,
   createdAt: z.string(),
   updatedAt: z.string(),
@@ -48,6 +53,7 @@ const inventoryTransactionInputBase = z.object({
     .string()
     .refine(isParseableDate, "Invalid expiration date")
     .optional(),
+  enteredUnitId: z.string().min(1).optional(),
 });
 
 function refineQty(

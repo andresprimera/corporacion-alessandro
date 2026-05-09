@@ -12,6 +12,7 @@
     "lint": "pnpm --filter base-dashboard-backend lint && pnpm --filter frontend lint",
     "typecheck": "pnpm --filter frontend typecheck && pnpm --filter base-dashboard-backend typecheck",
     "test": "pnpm --filter base-dashboard-backend test && pnpm --filter frontend test",
+    "db:reset": "pnpm --filter base-dashboard-backend run db:reset",
     "prepare": "husky"
   },
   "keywords": [],

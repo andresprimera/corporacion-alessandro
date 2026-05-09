@@ -3,6 +3,7 @@ import LandingPage from "@/pages/landing"
 import DashboardPage from "@/pages/dashboard"
 import UsersPage from "@/pages/users"
 import ProductsPage from "@/pages/products"
+import CatalogAttributesPage from "@/pages/catalog-attributes"
 import CitiesPage from "@/pages/cities"
 import WarehousesPage from "@/pages/warehouses"
 import InventoryPage from "@/pages/inventory"
@@ -67,6 +68,14 @@ export const router = createBrowserRouter([
         element: (
           <AdminRoute>
             <ProductsPage />
+          </AdminRoute>
+        ),
+      },
+      {
+        path: "catalog-attributes",
+        element: (
+          <AdminRoute>
+            <CatalogAttributesPage />
           </AdminRoute>
         ),
       },

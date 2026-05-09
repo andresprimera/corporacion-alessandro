@@ -1,25 +1,25 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
 import * as bcrypt from 'bcrypt';
 import { UsersService } from '../users/users.service';
 import { CitiesService } from '../cities/cities.service';
 import { WarehousesService } from '../warehouses/warehouses.service';
 import { ProductsService } from '../products/products.service';
+import { UnitsService } from '../units/units.service';
+import { PresentationsService } from '../presentations/presentations.service';
+import { LiquorTypesService } from '../liquor-types/liquor-types.service';
 import { InventoryService } from '../inventory/inventory.service';
 import { ClientsService } from '../clients/clients.service';
-import { SalesService } from '../sales/sales.service';
-import { Sale } from '../sales/schemas/sale.schema';
-import { readPopulatedRef } from '../common/utils/populated-ref';
 import {
   DEMO_SALES_PERSON_PASSWORD,
   demoCities,
   demoClients,
   demoInventory,
+  demoLiquorTypes,
+  demoPresentations,
   demoProducts,
-  demoSales,
   demoSalesPeople,
+  demoUnits,
   demoWarehouses,
 } from './demo-data';
 
@@ -32,10 +32,11 @@ export class SeederService implements OnModuleInit {
     private readonly citiesService: CitiesService,
     private readonly warehousesService: WarehousesService,
     private readonly productsService: ProductsService,
+    private readonly unitsService: UnitsService,
+    private readonly presentationsService: PresentationsService,
+    private readonly liquorTypesService: LiquorTypesService,
     private readonly inventoryService: InventoryService,
     private readonly clientsService: ClientsService,
-    private readonly salesService: SalesService,
-    @InjectModel(Sale.name) private readonly saleModel: Model<Sale>,
     private readonly configService: ConfigService,
   ) {}
 
@@ -76,11 +77,43 @@ export class SeederService implements OnModuleInit {
   private async seedDemoData(): Promise<void> {
     await this.seedCities();
     await this.seedWarehouses();
+    await this.seedUnits();
+    await this.seedPresentations();
+    await this.seedLiquorTypes();
     await this.seedProducts();
     await this.seedInventory();
     await this.seedSalesPeople();
     await this.seedClients();
-    await this.seedSales();
+  }
+
+  private async seedUnits(): Promise<void> {
+    const { total } = await this.unitsService.findAllPaginated(1, 1);
+    if (total > 0) return;
+
+    for (const unit of demoUnits) {
+      await this.unitsService.create(unit);
+    }
+    this.logger.log(`Seeded ${demoUnits.length} demo units`);
+  }
+
+  private async seedPresentations(): Promise<void> {
+    const { total } = await this.presentationsService.findAllPaginated(1, 1);
+    if (total > 0) return;
+
+    for (const presentation of demoPresentations) {
+      await this.presentationsService.create(presentation);
+    }
+    this.logger.log(`Seeded ${demoPresentations.length} demo presentations`);
+  }
+
+  private async seedLiquorTypes(): Promise<void> {
+    const { total } = await this.liquorTypesService.findAllPaginated(1, 1);
+    if (total > 0) return;
+
+    for (const liquorType of demoLiquorTypes) {
+      await this.liquorTypesService.create(liquorType);
+    }
+    this.logger.log(`Seeded ${demoLiquorTypes.length} demo liquor types`);
   }
 
   private async seedCities(): Promise<void> {
@@ -125,8 +158,71 @@ export class SeederService implements OnModuleInit {
     });
     if (total > 0) return;
 
+    const unitOptions = await this.unitsService.findOptions();
+    const unitByName = new Map(unitOptions.map((u) => [u.name, u.id]));
+    const presentationOptions =
+      await this.presentationsService.findOptions();
+    const presentationByName = new Map(
+      presentationOptions.map((p) => [p.name, p.id]),
+    );
+    const liquorTypeOptions = await this.liquorTypesService.findOptions();
+    const liquorTypeByName = new Map(
+      liquorTypeOptions.map((l) => [l.name, l.id]),
+    );
+
     for (const product of demoProducts) {
-      await this.productsService.create(product);
+      const basicUnitId = unitByName.get(product.basicUnitName);
+      if (!basicUnitId) {
+        this.logger.warn(
+          `Skipping product "${product.name}" — basic unit "${product.basicUnitName}" not found`,
+        );
+        continue;
+      }
+      const packageUnitId = product.packageUnitName
+        ? unitByName.get(product.packageUnitName)
+        : undefined;
+      if (product.packageUnitName && !packageUnitId) {
+        this.logger.warn(
+          `Skipping product "${product.name}" — package unit "${product.packageUnitName}" not found`,
+        );
+        continue;
+      }
+
+      if (product.kind === 'liquor') {
+        const presentationId = presentationByName.get(product.presentationName);
+        if (!presentationId) {
+          this.logger.warn(
+            `Skipping product "${product.name}" — presentation "${product.presentationName}" not found`,
+          );
+          continue;
+        }
+        const liquorTypeId = liquorTypeByName.get(product.liquorTypeName);
+        if (!liquorTypeId) {
+          this.logger.warn(
+            `Skipping product "${product.name}" — liquor type "${product.liquorTypeName}" not found`,
+          );
+          continue;
+        }
+        await this.productsService.create({
+          kind: 'liquor',
+          name: product.name,
+          price: product.price,
+          liquorTypeId,
+          presentationId,
+          basicUnitId,
+          packageUnitId,
+          unitsPerPackage: product.unitsPerPackage,
+        });
+      } else {
+        await this.productsService.create({
+          kind: 'groceries',
+          name: product.name,
+          price: product.price,
+          basicUnitId,
+          packageUnitId,
+          unitsPerPackage: product.unitsPerPackage,
+        });
+      }
     }
     this.logger.log(`Seeded ${demoProducts.length} demo products`);
   }
@@ -231,89 +327,6 @@ export class SeederService implements OnModuleInit {
     }
     if (created > 0) {
       this.logger.log(`Seeded ${created} demo clients`);
-    }
-  }
-
-  private async seedSales(): Promise<void> {
-    const existing = await this.salesService.findAllPaginated(1, 1);
-    if (existing.total > 0) return;
-
-    const productOptions = await this.productsService.findOptions();
-    const productByName = new Map(productOptions.map((p) => [p.name, p]));
-
-    let created = 0;
-    for (const sale of demoSales) {
-      const salesPerson = await this.usersService.findByEmail(sale.soldByEmail);
-      if (!salesPerson) {
-        this.logger.warn(
-          `Skipping sale — sales person ${sale.soldByEmail} not found`,
-        );
-        continue;
-      }
-      const clientOptions = await this.clientsService.findOptions({
-        salesPersonId: salesPerson.id,
-      });
-      const client = clientOptions.find((c) => c.rif === sale.clientRif);
-      if (!client) {
-        this.logger.warn(
-          `Skipping sale — client ${sale.clientRif} not found for ${sale.soldByEmail}`,
-        );
-        continue;
-      }
-      if (!salesPerson.cityId) {
-        this.logger.warn(
-          `Skipping sale — sales person ${sale.soldByEmail} has no city`,
-        );
-        continue;
-      }
-      const cityId = readPopulatedRef(salesPerson.cityId).id;
-      const items = sale.items
-        .map((item) => {
-          const product = productByName.get(item.productName);
-          if (!product) {
-            this.logger.warn(
-              `Skipping sale item — product "${item.productName}" not found`,
-            );
-            return null;
-          }
-          return {
-            productId: product.id,
-            requestedQty: item.qty,
-            unitPrice: product.price.value,
-          };
-        })
-        .filter((i): i is NonNullable<typeof i> => i !== null);
-      if (items.length === 0) continue;
-
-      try {
-        const createdSale = await this.salesService.create(
-          {
-            cityId,
-            clientId: client.id,
-            notes: sale.notes,
-            items,
-          },
-          { userId: salesPerson.id, name: salesPerson.name },
-          { role: 'admin' },
-        );
-        const targetDate = new Date(
-          Date.now() - sale.daysAgo * 24 * 60 * 60 * 1000,
-        );
-        await this.saleModel.updateOne(
-          { _id: createdSale._id },
-          { $set: { createdAt: targetDate, updatedAt: targetDate } },
-          { timestamps: false },
-        );
-        created++;
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        this.logger.warn(
-          `Skipping sale for ${sale.soldByEmail} → ${sale.clientRif}: ${message}`,
-        );
-      }
-    }
-    if (created > 0) {
-      this.logger.log(`Seeded ${created} demo sales`);
     }
   }
 

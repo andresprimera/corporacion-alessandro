@@ -241,7 +241,21 @@ export default function InventoryPage() {
                     </Badge>
                   </TableCell>
                   <TableCell>{tx.batch}</TableCell>
-                  <TableCell>{tx.qty}</TableCell>
+                  <TableCell>
+                    <div className="flex flex-col">
+                      <span>{tx.qty}</span>
+                      {tx.enteredQty !== undefined &&
+                      tx.enteredUnit &&
+                      tx.unitsPerPackageAtEntry ? (
+                        <span className="text-xs text-muted-foreground">
+                          {t("entered as: {{qty}} {{unit}}", {
+                            qty: tx.enteredQty,
+                            unit: tx.enteredUnit.name,
+                          })}
+                        </span>
+                      ) : null}
+                    </div>
+                  </TableCell>
                   <TableCell>{tx.createdBy.name}</TableCell>
                   <TableCell>{formatDate(tx.createdAt)}</TableCell>
                   <TableCell>

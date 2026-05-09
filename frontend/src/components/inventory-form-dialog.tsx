@@ -1,4 +1,4 @@
-import { useEffect } from "react"
+import { useEffect, useMemo } from "react"
 import { useTranslation } from "react-i18next"
 import { useForm, Controller, useWatch } from "react-hook-form"
 import { standardSchemaResolver } from "@hookform/resolvers/standard-schema"
@@ -8,6 +8,7 @@ import {
   transactionTypeEnum,
   type CreateInventoryTransactionInput,
   type InventoryTransaction,
+  type ProductOption,
 } from "@base-dashboard/shared"
 import { fetchProductOptionsApi } from "@/lib/products"
 import { fetchWarehouseOptionsApi } from "@/lib/warehouses"
@@ -49,6 +50,7 @@ const defaultValues: CreateInventoryTransactionInput = {
   qty: 1,
   notes: "",
   expirationDate: "",
+  enteredUnitId: undefined,
 }
 
 function transactionToFormValues(
@@ -59,9 +61,10 @@ function transactionToFormValues(
     warehouseId: tx.warehouseId,
     transactionType: tx.transactionType,
     batch: tx.batch,
-    qty: tx.qty,
+    qty: tx.enteredQty ?? tx.qty,
     notes: tx.notes ?? "",
     expirationDate: tx.expirationDate ? tx.expirationDate.slice(0, 10) : "",
+    enteredUnitId: tx.enteredUnitId,
   }
 }
 
@@ -69,6 +72,34 @@ function trimToUndefined(value: string | undefined): string | undefined {
   if (!value) return undefined
   const trimmed = value.trim()
   return trimmed.length > 0 ? trimmed : undefined
+}
+
+interface UnitChoice {
+  id: string
+  name: string
+  abbreviation: string
+  isPackage: boolean
+}
+
+function buildUnitChoices(product: ProductOption | undefined): UnitChoice[] {
+  if (!product?.basicUnit) return []
+  const choices: UnitChoice[] = [
+    {
+      id: product.basicUnit.id,
+      name: product.basicUnit.name,
+      abbreviation: product.basicUnit.abbreviation,
+      isPackage: false,
+    },
+  ]
+  if (product.packageUnit && product.unitsPerPackage) {
+    choices.push({
+      id: product.packageUnit.id,
+      name: product.packageUnit.name,
+      abbreviation: product.packageUnit.abbreviation,
+      isPackage: true,
+    })
+  }
+  return choices
 }
 
 export function InventoryFormDialog({
@@ -89,7 +120,10 @@ export function InventoryFormDialog({
     queryFn: fetchProductOptionsApi,
     enabled: open,
   })
-  const products = productsQuery.data ?? []
+  const products = useMemo(
+    () => productsQuery.data ?? [],
+    [productsQuery.data],
+  )
 
   const warehousesQuery = useQuery({
     queryKey: ["warehouses", "options"],
@@ -104,12 +138,31 @@ export function InventoryFormDialog({
     control,
     formState: { errors },
     reset,
+    setValue,
   } = useForm<CreateInventoryTransactionInput>({
     resolver: standardSchemaResolver(createInventoryTransactionSchema),
     defaultValues,
   })
 
   const transactionType = useWatch({ control, name: "transactionType" })
+  const productId = useWatch({ control, name: "productId" })
+  const enteredUnitId = useWatch({ control, name: "enteredUnitId" })
+  const qty = useWatch({ control, name: "qty" })
+
+  const selectedProduct = useMemo(
+    () => products.find((p) => p.id === productId),
+    [products, productId],
+  )
+  const unitChoices = useMemo(
+    () => buildUnitChoices(selectedProduct),
+    [selectedProduct],
+  )
+  const selectedUnit = useMemo(
+    () => unitChoices.find((u) => u.id === enteredUnitId),
+    [unitChoices, enteredUnitId],
+  )
+  const basicUnit = unitChoices.find((u) => !u.isPackage)
+  const packageUnitsPerPackage = selectedProduct?.unitsPerPackage
 
   useEffect(() => {
     if (open) {
@@ -119,12 +172,36 @@ export function InventoryFormDialog({
     }
   }, [open, transaction, reset])
 
+  // When the product changes, default enteredUnitId to its basic unit unless the
+  // current value is already valid for the selected product.
+  useEffect(() => {
+    if (!selectedProduct || unitChoices.length === 0) return
+    const current = enteredUnitId
+    const stillValid = unitChoices.some((u) => u.id === current)
+    if (!stillValid) {
+      setValue("enteredUnitId", basicUnit?.id)
+    }
+  }, [selectedProduct, unitChoices, enteredUnitId, basicUnit?.id, setValue])
+
+  const conversionPreview =
+    selectedUnit?.isPackage &&
+    basicUnit &&
+    packageUnitsPerPackage &&
+    typeof qty === "number" &&
+    !Number.isNaN(qty)
+      ? t("= {{qty}} {{unit}}", {
+          qty: qty * packageUnitsPerPackage,
+          unit: basicUnit.name,
+        })
+      : null
+
   const mutation = useMutation({
     mutationFn: (values: CreateInventoryTransactionInput) => {
       const payload: CreateInventoryTransactionInput = {
         ...values,
         notes: trimToUndefined(values.notes),
         expirationDate: trimToUndefined(values.expirationDate),
+        enteredUnitId: values.enteredUnitId || undefined,
       }
       return isEdit
         ? updateInventoryTransactionApi(transaction.id, payload)
@@ -275,12 +352,48 @@ export function InventoryFormDialog({
             </Field>
             <Field>
               <FieldLabel htmlFor="tx-qty">{t("Qty")}</FieldLabel>
-              <Input
-                id="tx-qty"
-                type="number"
-                step="1"
-                {...register("qty", { valueAsNumber: true })}
-              />
+              <div className="flex gap-2">
+                <Input
+                  id="tx-qty"
+                  type="number"
+                  step="1"
+                  className="flex-1"
+                  {...register("qty", { valueAsNumber: true })}
+                />
+                {unitChoices.length > 1 ? (
+                  <Controller
+                    name="enteredUnitId"
+                    control={control}
+                    render={({ field }) => (
+                      <Select
+                        value={field.value ?? ""}
+                        onValueChange={field.onChange}
+                        items={Object.fromEntries(
+                          unitChoices.map((u) => [u.id, u.name]),
+                        )}
+                      >
+                        <SelectTrigger className="w-32">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {unitChoices.map((u) => (
+                            <SelectItem key={u.id} value={u.id}>
+                              {u.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  />
+                ) : unitChoices.length === 1 ? (
+                  <div className="flex items-center text-sm text-muted-foreground px-3">
+                    {unitChoices[0].name}
+                  </div>
+                ) : null}
+              </div>
+              {conversionPreview && (
+                <FieldDescription>{conversionPreview}</FieldDescription>
+              )}
               <FieldDescription>
                 {transactionType === "adjustment"
                   ? t("Adjustments allow positive or negative quantities")

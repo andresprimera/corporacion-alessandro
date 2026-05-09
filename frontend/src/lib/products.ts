@@ -3,7 +3,6 @@ import {
   type ProductOption,
   type PaginatedResponse,
   type ProductKind,
-  type LiquorType,
   type CreateProductInput,
   type UpdateProductInput,
 } from "@base-dashboard/shared"
@@ -13,7 +12,7 @@ export interface FetchProductsArgs {
   page: number
   limit: number
   kind?: ProductKind
-  liquorType?: LiquorType
+  liquorTypeId?: string
   minPrice?: number
   maxPrice?: number
   search?: string
@@ -27,7 +26,7 @@ export async function fetchProductsApi(
     limit: String(args.limit),
   })
   if (args.kind) params.set("kind", args.kind)
-  if (args.liquorType) params.set("liquorType", args.liquorType)
+  if (args.liquorTypeId) params.set("liquorTypeId", args.liquorTypeId)
   if (args.minPrice !== undefined) params.set("minPrice", String(args.minPrice))
   if (args.maxPrice !== undefined) params.set("maxPrice", String(args.maxPrice))
   if (args.search) params.set("search", args.search)

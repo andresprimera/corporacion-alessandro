@@ -1,21 +1,20 @@
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { useForm, Controller, useWatch } from "react-hook-form"
 import { standardSchemaResolver } from "@hookform/resolvers/standard-schema"
-import { useMutation, useQueryClient } from "@tanstack/react-query"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import {
   currencyEnum,
-  liquorTypeEnum,
-  presentationEnum,
   priceSchema,
   productKindEnum,
   type CreateProductInput,
-  type LiquorType,
-  type Presentation,
   type Product,
 } from "@base-dashboard/shared"
 import { z } from "zod/v4"
 import { createProductApi, updateProductApi } from "@/lib/products"
+import { fetchUnitOptionsApi } from "@/lib/units"
+import { fetchPresentationOptionsApi } from "@/lib/presentations"
+import { fetchLiquorTypeOptionsApi } from "@/lib/liquor-types"
 import { toast } from "sonner"
 import {
   Dialog,
@@ -32,6 +31,7 @@ import {
   FieldLabel,
 } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
+import { Checkbox } from "@/components/ui/checkbox"
 import {
   Select,
   SelectContent,
@@ -46,25 +46,42 @@ const productFormSchema = z
     kind: productKindEnum,
     name: z.string().min(1, "Name is required"),
     price: priceSchema,
-    liquorType: liquorTypeEnum.optional(),
-    presentation: presentationEnum.optional(),
+    liquorTypeId: z.string().optional(),
+    presentationId: z.string().optional(),
+    basicUnitId: z.string().min(1, "Basic unit is required"),
+    packageUnitId: z.string().optional(),
+    unitsPerPackage: z
+      .number()
+      .int()
+      .min(2, "Units per package must be at least 2")
+      .optional(),
   })
   .superRefine((data, ctx) => {
     if (data.kind === "liquor") {
-      if (!data.liquorType) {
+      if (!data.liquorTypeId) {
         ctx.addIssue({
           code: "custom",
-          path: ["liquorType"],
+          path: ["liquorTypeId"],
           message: "Liquor type is required",
         })
       }
-      if (!data.presentation) {
+      if (!data.presentationId) {
         ctx.addIssue({
           code: "custom",
-          path: ["presentation"],
+          path: ["presentationId"],
           message: "Presentation is required",
         })
       }
+    }
+    const hasPackageUnit =
+      data.packageUnitId !== undefined && data.packageUnitId !== ""
+    const hasUnitsPerPackage = data.unitsPerPackage !== undefined
+    if (hasPackageUnit !== hasUnitsPerPackage) {
+      ctx.addIssue({
+        code: "custom",
+        path: hasPackageUnit ? ["unitsPerPackage"] : ["packageUnitId"],
+        message: "Package unit and units per package must be set together",
+      })
     }
   })
 
@@ -74,52 +91,64 @@ const defaultValues: ProductFormValues = {
   kind: "groceries",
   name: "",
   price: { value: 0, currency: "USD" },
+  basicUnitId: "",
 }
 
 function productToFormValues(product: Product): ProductFormValues {
-  if (product.kind === "liquor") {
-    return {
-      kind: "liquor",
-      name: product.name,
-      price: product.price,
-      liquorType: product.liquorType,
-      presentation: product.presentation,
-    }
-  }
-  return {
-    kind: "groceries",
+  const base = {
     name: product.name,
     price: product.price,
+    basicUnitId: product.basicUnitId,
+    packageUnitId: product.packageUnitId,
+    unitsPerPackage: product.unitsPerPackage,
   }
+  if (product.kind === "liquor") {
+    return {
+      ...base,
+      kind: "liquor",
+      liquorTypeId: product.liquorTypeId,
+      presentationId: product.presentationId,
+    }
+  }
+  return { ...base, kind: "groceries" }
 }
 
 function isLiquorFormValues(
   values: ProductFormValues,
 ): values is ProductFormValues & {
-  liquorType: LiquorType
-  presentation: Presentation
+  liquorTypeId: string
+  presentationId: string
 } {
   return (
     values.kind === "liquor" &&
-    values.liquorType !== undefined &&
-    values.presentation !== undefined
+    values.liquorTypeId !== undefined &&
+    values.liquorTypeId !== "" &&
+    values.presentationId !== undefined &&
+    values.presentationId !== ""
   )
 }
 
 function formValuesToPayload(values: ProductFormValues): CreateProductInput {
+  const unitFields = {
+    basicUnitId: values.basicUnitId,
+    packageUnitId: values.packageUnitId,
+    unitsPerPackage: values.unitsPerPackage,
+  }
   if (isLiquorFormValues(values)) {
     return {
       kind: "liquor",
       name: values.name,
       price: values.price,
-      liquorType: values.liquorType,
-      presentation: values.presentation,
+      liquorTypeId: values.liquorTypeId,
+      presentationId: values.presentationId,
+      ...unitFields,
     }
   }
   return {
     kind: "groceries",
     name: values.name,
     price: values.price,
+    ...unitFields,
   }
 }
 
@@ -136,28 +165,58 @@ export function ProductFormDialog({
   const queryClient = useQueryClient()
   const isEdit = product !== undefined
 
+  const unitsQuery = useQuery({
+    queryKey: ["units", "options"],
+    queryFn: fetchUnitOptionsApi,
+    enabled: open,
+  })
+  const units = unitsQuery.data ?? []
+  const presentationsQuery = useQuery({
+    queryKey: ["presentations", "options"],
+    queryFn: fetchPresentationOptionsApi,
+    enabled: open,
+  })
+  const presentations = presentationsQuery.data ?? []
+  const liquorTypesQuery = useQuery({
+    queryKey: ["liquor-types", "options"],
+    queryFn: fetchLiquorTypeOptionsApi,
+    enabled: open,
+  })
+  const liquorTypes = liquorTypesQuery.data ?? []
+
   const {
     register,
     handleSubmit,
     control,
     formState: { errors },
     reset,
+    setValue,
   } = useForm<ProductFormValues>({
     resolver: standardSchemaResolver(productFormSchema),
     defaultValues,
   })
 
   const kind = useWatch({ control, name: "kind" })
+  const basicUnitId = useWatch({ control, name: "basicUnitId" })
+  const [hasPackage, setHasPackage] = useState(false)
 
   useEffect(() => {
     if (open) {
-      reset(product ? productToFormValues(product) : defaultValues)
+      const initial = product ? productToFormValues(product) : defaultValues
+      reset(initial)
+      setHasPackage(
+        product?.packageUnitId !== undefined && product.packageUnitId !== "",
+      )
     }
   }, [open, product, reset])
 
   const mutation = useMutation({
     mutationFn: (values: ProductFormValues) => {
       const payload = formValuesToPayload(values)
+      if (!hasPackage) {
+        payload.packageUnitId = undefined
+        payload.unitsPerPackage = undefined
+      }
       return isEdit
         ? updateProductApi(product.id, payload)
         : createProductApi(payload)
@@ -176,6 +235,14 @@ export function ProductFormDialog({
       )
     },
   })
+
+  function handleHasPackageChange(checked: boolean) {
+    setHasPackage(checked)
+    if (!checked) {
+      setValue("packageUnitId", undefined)
+      setValue("unitsPerPackage", undefined)
+    }
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -280,75 +347,187 @@ export function ProductFormDialog({
                 </FieldDescription>
               )}
             </Field>
-            {kind === "liquor" && (
+            <Field>
+              <FieldLabel>{t("Basic unit")}</FieldLabel>
+              <Controller
+                name="basicUnitId"
+                control={control}
+                render={({ field }) => (
+                  <Select
+                    value={field.value || ""}
+                    onValueChange={field.onChange}
+                    items={Object.fromEntries(
+                      units.map((u) => [u.id, `${u.name} (${u.abbreviation})`]),
+                    )}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder={t("Select basic unit")} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {units.map((u) => (
+                        <SelectItem key={u.id} value={u.id}>
+                          {u.name} ({u.abbreviation})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+              {errors.basicUnitId && (
+                <FieldDescription className="text-destructive">
+                  {t(errors.basicUnitId.message ?? "")}
+                </FieldDescription>
+              )}
+            </Field>
+            <Field>
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="product-has-package"
+                  checked={hasPackage}
+                  onCheckedChange={(c) => handleHasPackageChange(c === true)}
+                />
+                <FieldLabel htmlFor="product-has-package" className="mb-0">
+                  {t("Has package?")}
+                </FieldLabel>
+              </div>
+            </Field>
+            {hasPackage && (
               <>
                 <Field>
-                  <FieldLabel>{t("Liquor type")}</FieldLabel>
+                  <FieldLabel>{t("Package unit")}</FieldLabel>
                   <Controller
-                    name="liquorType"
+                    name="packageUnitId"
                     control={control}
                     render={({ field }) => (
                       <Select
                         value={field.value ?? ""}
                         onValueChange={field.onChange}
-                        items={{
-                          rum: t("Rum"),
-                          whisky: t("Whisky"),
-                          vodka: t("Vodka"),
-                          gin: t("Gin"),
-                          tequila: t("Tequila"),
-                          other: t("Other"),
-                        }}
+                        items={Object.fromEntries(
+                          units
+                            .filter((u) => u.id !== basicUnitId)
+                            .map((u) => [
+                              u.id,
+                              `${u.name} (${u.abbreviation})`,
+                            ]),
+                        )}
+                      >
+                        <SelectTrigger>
+                          <SelectValue
+                            placeholder={t("Select package unit")}
+                          />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {units
+                            .filter((u) => u.id !== basicUnitId)
+                            .map((u) => (
+                              <SelectItem key={u.id} value={u.id}>
+                                {u.name} ({u.abbreviation})
+                              </SelectItem>
+                            ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  />
+                  {errors.packageUnitId && (
+                    <FieldDescription className="text-destructive">
+                      {t(errors.packageUnitId.message ?? "")}
+                    </FieldDescription>
+                  )}
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor="product-units-per-package">
+                    {t("Units per package")}
+                  </FieldLabel>
+                  <Input
+                    id="product-units-per-package"
+                    type="number"
+                    step="1"
+                    min="2"
+                    {...register("unitsPerPackage", {
+                      valueAsNumber: true,
+                      setValueAs: (v) =>
+                        v === "" || v === null || Number.isNaN(v)
+                          ? undefined
+                          : Number(v),
+                    })}
+                  />
+                  {errors.unitsPerPackage && (
+                    <FieldDescription className="text-destructive">
+                      {t(errors.unitsPerPackage.message ?? "")}
+                    </FieldDescription>
+                  )}
+                </Field>
+              </>
+            )}
+            {kind === "liquor" && (
+              <>
+                <Field>
+                  <FieldLabel>{t("Liquor type")}</FieldLabel>
+                  <Controller
+                    name="liquorTypeId"
+                    control={control}
+                    render={({ field }) => (
+                      <Select
+                        value={field.value ?? ""}
+                        onValueChange={field.onChange}
+                        items={Object.fromEntries(
+                          liquorTypes.map((l) => [
+                            l.id,
+                            `${l.name} (${l.abbreviation})`,
+                          ]),
+                        )}
                       >
                         <SelectTrigger>
                           <SelectValue placeholder={t("Select type")} />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="rum">{t("Rum")}</SelectItem>
-                          <SelectItem value="whisky">{t("Whisky")}</SelectItem>
-                          <SelectItem value="vodka">{t("Vodka")}</SelectItem>
-                          <SelectItem value="gin">{t("Gin")}</SelectItem>
-                          <SelectItem value="tequila">
-                            {t("Tequila")}
-                          </SelectItem>
-                          <SelectItem value="other">{t("Other")}</SelectItem>
+                          {liquorTypes.map((l) => (
+                            <SelectItem key={l.id} value={l.id}>
+                              {l.name} ({l.abbreviation})
+                            </SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                     )}
                   />
-                  {errors.liquorType && (
+                  {errors.liquorTypeId && (
                     <FieldDescription className="text-destructive">
-                      {t(errors.liquorType.message ?? "")}
+                      {t(errors.liquorTypeId.message ?? "")}
                     </FieldDescription>
                   )}
                 </Field>
                 <Field>
                   <FieldLabel>{t("Presentation")}</FieldLabel>
                   <Controller
-                    name="presentation"
+                    name="presentationId"
                     control={control}
                     render={({ field }) => (
                       <Select
                         value={field.value ?? ""}
                         onValueChange={field.onChange}
-                        items={{
-                          L1: t("1 L"),
-                          ML750: t("750 ml"),
-                        }}
+                        items={Object.fromEntries(
+                          presentations.map((p) => [
+                            p.id,
+                            `${p.name} (${p.abbreviation})`,
+                          ]),
+                        )}
                       >
                         <SelectTrigger>
                           <SelectValue placeholder={t("Select presentation")} />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="L1">{t("1 L")}</SelectItem>
-                          <SelectItem value="ML750">{t("750 ml")}</SelectItem>
+                          {presentations.map((p) => (
+                            <SelectItem key={p.id} value={p.id}>
+                              {p.name} ({p.abbreviation})
+                            </SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                     )}
                   />
-                  {errors.presentation && (
+                  {errors.presentationId && (
                     <FieldDescription className="text-destructive">
-                      {t(errors.presentation.message ?? "")}
+                      {t(errors.presentationId.message ?? "")}
                     </FieldDescription>
                   )}
                 </Field>

@@ -58,11 +58,19 @@ interface PopulatedWarehouse extends PopulatedRefBase {
   name?: string;
 }
 
+interface PopulatedUnit extends PopulatedRefBase {
+  name?: string;
+  abbreviation?: string;
+}
+
 function toInventoryTransaction(
   doc: InventoryTransactionDocument,
 ): InventoryTransaction {
   const product = readPopulatedRef<PopulatedProduct>(doc.productId);
   const warehouse = readPopulatedRef<PopulatedWarehouse>(doc.warehouseId);
+  const enteredUnit = doc.enteredUnitId
+    ? readPopulatedRef<PopulatedUnit>(doc.enteredUnitId)
+    : null;
   return {
     id: doc.id,
     productId: product.id,
@@ -77,6 +85,17 @@ function toInventoryTransaction(
     expirationDate: doc.expirationDate
       ? doc.expirationDate.toISOString()
       : undefined,
+    enteredQty: doc.enteredQty,
+    enteredUnitId: enteredUnit?.id,
+    unitsPerPackageAtEntry: doc.unitsPerPackageAtEntry,
+    enteredUnit:
+      enteredUnit?.doc?.name && enteredUnit?.doc?.abbreviation
+        ? {
+            id: enteredUnit.id,
+            name: enteredUnit.doc.name,
+            abbreviation: enteredUnit.doc.abbreviation,
+          }
+        : undefined,
     createdBy: {
       userId: doc.createdBy.userId,
       name: doc.createdBy.name,

@@ -1,17 +1,25 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
-import { getModelToken } from '@nestjs/mongoose';
 import * as bcrypt from 'bcrypt';
 import { SeederService } from './seeder.service';
 import { UsersService } from '../users/users.service';
 import { CitiesService } from '../cities/cities.service';
 import { WarehousesService } from '../warehouses/warehouses.service';
 import { ProductsService } from '../products/products.service';
+import { UnitsService } from '../units/units.service';
+import { PresentationsService } from '../presentations/presentations.service';
+import { LiquorTypesService } from '../liquor-types/liquor-types.service';
 import { InventoryService } from '../inventory/inventory.service';
 import { ClientsService } from '../clients/clients.service';
-import { SalesService } from '../sales/sales.service';
-import { Sale } from '../sales/schemas/sale.schema';
-import { demoCities, demoInventory, demoProducts, demoWarehouses } from './demo-data';
+import {
+  demoCities,
+  demoInventory,
+  demoLiquorTypes,
+  demoPresentations,
+  demoProducts,
+  demoUnits,
+  demoWarehouses,
+} from './demo-data';
 
 jest.mock('bcrypt');
 
@@ -41,6 +49,21 @@ describe('SeederService', () => {
     findOptions: jest.fn(),
     create: jest.fn(),
   };
+  const unitsService = {
+    findAllPaginated: jest.fn(),
+    findOptions: jest.fn(),
+    create: jest.fn(),
+  };
+  const presentationsService = {
+    findAllPaginated: jest.fn(),
+    findOptions: jest.fn(),
+    create: jest.fn(),
+  };
+  const liquorTypesService = {
+    findAllPaginated: jest.fn(),
+    findOptions: jest.fn(),
+    create: jest.fn(),
+  };
   const inventoryService = {
     findAllPaginated: jest.fn(),
     create: jest.fn(),
@@ -48,13 +71,6 @@ describe('SeederService', () => {
   const clientsService = {
     findOptions: jest.fn(),
     create: jest.fn(),
-  };
-  const salesService = {
-    findAllPaginated: jest.fn(),
-    create: jest.fn(),
-  };
-  const saleModel = {
-    updateOne: jest.fn(),
   };
   const configService = {
     get: jest.fn(),
@@ -70,23 +86,53 @@ describe('SeederService', () => {
         { provide: CitiesService, useValue: citiesService },
         { provide: WarehousesService, useValue: warehousesService },
         { provide: ProductsService, useValue: productsService },
+        { provide: UnitsService, useValue: unitsService },
+        { provide: PresentationsService, useValue: presentationsService },
+        { provide: LiquorTypesService, useValue: liquorTypesService },
         { provide: InventoryService, useValue: inventoryService },
         { provide: ClientsService, useValue: clientsService },
-        { provide: SalesService, useValue: salesService },
-        { provide: getModelToken(Sale.name), useValue: saleModel },
         { provide: ConfigService, useValue: configService },
       ],
     }).compile();
 
     service = module.get<SeederService>(SeederService);
     mockedBcrypt.hash.mockResolvedValue('hashed-pw' as never);
-    // Safe defaults so the sales-person / client / sale seeding stages don't
+    // Safe defaults so the sales-person and client seeding stages don't
     // throw on the existing demo-data tests, which only mock the early stages.
     citiesService.findActiveOptions.mockResolvedValue([]);
     usersService.findByEmail.mockResolvedValue(null);
     usersService.findByEmailExists.mockResolvedValue(false);
     clientsService.findOptions.mockResolvedValue([]);
-    salesService.findAllPaginated.mockResolvedValue({ data: [], total: 1 });
+    unitsService.findAllPaginated.mockResolvedValue({ data: [], total: 1 });
+    unitsService.findOptions.mockResolvedValue(
+      demoUnits.map((u, i) => ({
+        id: `unit-${i}`,
+        name: u.name,
+        abbreviation: u.abbreviation,
+      })),
+    );
+    presentationsService.findAllPaginated.mockResolvedValue({
+      data: [],
+      total: 1,
+    });
+    presentationsService.findOptions.mockResolvedValue(
+      demoPresentations.map((p, i) => ({
+        id: `presentation-${i}`,
+        name: p.name,
+        abbreviation: p.abbreviation,
+      })),
+    );
+    liquorTypesService.findAllPaginated.mockResolvedValue({
+      data: [],
+      total: 1,
+    });
+    liquorTypesService.findOptions.mockResolvedValue(
+      demoLiquorTypes.map((l, i) => ({
+        id: `liquor-type-${i}`,
+        name: l.name,
+        abbreviation: l.abbreviation,
+      })),
+    );
   });
 
   describe('admin user seeding', () => {
@@ -217,7 +263,7 @@ describe('SeederService', () => {
       expect(warehousesService.create).toHaveBeenCalledTimes(caracasOnly.length);
     });
 
-    it('should seed products when none exist', async () => {
+    it('should seed products when none exist, resolving unit names to ids', async () => {
       enableDemo();
       citiesService.findAllPaginated.mockResolvedValue({ data: [], total: 1 });
       warehousesService.findAllPaginated.mockResolvedValue({ data: [], total: 1 });
@@ -227,7 +273,70 @@ describe('SeederService', () => {
       await service.onModuleInit();
 
       expect(productsService.create).toHaveBeenCalledTimes(demoProducts.length);
-      expect(productsService.create).toHaveBeenCalledWith(demoProducts[0]);
+      const firstCall = productsService.create.mock.calls[0][0];
+      expect(firstCall).toMatchObject({
+        kind: demoProducts[0].kind,
+        name: demoProducts[0].name,
+        price: demoProducts[0].price,
+      });
+      expect(typeof firstCall.basicUnitId).toBe('string');
+      expect(firstCall.basicUnitId).toMatch(/^unit-/);
+    });
+
+    it('should seed units when none exist', async () => {
+      enableDemo();
+      citiesService.findAllPaginated.mockResolvedValue({ data: [], total: 1 });
+      warehousesService.findAllPaginated.mockResolvedValue({ data: [], total: 1 });
+      unitsService.findAllPaginated.mockResolvedValue({ data: [], total: 0 });
+      productsService.findAllPaginated.mockResolvedValue({ data: [], total: 1 });
+      inventoryService.findAllPaginated.mockResolvedValue({ data: [], total: 1 });
+
+      await service.onModuleInit();
+
+      expect(unitsService.create).toHaveBeenCalledTimes(demoUnits.length);
+      expect(unitsService.create).toHaveBeenCalledWith(demoUnits[0]);
+    });
+
+    it('should seed presentations when none exist', async () => {
+      enableDemo();
+      citiesService.findAllPaginated.mockResolvedValue({ data: [], total: 1 });
+      warehousesService.findAllPaginated.mockResolvedValue({ data: [], total: 1 });
+      presentationsService.findAllPaginated.mockResolvedValue({
+        data: [],
+        total: 0,
+      });
+      productsService.findAllPaginated.mockResolvedValue({ data: [], total: 1 });
+      inventoryService.findAllPaginated.mockResolvedValue({ data: [], total: 1 });
+
+      await service.onModuleInit();
+
+      expect(presentationsService.create).toHaveBeenCalledTimes(
+        demoPresentations.length,
+      );
+      expect(presentationsService.create).toHaveBeenCalledWith(
+        demoPresentations[0],
+      );
+    });
+
+    it('should seed liquor types when none exist', async () => {
+      enableDemo();
+      citiesService.findAllPaginated.mockResolvedValue({ data: [], total: 1 });
+      warehousesService.findAllPaginated.mockResolvedValue({ data: [], total: 1 });
+      liquorTypesService.findAllPaginated.mockResolvedValue({
+        data: [],
+        total: 0,
+      });
+      productsService.findAllPaginated.mockResolvedValue({ data: [], total: 1 });
+      inventoryService.findAllPaginated.mockResolvedValue({ data: [], total: 1 });
+
+      await service.onModuleInit();
+
+      expect(liquorTypesService.create).toHaveBeenCalledTimes(
+        demoLiquorTypes.length,
+      );
+      expect(liquorTypesService.create).toHaveBeenCalledWith(
+        demoLiquorTypes[0],
+      );
     });
 
     it('should seed inventory transactions referencing the admin user', async () => {

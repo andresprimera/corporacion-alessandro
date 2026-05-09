@@ -47,24 +47,6 @@ function formatPrice(value: number, currency: string): string {
   }).format(value)
 }
 
-function formatPresentation(value: string, t: (key: string) => string): string {
-  if (value === "L1") return t("1 L")
-  if (value === "ML750") return t("750 ml")
-  return value
-}
-
-function liquorTypeLabel(
-  value: string,
-  t: (key: string) => string,
-): string {
-  if (value === "rum") return t("Rum")
-  if (value === "whisky") return t("Whisky")
-  if (value === "vodka") return t("Vodka")
-  if (value === "gin") return t("Gin")
-  if (value === "tequila") return t("Tequila")
-  return t("Other")
-}
-
 export default function ProductsPage() {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
@@ -147,6 +129,7 @@ export default function ProductsPage() {
                 <TableHead>{t("Kind")}</TableHead>
                 <TableHead>{t("Liquor type")}</TableHead>
                 <TableHead>{t("Presentation")}</TableHead>
+                <TableHead>{t("Unit")}</TableHead>
                 <TableHead>{t("Price")}</TableHead>
                 <TableHead className="w-32">{t("Actions")}</TableHead>
               </TableRow>
@@ -166,6 +149,9 @@ export default function ProductsPage() {
                     </TableCell>
                     <TableCell>
                       <Skeleton className="h-4 w-16" />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton className="h-4 w-20" />
                     </TableCell>
                     <TableCell>
                       <Skeleton className="h-4 w-20" />
@@ -211,6 +197,7 @@ export default function ProductsPage() {
               <TableHead>{t("Kind")}</TableHead>
               <TableHead>{t("Liquor type")}</TableHead>
               <TableHead>{t("Presentation")}</TableHead>
+              <TableHead>{t("Unit")}</TableHead>
               <TableHead>{t("Price")}</TableHead>
               <TableHead className="w-32">{t("Actions")}</TableHead>
             </TableRow>
@@ -218,7 +205,7 @@ export default function ProductsPage() {
           <TableBody>
             {products.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="h-24 text-center">
+                <TableCell colSpan={7} className="h-24 text-center">
                   {t("No products found.")}
                 </TableCell>
               </TableRow>
@@ -233,17 +220,30 @@ export default function ProductsPage() {
                   </TableCell>
                   <TableCell>
                     {p.kind === "liquor" ? (
-                      liquorTypeLabel(p.liquorType, t)
+                      (p.liquorType?.name ?? "—")
                     ) : (
                       <span className="text-muted-foreground">—</span>
                     )}
                   </TableCell>
                   <TableCell>
                     {p.kind === "liquor" ? (
-                      formatPresentation(p.presentation, t)
+                      (p.presentation?.name ?? "—")
                     ) : (
                       <span className="text-muted-foreground">—</span>
                     )}
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex flex-col">
+                      <span>{p.basicUnit?.name ?? "—"}</span>
+                      {p.packageUnit && p.unitsPerPackage ? (
+                        <span className="text-xs text-muted-foreground">
+                          {t("Package: {{count}} {{unit}}", {
+                            count: p.unitsPerPackage,
+                            unit: p.packageUnit.name,
+                          })}
+                        </span>
+                      ) : null}
+                    </div>
                   </TableCell>
                   <TableCell>
                     {formatPrice(p.price.value, p.price.currency)}

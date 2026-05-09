@@ -44,13 +44,13 @@ describe("products API", () => {
       )
     })
 
-    it("should append liquorType filter", async () => {
+    it("should append liquorTypeId filter", async () => {
       vi.mocked(authFetch).mockResolvedValue(mockJsonResponse(emptyPage))
 
-      await fetchProductsApi({ page: 1, limit: 10, liquorType: "rum" })
+      await fetchProductsApi({ page: 1, limit: 10, liquorTypeId: "lt-rum" })
 
       expect(authFetch).toHaveBeenCalledWith(
-        "/api/products?page=1&limit=10&liquorType=rum",
+        "/api/products?page=1&limit=10&liquorTypeId=lt-rum",
       )
     })
 
@@ -101,14 +101,14 @@ describe("products API", () => {
         page: 2,
         limit: 25,
         kind: "liquor",
-        liquorType: "whisky",
+        liquorTypeId: "lt-whisky",
         minPrice: 10,
         maxPrice: 100,
         search: "single malt",
       })
 
       expect(authFetch).toHaveBeenCalledWith(
-        "/api/products?page=2&limit=25&kind=liquor&liquorType=whisky&minPrice=10&maxPrice=100&search=single+malt",
+        "/api/products?page=2&limit=25&kind=liquor&liquorTypeId=lt-whisky&minPrice=10&maxPrice=100&search=single+malt",
       )
     })
   })
@@ -127,6 +127,7 @@ describe("products API", () => {
         kind: "groceries" as const,
         name: "Rice",
         price: { value: 5, currency: "USD" as const },
+        basicUnitId: "u1",
       }
       const result = await createProductApi(data)
 
@@ -143,8 +144,8 @@ describe("products API", () => {
         kind: "liquor",
         name: "Bacardi",
         price: { value: 25, currency: "USD" },
-        liquorType: "rum",
-        presentation: "L1",
+        liquorTypeId: "lt-rum",
+        presentationId: "pres-1l",
       }
       vi.mocked(authFetch).mockResolvedValue(mockJsonResponse(product))
 
@@ -152,8 +153,9 @@ describe("products API", () => {
         kind: "liquor" as const,
         name: "Bacardi",
         price: { value: 25, currency: "USD" as const },
-        liquorType: "rum" as const,
-        presentation: "L1" as const,
+        liquorTypeId: "lt-rum",
+        presentationId: "pres-1l",
+        basicUnitId: "u1",
       }
       const result = await createProductApi(data)
 
@@ -179,6 +181,7 @@ describe("products API", () => {
         kind: "groceries" as const,
         name: "Rice",
         price: { value: 7, currency: "USD" as const },
+        basicUnitId: "u1",
       }
       const result = await updateProductApi("p1", data)
 

@@ -25,8 +25,11 @@ const liquor: Product = {
   kind: "liquor",
   name: "Bacardi",
   price: { value: 25, currency: "USD" },
-  liquorType: "rum",
-  presentation: "L1",
+  liquorTypeId: "lt-rum",
+  liquorType: { id: "lt-rum", name: "Ron", abbreviation: "ron" },
+  presentationId: "pres-1l",
+  presentation: { id: "pres-1l", name: "1 Litro", abbreviation: "1L" },
+  basicUnitId: "u-bottle",
 }
 
 const grocery: Product = {
@@ -34,6 +37,7 @@ const grocery: Product = {
   kind: "groceries",
   name: "Rice",
   price: { value: 5, currency: "USD" },
+  basicUnitId: "u-unit",
 }
 
 const groceryOption: ProductOption = {
@@ -41,6 +45,7 @@ const groceryOption: ProductOption = {
   kind: "groceries",
   name: "Rice",
   price: { value: 5, currency: "USD" },
+  basicUnitId: "u-unit",
 }
 
 function wrap({ children }: { children: ReactNode }) {

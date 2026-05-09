@@ -1,5 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { HydratedDocument } from 'mongoose';
+import { HydratedDocument, SchemaTypes, Types } from 'mongoose';
 
 @Schema({ _id: false })
 export class ProductPrice {
@@ -25,14 +25,20 @@ export class Product {
   @Prop({ type: ProductPriceSchema, required: true })
   price: ProductPrice;
 
-  @Prop({
-    enum: ['rum', 'whisky', 'vodka', 'gin', 'tequila', 'other'],
-    required: false,
-  })
-  liquorType?: string;
+  @Prop({ type: SchemaTypes.ObjectId, ref: 'LiquorType', required: false })
+  liquorTypeId?: Types.ObjectId;
 
-  @Prop({ enum: ['L1', 'ML750'], required: false })
-  presentation?: string;
+  @Prop({ type: SchemaTypes.ObjectId, ref: 'Presentation', required: false })
+  presentationId?: Types.ObjectId;
+
+  @Prop({ type: SchemaTypes.ObjectId, ref: 'Unit', required: true })
+  basicUnitId: Types.ObjectId;
+
+  @Prop({ type: SchemaTypes.ObjectId, ref: 'Unit', required: false })
+  packageUnitId?: Types.ObjectId;
+
+  @Prop({ required: false, min: 2 })
+  unitsPerPackage?: number;
 }
 
 export const ProductSchema = SchemaFactory.createForClass(Product);

@@ -4,6 +4,7 @@ import {
   InventoryTransaction,
   InventoryTransactionSchema,
 } from './schemas/inventory-transaction.schema';
+import { Unit, UnitSchema } from '../units/schemas/unit.schema';
 import { InventoryService } from './inventory.service';
 import { InventoryController } from './inventory.controller';
 import { ProductsModule } from '../products/products.module';
@@ -16,6 +17,7 @@ import { WarehousesModule } from '../warehouses/warehouses.module';
         name: InventoryTransaction.name,
         schema: InventoryTransactionSchema,
       },
+      { name: Unit.name, schema: UnitSchema },
     ]),
     ProductsModule,
     forwardRef(() => WarehousesModule),

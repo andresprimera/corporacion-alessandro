@@ -11,8 +11,10 @@ import {
   InventoryTransaction,
   InventoryTransactionDocument,
 } from './schemas/inventory-transaction.schema';
+import { ProductDocument } from '../products/schemas/product.schema';
 import { ProductsService } from '../products/products.service';
 import { WarehousesService } from '../warehouses/warehouses.service';
+import { readPopulatedRef } from '../common/utils/populated-ref';
 import type {
   AggregatedCityStockEntry,
   CreateInventoryTransactionInput,
@@ -39,6 +41,13 @@ const signedQtySum = {
   },
 };
 
+interface ConvertedQty {
+  qty: number;
+  enteredQty: number;
+  enteredUnitId: Types.ObjectId;
+  unitsPerPackageAtEntry?: number;
+}
+
 @Injectable()
 export class InventoryService {
   constructor(
@@ -49,11 +58,12 @@ export class InventoryService {
     private warehousesService: WarehousesService,
   ) {}
 
-  private async assertProduct(productId: string): Promise<void> {
+  private async loadProduct(productId: string): Promise<ProductDocument> {
     const product = await this.productsService.findById(productId);
     if (!product) {
       throw new NotFoundException('Product not found');
     }
+    return product;
   }
 
   private async assertActiveWarehouse(warehouseId: string): Promise<void> {
@@ -66,29 +76,82 @@ export class InventoryService {
     }
   }
 
+  private convertEnteredQty(
+    product: ProductDocument,
+    enteredQty: number,
+    enteredUnitId: string | undefined,
+  ): ConvertedQty {
+    const basicId = readPopulatedRef(product.basicUnitId).id;
+    const packageId = product.packageUnitId
+      ? readPopulatedRef(product.packageUnitId).id
+      : undefined;
+
+    const resolvedId = enteredUnitId ?? basicId;
+
+    if (resolvedId === basicId) {
+      return {
+        qty: enteredQty,
+        enteredQty,
+        enteredUnitId: new Types.ObjectId(resolvedId),
+      };
+    }
+
+    if (packageId && resolvedId === packageId) {
+      if (!product.unitsPerPackage) {
+        throw new BadRequestException(
+          'Product has a package unit but no units per package',
+        );
+      }
+      return {
+        qty: enteredQty * product.unitsPerPackage,
+        enteredQty,
+        enteredUnitId: new Types.ObjectId(resolvedId),
+        unitsPerPackageAtEntry: product.unitsPerPackage,
+      };
+    }
+
+    throw new BadRequestException(
+      'Entered unit does not belong to this product',
+    );
+  }
+
   async create(
     data: CreateInventoryTransactionInput,
     createdBy: InventoryTransactionCreatedBy,
     opts: { skipValidation?: boolean } = {},
   ): Promise<InventoryTransactionDocument> {
-    if (!opts.skipValidation) {
-      await Promise.all([
-        this.assertProduct(data.productId),
-        this.assertActiveWarehouse(data.warehouseId),
-      ]);
-    }
+    const [product] = await Promise.all([
+      this.loadProduct(data.productId),
+      opts.skipValidation
+        ? Promise.resolve()
+        : this.assertActiveWarehouse(data.warehouseId),
+    ]);
+
+    const converted = this.convertEnteredQty(
+      product,
+      data.qty,
+      data.enteredUnitId,
+    );
+
     const created = await this.inventoryModel.create({
-      ...data,
       productId: new Types.ObjectId(data.productId),
       warehouseId: new Types.ObjectId(data.warehouseId),
+      transactionType: data.transactionType,
+      batch: data.batch,
+      qty: converted.qty,
+      notes: data.notes,
       expirationDate: data.expirationDate
         ? new Date(data.expirationDate)
         : undefined,
+      enteredQty: converted.enteredQty,
+      enteredUnitId: converted.enteredUnitId,
+      unitsPerPackageAtEntry: converted.unitsPerPackageAtEntry,
       createdBy,
     });
     await created.populate([
       { path: 'productId', select: 'name kind' },
       { path: 'warehouseId', select: 'name' },
+      { path: 'enteredUnitId', select: 'name abbreviation' },
     ]);
     return created;
   }
@@ -105,7 +168,8 @@ export class InventoryService {
         .skip(skip)
         .limit(limit)
         .populate('productId', 'name kind')
-        .populate('warehouseId', 'name'),
+        .populate('warehouseId', 'name')
+        .populate('enteredUnitId', 'name abbreviation'),
       this.inventoryModel.countDocuments(),
     ]);
     return { data, total };
@@ -115,57 +179,97 @@ export class InventoryService {
     return this.inventoryModel
       .findById(id)
       .populate('productId', 'name kind')
-      .populate('warehouseId', 'name');
+      .populate('warehouseId', 'name')
+      .populate('enteredUnitId', 'name abbreviation');
   }
 
   async update(
     id: string,
     data: UpdateInventoryTransactionInput,
   ): Promise<InventoryTransactionDocument | null> {
-    if (data.productId) {
-      await this.assertProduct(data.productId);
-    }
     if (data.warehouseId) {
       await this.assertActiveWarehouse(data.warehouseId);
     }
-    if (data.qty !== undefined || data.transactionType !== undefined) {
-      const existing = await this.inventoryModel.findById(id);
-      if (!existing) {
-        return null;
-      }
+
+    const existing = await this.inventoryModel.findById(id);
+    if (!existing) {
+      return null;
+    }
+
+    if (data.productId) {
+      await this.loadProduct(data.productId);
+    }
+
+    const update: Partial<InventoryTransaction> & {
+      qty?: number;
+      enteredQty?: number;
+      enteredUnitId?: Types.ObjectId;
+      unitsPerPackageAtEntry?: number;
+    } = {};
+    if (data.transactionType !== undefined) {
+      update.transactionType = data.transactionType;
+    }
+    if (data.batch !== undefined) {
+      update.batch = data.batch;
+    }
+    if (data.notes !== undefined) {
+      update.notes = data.notes;
+    }
+    if (data.productId !== undefined) {
+      update.productId = new Types.ObjectId(data.productId);
+    }
+    if (data.warehouseId !== undefined) {
+      update.warehouseId = new Types.ObjectId(data.warehouseId);
+    }
+    if (data.expirationDate !== undefined) {
+      update.expirationDate = data.expirationDate
+        ? new Date(data.expirationDate)
+        : undefined;
+    }
+
+    const qtyChanged = data.qty !== undefined;
+    const unitChanged = data.enteredUnitId !== undefined;
+    if (qtyChanged || unitChanged) {
+      const productIdForConversion =
+        data.productId ?? readPopulatedRef(existing.productId).id;
+      const product = await this.loadProduct(productIdForConversion);
+      const enteredQty = data.qty ?? existing.enteredQty ?? existing.qty;
+      const existingUnitId = existing.enteredUnitId
+        ? readPopulatedRef(existing.enteredUnitId).id
+        : undefined;
+      const enteredUnitId = data.enteredUnitId ?? existingUnitId;
+      const converted = this.convertEnteredQty(
+        product,
+        enteredQty,
+        enteredUnitId,
+      );
       const mergedType = (data.transactionType ??
         existing.transactionType) as
         | 'inbound'
         | 'outbound'
         | 'adjustment';
-      const mergedQty = data.qty ?? existing.qty;
-      if (mergedQty === 0) {
+      if (converted.qty === 0) {
         throw new BadRequestException('Quantity must not be zero');
       }
       if (
         (mergedType === 'inbound' || mergedType === 'outbound') &&
-        mergedQty < 0
+        converted.qty < 0
       ) {
         throw new BadRequestException(
           'Quantity must be positive for inbound and outbound transactions',
         );
       }
+      update.qty = converted.qty;
+      update.enteredQty = converted.enteredQty;
+      update.enteredUnitId = converted.enteredUnitId;
+      update.unitsPerPackageAtEntry = converted.unitsPerPackageAtEntry;
     }
-    const { productId, warehouseId, expirationDate, ...rest } = data;
-    const update: Partial<InventoryTransaction> = { ...rest };
-    if (productId !== undefined) {
-      update.productId = new Types.ObjectId(productId);
-    }
-    if (warehouseId !== undefined) {
-      update.warehouseId = new Types.ObjectId(warehouseId);
-    }
-    if (expirationDate) {
-      update.expirationDate = new Date(expirationDate);
-    }
+
     return this.inventoryModel
       .findByIdAndUpdate(id, update, { new: true })
       .populate('productId', 'name kind')
-      .populate('warehouseId', 'name');
+      .populate('warehouseId', 'name')
+      .populate('enteredUnitId', 'name abbreviation');
   }
 
   async remove(id: string): Promise<void> {

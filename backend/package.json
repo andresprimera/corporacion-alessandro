@@ -15,7 +15,8 @@
     "typecheck": "tsc --noEmit",
     "test": "jest",
     "test:watch": "jest --watch",
-    "test:cov": "jest --coverage"
+    "test:cov": "jest --coverage",
+    "db:reset": "node --env-file=.env -r ts-node/register/transpile-only src/scripts/db-reset.ts"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.71",
