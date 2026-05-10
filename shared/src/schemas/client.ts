@@ -12,6 +12,8 @@ export const clientSchema = z.object({
   rif: z.string().regex(RIF_REGEX, RIF_MESSAGE),
   address: z.string().min(1, "Address is required"),
   phone: z.string().min(1, "Phone is required"),
+  cityId: z.string(),
+  cityName: z.string().optional(),
   salesPersonId: z.string(),
   salesPersonName: z.string().optional(),
   createdAt: z.string(),
@@ -24,6 +26,7 @@ export const createClientSchema = z.object({
   rif: z.string().regex(RIF_REGEX, RIF_MESSAGE),
   address: z.string().min(1, "Address is required"),
   phone: z.string().min(1, "Phone is required"),
+  cityId: z.string().min(1, "City is required"),
   salesPersonId: z.string().optional(),
 });
 export type CreateClientInput = z.infer<typeof createClientSchema>;
@@ -33,6 +36,7 @@ export type UpdateClientInput = z.infer<typeof updateClientSchema>;
 
 export const clientListQuerySchema = paginationQuerySchema.extend({
   salesPersonId: z.string().optional(),
+  cityId: z.string().optional(),
 });
 export type ClientListQuery = z.infer<typeof clientListQuerySchema>;
 

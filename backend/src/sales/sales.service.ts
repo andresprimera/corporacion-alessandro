@@ -14,10 +14,11 @@ import { ProductsService } from '../products/products.service';
 import { WarehousesService } from '../warehouses/warehouses.service';
 import { InventoryService } from '../inventory/inventory.service';
 import { ClientsService } from '../clients/clients.service';
-import { UsersService } from '../users/users.service';
-import { CitiesService } from '../cities/cities.service';
 import { isDuplicateKeyError } from '../common/utils/mongo-errors';
-import { readPopulatedRef } from '../common/utils/populated-ref';
+import {
+  PopulatedRefBase,
+  readPopulatedRef,
+} from '../common/utils/populated-ref';
 import type {
   CreateSaleInput,
   Role,
@@ -41,9 +42,8 @@ interface ResolvedItem {
   allocations: ResolvedAllocation[];
 }
 
-interface ResolvedCity {
-  id: string;
-  name: string;
+interface PopulatedCity extends PopulatedRefBase {
+  name?: string;
 }
 
 @Injectable()
@@ -56,8 +56,6 @@ export class SalesService {
     private warehousesService: WarehousesService,
     private inventoryService: InventoryService,
     private clientsService: ClientsService,
-    private usersService: UsersService,
-    private citiesService: CitiesService,
     private configService: ConfigService,
   ) {}
 
@@ -66,8 +64,13 @@ export class SalesService {
     actor: { userId: string; role: Role },
   ): Promise<{ filename: string; buffer: Buffer }> {
     const sale = await this.assertCanPrint(id, actor);
+    const client = await this.clientsService.findById(sale.clientId.toString());
+    if (!client) {
+      throw new NotFoundException('Client not found');
+    }
+    const cityName = readPopulatedRef<PopulatedCity>(client.cityId).doc?.name;
     const buffer = await this.buildPdf((doc) =>
-      this.renderDeliveryOrder(doc, sale),
+      this.renderDeliveryOrder(doc, sale, cityName),
     );
     return {
       filename: `orden-entrega-${sale.saleNumber}.pdf`,
@@ -84,8 +87,9 @@ export class SalesService {
     if (!client) {
       throw new NotFoundException('Client not found');
     }
+    const cityName = readPopulatedRef<PopulatedCity>(client.cityId).doc?.name;
     const buffer = await this.buildPdf((doc) =>
-      this.renderInvoice(doc, sale, client),
+      this.renderInvoice(doc, sale, client, cityName),
     );
     return {
       filename: `factura-${sale.saleNumber}.pdf`,
@@ -153,6 +157,7 @@ export class SalesService {
   private renderDeliveryOrder(
     doc: PDFKit.PDFDocument,
     sale: SaleDocument,
+    cityName: string | undefined,
   ): void {
     const company = this.companyInfo();
     const createdAt = sale.get('createdAt') as Date;
@@ -177,7 +182,9 @@ export class SalesService {
 
     doc.font('Helvetica-Bold').fontSize(11).text('Cliente:');
     doc.font('Helvetica').fontSize(10).text(sale.clientName);
-    doc.fontSize(10).text(`Ciudad: ${sale.cityName}`);
+    if (cityName) {
+      doc.fontSize(10).text(`Ciudad: ${cityName}`);
+    }
     doc.moveDown();
 
     doc.font('Helvetica-Bold').fontSize(11).text('Productos a entregar:');
@@ -237,6 +244,7 @@ export class SalesService {
       address: string;
       phone: string;
     },
+    cityName: string | undefined,
   ): void {
     const company = this.companyInfo();
     const createdAt = sale.get('createdAt') as Date;
@@ -263,7 +271,9 @@ export class SalesService {
     doc.fontSize(10).text(`RIF: ${client.rif}`);
     doc.fontSize(10).text(client.address);
     doc.fontSize(10).text(`Tel: ${client.phone}`);
-    doc.fontSize(10).text(`Ciudad: ${sale.cityName}`);
+    if (cityName) {
+      doc.fontSize(10).text(`Ciudad: ${cityName}`);
+    }
     doc.moveDown();
 
     const tableTop = doc.y;
@@ -326,8 +336,6 @@ export class SalesService {
     soldBy: SaleSoldBy,
     actor: { role: Role },
   ): Promise<SaleDocument> {
-    const city = await this.resolveCity(dto, soldBy, actor);
-
     const client = await this.clientsService.findById(dto.clientId);
     if (!client) {
       throw new NotFoundException('Client not found');
@@ -358,14 +366,13 @@ export class SalesService {
       }),
     );
 
-    await this.assertSufficientCityStock(productInfos, city);
+    await this.assertSufficientStock(productInfos);
 
     const resolvedItems: ResolvedItem[] = [];
     for (const info of productInfos) {
       const allocations = await this.autoAllocate(
         info.productId,
         info.requestedQty,
-        city.id,
       );
       resolvedItems.push({ ...info, allocations });
     }
@@ -388,7 +395,6 @@ export class SalesService {
       soldBy,
       dto,
       { id: client.id, name: client.name },
-      city,
     );
 
     const batch = `SALE-${created.saleNumber}`;
@@ -410,42 +416,13 @@ export class SalesService {
     }
 
     this.logger.log(
-      `Sale ${created.saleNumber} created by ${soldBy.name} in ${city.name} (${totalQty} units, ${totalAmount} ${currency})`,
+      `Sale ${created.saleNumber} created by ${soldBy.name} (${totalQty} units, ${totalAmount} ${currency})`,
     );
     return created;
   }
 
-  private async resolveCity(
-    dto: CreateSaleInput,
-    soldBy: SaleSoldBy,
-    actor: { role: Role },
-  ): Promise<ResolvedCity> {
-    let cityId: string;
-    if (actor.role === 'salesPerson') {
-      const seller = await this.usersService.findById(soldBy.userId);
-      if (!seller?.cityId) {
-        throw new BadRequestException('Sales person has no assigned city');
-      }
-      cityId = readPopulatedRef(seller.cityId).id;
-    } else {
-      if (!dto.cityId) {
-        throw new BadRequestException('City is required');
-      }
-      cityId = dto.cityId;
-    }
-    const city = await this.citiesService.findById(cityId);
-    if (!city) {
-      throw new NotFoundException('City not found');
-    }
-    if (!city.isActive) {
-      throw new BadRequestException('City is inactive');
-    }
-    return { id: cityId, name: city.name };
-  }
-
-  private async assertSufficientCityStock(
+  private async assertSufficientStock(
     items: { productId: string; productName: string; requestedQty: number }[],
-    city: ResolvedCity,
   ): Promise<void> {
     const requested = new Map<
       string,
@@ -464,13 +441,11 @@ export class SalesService {
     }
 
     for (const [productId, entry] of requested) {
-      const available = await this.inventoryService.findCityStockForProduct(
-        productId,
-        city.id,
-      );
+      const available =
+        await this.inventoryService.findTotalStockForProduct(productId);
       if (entry.qty > available) {
         throw new BadRequestException(
-          `Insufficient stock for "${entry.productName}" in "${city.name}" (requested ${entry.qty}, available ${available})`,
+          `Insufficient stock for "${entry.productName}" (requested ${entry.qty}, available ${available})`,
         );
       }
     }
@@ -479,9 +454,8 @@ export class SalesService {
   private async autoAllocate(
     productId: string,
     requestedQty: number,
-    cityId: string,
   ): Promise<ResolvedAllocation[]> {
-    const warehouses = await this.warehousesService.findActiveByCity(cityId);
+    const warehouses = await this.warehousesService.findAllActive();
     const withStock = await Promise.all(
       warehouses.map(async (w) => ({
         id: w.id as string,
@@ -526,15 +500,12 @@ export class SalesService {
     soldBy: SaleSoldBy,
     dto: CreateSaleInput,
     client: { id: string; name: string },
-    city: ResolvedCity,
     retriesLeft = 3,
   ): Promise<SaleDocument> {
     const saleNumber = await this.generateSaleNumber();
     try {
       return await this.saleModel.create({
         saleNumber,
-        cityId: new Types.ObjectId(city.id),
-        cityName: city.name,
         clientId: new Types.ObjectId(client.id),
         clientName: client.name,
         notes: dto.notes,
@@ -566,7 +537,6 @@ export class SalesService {
           soldBy,
           dto,
           client,
-          city,
           retriesLeft - 1,
         );
       }

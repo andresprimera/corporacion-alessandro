@@ -17,6 +17,9 @@ export class Client {
   @Prop({ required: true, trim: true })
   phone: string;
 
+  @Prop({ type: SchemaTypes.ObjectId, ref: 'City', required: true })
+  cityId: Types.ObjectId;
+
   @Prop({ type: SchemaTypes.ObjectId, ref: 'User', required: true })
   salesPersonId: Types.ObjectId;
 }
@@ -24,4 +27,5 @@ export class Client {
 export const ClientSchema = SchemaFactory.createForClass(Client);
 
 ClientSchema.index({ salesPersonId: 1, createdAt: -1 });
+ClientSchema.index({ cityId: 1 });
 ClientSchema.index({ rif: 1, salesPersonId: 1 }, { unique: true });

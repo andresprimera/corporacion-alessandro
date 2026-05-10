@@ -10,6 +10,7 @@ import {
 } from "@tanstack/react-query"
 import {
   fetchInventoryTransactionsApi,
+  formatPackagedQty,
   removeInventoryTransactionApi,
   transactionTypeLabelKey,
 } from "@/lib/inventory"
@@ -243,7 +244,14 @@ export default function InventoryPage() {
                   <TableCell>{tx.batch}</TableCell>
                   <TableCell>
                     <div className="flex flex-col">
-                      <span>{tx.qty}</span>
+                      <span>
+                        {formatPackagedQty({
+                          qty: tx.qty,
+                          basicUnit: tx.productBasicUnit,
+                          packageUnit: tx.productPackageUnit,
+                          unitsPerPackage: tx.productUnitsPerPackage,
+                        })}
+                      </span>
                       {tx.enteredQty !== undefined &&
                       tx.enteredUnit &&
                       tx.unitsPerPackageAtEntry ? (

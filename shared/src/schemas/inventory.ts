@@ -33,6 +33,9 @@ export const inventoryTransactionSchema = z.object({
   enteredUnitId: z.string().optional(),
   unitsPerPackageAtEntry: z.number().int().optional(),
   enteredUnit: unitRefSchema.optional(),
+  productBasicUnit: unitRefSchema.optional(),
+  productPackageUnit: unitRefSchema.optional(),
+  productUnitsPerPackage: z.number().int().optional(),
   createdBy: inventoryTransactionCreatedBySchema,
   createdAt: z.string(),
   updatedAt: z.string(),
@@ -109,6 +112,9 @@ export const productStockByWarehouseSchema = z.object({
   warehouseId: z.string(),
   warehouseName: z.string(),
   totalQty: z.number(),
+  productBasicUnit: unitRefSchema.optional(),
+  productPackageUnit: unitRefSchema.optional(),
+  productUnitsPerPackage: z.number().int().optional(),
 });
 export type ProductStockByWarehouse = z.infer<
   typeof productStockByWarehouseSchema
@@ -119,6 +125,9 @@ export const productStockAggregatedSchema = z.object({
   productName: z.string(),
   productKind: productKindEnum,
   totalQty: z.number(),
+  productBasicUnit: unitRefSchema.optional(),
+  productPackageUnit: unitRefSchema.optional(),
+  productUnitsPerPackage: z.number().int().optional(),
 });
 export type ProductStockAggregated = z.infer<
   typeof productStockAggregatedSchema
@@ -129,31 +138,3 @@ export const stockByWarehouseQuerySchema = paginationQuerySchema.extend({
   productId: z.string().optional(),
 });
 export type StockByWarehouseQuery = z.infer<typeof stockByWarehouseQuerySchema>;
-
-export const cityStockQuerySchema = z.object({
-  productId: z.string().min(1, "Product is required"),
-  cityId: z.string().min(1, "City is required"),
-});
-export type CityStockQuery = z.infer<typeof cityStockQuerySchema>;
-
-export const cityStockSchema = z.object({
-  productId: z.string(),
-  cityId: z.string(),
-  totalQty: z.number(),
-});
-export type CityStock = z.infer<typeof cityStockSchema>;
-
-export const aggregatedCityStockQuerySchema = z.object({
-  cityId: z.string().min(1, "City is required"),
-});
-export type AggregatedCityStockQuery = z.infer<
-  typeof aggregatedCityStockQuerySchema
->;
-
-export const aggregatedCityStockEntrySchema = z.object({
-  productId: z.string(),
-  totalQty: z.number(),
-});
-export type AggregatedCityStockEntry = z.infer<
-  typeof aggregatedCityStockEntrySchema
->;

@@ -7,7 +7,7 @@ import {
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, isValidObjectId } from 'mongoose';
 import { City, CityDocument } from './schemas/city.schema';
-import { WarehousesService } from '../warehouses/warehouses.service';
+import { ClientsService } from '../clients/clients.service';
 import { isDuplicateKeyError } from '../common/utils/mongo-errors';
 import type {
   CreateCityInput,
@@ -18,8 +18,8 @@ import type {
 export class CitiesService {
   constructor(
     @InjectModel(City.name) private cityModel: Model<City>,
-    @Inject(forwardRef(() => WarehousesService))
-    private warehousesService: WarehousesService,
+    @Inject(forwardRef(() => ClientsService))
+    private clientsService: ClientsService,
   ) {}
 
   async create(data: CreateCityInput): Promise<CityDocument> {
@@ -74,9 +74,9 @@ export class CitiesService {
   }
 
   async remove(id: string): Promise<void> {
-    if (await this.warehousesService.existsByCity(id)) {
+    if (await this.clientsService.existsByCity(id)) {
       throw new ConflictException(
-        'City has warehouses; reassign or delete them first',
+        'City has clients; reassign or delete them first',
       );
     }
     await this.cityModel.findByIdAndDelete(id);

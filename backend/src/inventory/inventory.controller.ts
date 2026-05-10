@@ -23,12 +23,6 @@ import {
   readPopulatedRef,
 } from '../common/utils/populated-ref';
 import {
-  type AggregatedCityStockEntry,
-  aggregatedCityStockQuerySchema,
-  type AggregatedCityStockQuery,
-  type CityStock,
-  cityStockQuerySchema,
-  type CityStockQuery,
   type InventoryTransaction,
   type PaginatedResponse,
   type ProductKind,
@@ -49,18 +43,36 @@ import {
   type UpdateInventoryTransactionInput,
 } from './dto/update-inventory-transaction.dto';
 
+import { Types } from 'mongoose';
+
+interface PopulatedUnit extends PopulatedRefBase {
+  name?: string;
+  abbreviation?: string;
+}
+
 interface PopulatedProduct extends PopulatedRefBase {
   name?: string;
   kind?: string;
+  basicUnitId?: Types.ObjectId | PopulatedUnit;
+  packageUnitId?: Types.ObjectId | PopulatedUnit;
+  unitsPerPackage?: number;
 }
 
 interface PopulatedWarehouse extends PopulatedRefBase {
   name?: string;
 }
 
-interface PopulatedUnit extends PopulatedRefBase {
-  name?: string;
-  abbreviation?: string;
+function toUnitRef(
+  raw: Types.ObjectId | PopulatedUnit | undefined,
+): { id: string; name: string; abbreviation: string } | undefined {
+  if (!raw) return undefined;
+  const ref = readPopulatedRef<PopulatedUnit>(raw);
+  if (!ref.doc?.name || !ref.doc?.abbreviation) return undefined;
+  return {
+    id: ref.id,
+    name: ref.doc.name,
+    abbreviation: ref.doc.abbreviation,
+  };
 }
 
 function toInventoryTransaction(
@@ -96,6 +108,9 @@ function toInventoryTransaction(
             abbreviation: enteredUnit.doc.abbreviation,
           }
         : undefined,
+    productBasicUnit: toUnitRef(product.doc?.basicUnitId),
+    productPackageUnit: toUnitRef(product.doc?.packageUnitId),
+    productUnitsPerPackage: product.doc?.unitsPerPackage,
     createdBy: {
       userId: doc.createdBy.userId,
       name: doc.createdBy.name,
@@ -128,32 +143,6 @@ export class InventoryController {
         totalPages: Math.ceil(total / query.limit) || 1,
       },
     };
-  }
-
-  @Get('stock/by-city')
-  @Roles('admin', 'salesPerson')
-  async findStockByCity(
-    @Query(new ZodValidationPipe(cityStockQuerySchema))
-    query: CityStockQuery,
-  ): Promise<CityStock> {
-    const totalQty = await this.inventoryService.findCityStockForProduct(
-      query.productId,
-      query.cityId,
-    );
-    return {
-      productId: query.productId,
-      cityId: query.cityId,
-      totalQty,
-    };
-  }
-
-  @Get('stock/by-city/aggregated')
-  @Roles('admin', 'salesPerson')
-  async findAggregatedCityStock(
-    @Query(new ZodValidationPipe(aggregatedCityStockQuerySchema))
-    query: AggregatedCityStockQuery,
-  ): Promise<AggregatedCityStockEntry[]> {
-    return this.inventoryService.findAggregatedCityStock(query.cityId);
   }
 
   @Get('stock/aggregated')

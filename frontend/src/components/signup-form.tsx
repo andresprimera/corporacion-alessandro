@@ -15,23 +15,14 @@ import {
 } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { PasswordInput } from "@/components/ui/password-input"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
-import { useForm, Controller } from "react-hook-form"
+import { useForm } from "react-hook-form"
 import { standardSchemaResolver } from "@hookform/resolvers/standard-schema"
 import { signupSchema } from "@base-dashboard/shared"
-import { useQuery } from "@tanstack/react-query"
 import { z } from "zod/v4"
 import { useAuth } from "@/hooks/use-auth"
 import { useNavigate, Link } from "react-router"
 import { useState } from "react"
 import { toast } from "sonner"
-import { fetchCityOptionsApi } from "@/lib/cities"
 
 const signupFormSchema = z
   .intersection(
@@ -51,15 +42,9 @@ export function SignupForm({ ...props }: React.ComponentProps<typeof Card>) {
   const navigate = useNavigate()
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  const { data: cityOptions = [], isLoading: isLoadingCities } = useQuery({
-    queryKey: ["cities", "options"],
-    queryFn: fetchCityOptionsApi,
-  })
-
   const {
     register,
     handleSubmit,
-    control,
     formState: { errors },
   } = useForm<SignupValues>({
     resolver: standardSchemaResolver(signupFormSchema),
@@ -68,7 +53,7 @@ export function SignupForm({ ...props }: React.ComponentProps<typeof Card>) {
   async function onSubmit(values: SignupValues) {
     setIsSubmitting(true)
     try {
-      await signup(values.name, values.email, values.password, values.cityId)
+      await signup(values.name, values.email, values.password)
       navigate("/dashboard")
     } catch (error) {
       if (
@@ -121,41 +106,6 @@ export function SignupForm({ ...props }: React.ComponentProps<typeof Card>) {
               {errors.email && (
                 <FieldDescription className="text-destructive">
                   {t(errors.email.message ?? "")}
-                </FieldDescription>
-              )}
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="city">{t("City")}</FieldLabel>
-              <Controller
-                name="cityId"
-                control={control}
-                render={({ field }) => (
-                  <Select
-                    value={field.value ?? ""}
-                    onValueChange={(val) => {
-                      if (val) field.onChange(val)
-                    }}
-                    disabled={isLoadingCities}
-                    items={Object.fromEntries(
-                      cityOptions.map((c) => [c.id, c.name]),
-                    )}
-                  >
-                    <SelectTrigger id="city">
-                      <SelectValue placeholder={t("Select a city")} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {cityOptions.map((city) => (
-                        <SelectItem key={city.id} value={city.id}>
-                          {city.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
-              />
-              {errors.cityId && (
-                <FieldDescription className="text-destructive">
-                  {t(errors.cityId.message ?? "")}
                 </FieldDescription>
               )}
             </Field>

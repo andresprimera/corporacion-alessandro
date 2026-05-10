@@ -1,18 +1,15 @@
 import {
-  BadRequestException,
   ConflictException,
   Inject,
   Injectable,
-  NotFoundException,
   forwardRef,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model, Types } from 'mongoose';
+import { Model } from 'mongoose';
 import {
   Warehouse,
   WarehouseDocument,
 } from './schemas/warehouse.schema';
-import { CitiesService } from '../cities/cities.service';
 import { InventoryService } from '../inventory/inventory.service';
 import { isDuplicateKeyError } from '../common/utils/mongo-errors';
 import type {
@@ -25,31 +22,13 @@ export class WarehousesService {
   constructor(
     @InjectModel(Warehouse.name)
     private warehouseModel: Model<Warehouse>,
-    @Inject(forwardRef(() => CitiesService))
-    private citiesService: CitiesService,
     @Inject(forwardRef(() => InventoryService))
     private inventoryService: InventoryService,
   ) {}
 
-  private async assertActiveCity(cityId: string): Promise<void> {
-    const city = await this.citiesService.findById(cityId);
-    if (!city) {
-      throw new NotFoundException('City not found');
-    }
-    if (!city.isActive) {
-      throw new BadRequestException('City is inactive');
-    }
-  }
-
   async create(data: CreateWarehouseInput): Promise<WarehouseDocument> {
-    await this.assertActiveCity(data.cityId);
     try {
-      const created = await this.warehouseModel.create({
-        ...data,
-        cityId: new Types.ObjectId(data.cityId),
-      });
-      await created.populate('cityId', 'name');
-      return created;
+      return await this.warehouseModel.create(data);
     } catch (err) {
       if (isDuplicateKeyError(err)) {
         throw new ConflictException('Warehouse name already exists');
@@ -70,33 +49,24 @@ export class WarehousesService {
         .find(filter)
         .sort({ createdAt: -1 })
         .skip(skip)
-        .limit(limit)
-        .populate('cityId', 'name'),
+        .limit(limit),
       this.warehouseModel.countDocuments(filter),
     ]);
     return { data, total };
   }
 
   async findById(id: string): Promise<WarehouseDocument | null> {
-    return this.warehouseModel.findById(id).populate('cityId', 'name');
+    return this.warehouseModel.findById(id);
   }
 
   async update(
     id: string,
     data: UpdateWarehouseInput,
   ): Promise<WarehouseDocument | null> {
-    if (data.cityId) {
-      await this.assertActiveCity(data.cityId);
-    }
-    const { cityId, ...rest } = data;
-    const update: Partial<Warehouse> = { ...rest };
-    if (cityId !== undefined) {
-      update.cityId = new Types.ObjectId(cityId);
-    }
     try {
-      return await this.warehouseModel
-        .findByIdAndUpdate(id, update, { new: true })
-        .populate('cityId', 'name');
+      return await this.warehouseModel.findByIdAndUpdate(id, data, {
+        new: true,
+      });
     } catch (err) {
       if (isDuplicateKeyError(err)) {
         throw new ConflictException('Warehouse name already exists');
@@ -114,34 +84,17 @@ export class WarehousesService {
     await this.warehouseModel.findByIdAndDelete(id);
   }
 
-  async findActiveOptions(): Promise<
-    { id: string; name: string; cityName?: string }[]
-  > {
+  async findActiveOptions(): Promise<{ id: string; name: string }[]> {
     const docs = await this.warehouseModel
-      .find({ isActive: true }, { name: 1, cityId: 1 })
-      .sort({ name: 1 })
-      .populate<{ cityId: { _id: unknown; name: string } | null }>(
-        'cityId',
-        'name',
-      );
+      .find({ isActive: true }, { name: 1 })
+      .sort({ name: 1 });
     return docs.map((d) => ({
       id: d.id,
       name: d.name,
-      cityName:
-        d.cityId && typeof d.cityId === 'object' && 'name' in d.cityId
-          ? d.cityId.name
-          : undefined,
     }));
   }
 
-  async existsByCity(cityId: string): Promise<boolean> {
-    const result = await this.warehouseModel.exists({ cityId });
-    return result !== null;
-  }
-
-  async findActiveByCity(cityId: string): Promise<WarehouseDocument[]> {
-    return this.warehouseModel
-      .find({ cityId: new Types.ObjectId(cityId), isActive: true })
-      .sort({ name: 1 });
+  async findAllActive(): Promise<WarehouseDocument[]> {
+    return this.warehouseModel.find({ isActive: true }).sort({ name: 1 });
   }
 }

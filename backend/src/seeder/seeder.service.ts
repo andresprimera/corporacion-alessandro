@@ -130,20 +130,9 @@ export class SeederService implements OnModuleInit {
     const { total } = await this.warehousesService.findAllPaginated(1, 1);
     if (total > 0) return;
 
-    const cityOptions = await this.citiesService.findActiveOptions();
-    const cityByName = new Map(cityOptions.map((c) => [c.name, c.id]));
-
     for (const w of demoWarehouses) {
-      const cityId = cityByName.get(w.cityName);
-      if (!cityId) {
-        this.logger.warn(
-          `Skipping warehouse "${w.name}" — city "${w.cityName}" not found`,
-        );
-        continue;
-      }
       await this.warehousesService.create({
         name: w.name,
-        cityId,
         address: w.address,
         isActive: true,
       });
@@ -270,19 +259,9 @@ export class SeederService implements OnModuleInit {
   }
 
   private async seedSalesPeople(): Promise<void> {
-    const cityOptions = await this.citiesService.findActiveOptions();
-    const cityByName = new Map(cityOptions.map((c) => [c.name, c.id]));
-
     let created = 0;
     for (const person of demoSalesPeople) {
       if (await this.usersService.findByEmailExists(person.email)) continue;
-      const cityId = cityByName.get(person.cityName);
-      if (!cityId) {
-        this.logger.warn(
-          `Skipping sales person "${person.name}" — city "${person.cityName}" not found`,
-        );
-        continue;
-      }
       const hashedPassword = await bcrypt.hash(DEMO_SALES_PERSON_PASSWORD, 12);
       await this.usersService.create({
         name: person.name,
@@ -290,7 +269,6 @@ export class SeederService implements OnModuleInit {
         password: hashedPassword,
         role: 'salesPerson',
         status: 'approved',
-        cityId,
         commissionPercentage: person.commissionPercentage,
       });
       created++;
@@ -301,6 +279,9 @@ export class SeederService implements OnModuleInit {
   }
 
   private async seedClients(): Promise<void> {
+    const cityOptions = await this.citiesService.findActiveOptions();
+    const cityByName = new Map(cityOptions.map((c) => [c.name, c.id]));
+
     let created = 0;
     for (const client of demoClients) {
       const salesPerson = await this.usersService.findByEmail(
@@ -309,6 +290,13 @@ export class SeederService implements OnModuleInit {
       if (!salesPerson) {
         this.logger.warn(
           `Skipping client "${client.name}" — sales person ${client.salesPersonEmail} not found`,
+        );
+        continue;
+      }
+      const cityId = cityByName.get(client.cityName);
+      if (!cityId) {
+        this.logger.warn(
+          `Skipping client "${client.name}" — city "${client.cityName}" not found`,
         );
         continue;
       }
@@ -321,6 +309,7 @@ export class SeederService implements OnModuleInit {
         rif: client.rif,
         address: client.address,
         phone: client.phone,
+        cityId,
         salesPersonId: salesPerson.id,
       });
       created++;

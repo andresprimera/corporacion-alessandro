@@ -1,13 +1,9 @@
 import { useTranslation } from "react-i18next"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { type Currency } from "@base-dashboard/shared"
-import { fetchCityStockApi } from "@/lib/inventory"
 import { fetchClientOptionsApi } from "@/lib/clients"
-import { fetchCityOptionsApi } from "@/lib/cities"
 import { createSaleApi } from "@/lib/sales"
-import { useAuth } from "@/hooks/use-auth"
 import { useSaleCart, type CartItem } from "@/hooks/use-sale-cart"
-import { cn } from "@/lib/utils"
 import { toast } from "sonner"
 import {
   Dialog,
@@ -39,27 +35,12 @@ function formatPrice(value: number, currency: Currency): string {
 
 interface CartRowProps {
   item: CartItem
-  cityId: string | undefined
   onQtyChange: (qty: number) => void
   onRemove: () => void
 }
 
-function CartRow({
-  item,
-  cityId,
-  onQtyChange,
-  onRemove,
-}: CartRowProps) {
+function CartRow({ item, onQtyChange, onRemove }: CartRowProps) {
   const { t } = useTranslation()
-  const { data: stock } = useQuery({
-    queryKey: ["stock", "by-city", { productId: item.productId, cityId }],
-    queryFn: () =>
-      fetchCityStockApi({ productId: item.productId, cityId: cityId ?? "" }),
-    enabled: !!cityId,
-    staleTime: 30_000,
-  })
-  const insufficient =
-    stock != null && cityId != null && item.requestedQty > stock.totalQty
   const subtotal = item.unitPrice * item.requestedQty
 
   const isOne = item.requestedQty === 1
@@ -94,10 +75,7 @@ function CartRow({
           )}
         </Button>
         <div
-          className={cn(
-            "min-w-10 text-center text-base font-semibold tabular-nums",
-            insufficient && "text-destructive",
-          )}
+          className="min-w-10 text-center text-base font-semibold tabular-nums"
           aria-label={t("Qty")}
         >
           {item.requestedQty}
@@ -125,9 +103,7 @@ export function SaleFormDialog({
 }) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
-  const { user } = useAuth()
   const cart = useSaleCart()
-  const isAdmin = user?.role === "admin"
 
   const { data: clientOptions = [] } = useQuery({
     queryKey: ["clients", "options"],
@@ -135,22 +111,9 @@ export function SaleFormDialog({
     enabled: open,
   })
 
-  const { data: cityOptions = [] } = useQuery({
-    queryKey: ["cities", "options"],
-    queryFn: fetchCityOptionsApi,
-    enabled: open && isAdmin,
-  })
-
-  const effectiveCityId = isAdmin ? cart.cityId : user?.cityId
-
   const totalCurrency = cart.totalCurrency
 
-  const salesPersonMissingCity = !isAdmin && !user?.cityId
-  const submitDisabled =
-    cart.items.length === 0 ||
-    !cart.clientId ||
-    !effectiveCityId ||
-    salesPersonMissingCity
+  const submitDisabled = cart.items.length === 0 || !cart.clientId
 
   const mutation = useMutation({
     mutationFn: createSaleApi,
@@ -171,7 +134,6 @@ export function SaleFormDialog({
     e.preventDefault()
     if (submitDisabled) return
     mutation.mutate({
-      cityId: isAdmin ? cart.cityId : undefined,
       clientId: cart.clientId,
       notes: cart.notes.trim() || undefined,
       items: cart.items.map((i) => ({
@@ -191,39 +153,8 @@ export function SaleFormDialog({
             {t("Review your order before confirming.")}
           </DialogDescription>
         </DialogHeader>
-        {salesPersonMissingCity && (
-          <div
-            role="alert"
-            className="rounded-md border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm text-destructive"
-          >
-            {t("Your account has no assigned city. Contact an admin.")}
-          </div>
-        )}
         <form onSubmit={handleSubmit}>
           <FieldGroup>
-            {isAdmin && (
-              <Field>
-                <FieldLabel>{t("City")}</FieldLabel>
-                <Select
-                  value={cart.cityId ?? ""}
-                  onValueChange={(val) => cart.setCityId(val || undefined)}
-                  items={Object.fromEntries(
-                    cityOptions.map((c) => [c.id, c.name]),
-                  )}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder={t("Select city")} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {cityOptions.map((c) => (
-                      <SelectItem key={c.id} value={c.id}>
-                        {c.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </Field>
-            )}
             <Field>
               <FieldLabel>{t("Client")}</FieldLabel>
               <Select
@@ -270,7 +201,6 @@ export function SaleFormDialog({
                     <CartRow
                       key={item.productId}
                       item={item}
-                      cityId={effectiveCityId}
                       onQtyChange={(qty) =>
                         cart.updateQty(item.productId, qty)
                       }

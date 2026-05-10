@@ -13,6 +13,7 @@ import {
   fetchSalesPersonOptionsApi,
   salesPersonOptionsQueryKey,
 } from "@/lib/users"
+import { fetchCityOptionsApi } from "@/lib/cities"
 import { useAuth } from "@/hooks/use-auth"
 import { toast } from "sonner"
 import {
@@ -44,6 +45,7 @@ const defaultValues: CreateClientInput = {
   rif: "",
   address: "",
   phone: "",
+  cityId: "",
   salesPersonId: "",
 }
 
@@ -69,6 +71,7 @@ function clientToFormValues(client: Client): CreateClientInput {
     rif: client.rif,
     address: client.address,
     phone: client.phone,
+    cityId: client.cityId,
     salesPersonId: client.salesPersonId,
   }
 }
@@ -95,6 +98,14 @@ export function ClientFormDialog({
   })
 
   const salesPersons = salesPersonsQuery.data ?? []
+
+  const citiesQuery = useQuery({
+    queryKey: ["cities", "options"],
+    queryFn: fetchCityOptionsApi,
+    enabled: open,
+  })
+
+  const cities = citiesQuery.data ?? []
 
   const {
     register,
@@ -199,6 +210,38 @@ export function ClientFormDialog({
               {errors.phone && (
                 <FieldDescription className="text-destructive">
                   {t(errors.phone.message ?? "")}
+                </FieldDescription>
+              )}
+            </Field>
+            <Field>
+              <FieldLabel>{t("City")}</FieldLabel>
+              <Controller
+                name="cityId"
+                control={control}
+                render={({ field }) => (
+                  <Select
+                    value={field.value || ""}
+                    onValueChange={field.onChange}
+                    items={Object.fromEntries(
+                      cities.map((c) => [c.id, c.name]),
+                    )}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder={t("Select a city")} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {cities.map((c) => (
+                        <SelectItem key={c.id} value={c.id}>
+                          {c.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+              {errors.cityId && (
+                <FieldDescription className="text-destructive">
+                  {t(errors.cityId.message ?? "")}
                 </FieldDescription>
               )}
             </Field>

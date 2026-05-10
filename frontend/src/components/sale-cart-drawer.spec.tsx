@@ -17,11 +17,9 @@ interface MockCart {
   updateQty: ReturnType<typeof vi.fn>
   removeItem: ReturnType<typeof vi.fn>
   clearItems: ReturnType<typeof vi.fn>
-  setCityId: ReturnType<typeof vi.fn>
   setClientId: ReturnType<typeof vi.fn>
   setNotes: ReturnType<typeof vi.fn>
   resetAll: ReturnType<typeof vi.fn>
-  cityId: undefined
   clientId: ""
   notes: ""
 }
@@ -39,11 +37,9 @@ const mockCart: MockCart = {
   updateQty: vi.fn(),
   removeItem: vi.fn(),
   clearItems: vi.fn(),
-  setCityId: vi.fn(),
   setClientId: vi.fn(),
   setNotes: vi.fn(),
   resetAll: vi.fn(),
-  cityId: undefined,
   clientId: "",
   notes: "",
 }

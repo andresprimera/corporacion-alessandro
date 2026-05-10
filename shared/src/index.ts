@@ -9,8 +9,6 @@ export {
   type UpdateUserRoleInput,
   updateUserStatusSchema,
   type UpdateUserStatusInput,
-  updateUserCitySchema,
-  type UpdateUserCityInput,
   updateUserCommissionSchema,
   type UpdateUserCommissionInput,
   forgotPasswordSchema,
@@ -159,14 +157,6 @@ export {
   type ProductStockAggregated,
   stockByWarehouseQuerySchema,
   type StockByWarehouseQuery,
-  cityStockQuerySchema,
-  type CityStockQuery,
-  cityStockSchema,
-  type CityStock,
-  aggregatedCityStockQuerySchema,
-  type AggregatedCityStockQuery,
-  aggregatedCityStockEntrySchema,
-  type AggregatedCityStockEntry,
 } from "./schemas/inventory";
 
 export {

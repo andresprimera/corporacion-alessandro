@@ -2,7 +2,6 @@ import {
   fetchUsersApi,
   updateUserRoleApi,
   updateUserStatusApi,
-  updateUserCityApi,
   removeUserApi,
   createUserApi,
 } from "@/lib/users"
@@ -63,28 +62,6 @@ describe("users API", () => {
       expect(authFetch).toHaveBeenCalledWith("/api/users/u1/status", {
         method: "PATCH",
         body: JSON.stringify({ status: "approved" }),
-      })
-      expect(result).toEqual(user)
-    })
-  })
-
-  describe("updateUserCityApi", () => {
-    it("should PATCH /api/users/:id/city with cityId body", async () => {
-      const user = {
-        id: "u1",
-        name: "Sales",
-        email: "s@s.com",
-        role: "salesPerson",
-        cityId: "city-1",
-        cityName: "Caracas",
-      }
-      vi.mocked(authFetch).mockResolvedValue(mockJsonResponse(user))
-
-      const result = await updateUserCityApi("u1", "city-1")
-
-      expect(authFetch).toHaveBeenCalledWith("/api/users/u1/city", {
-        method: "PATCH",
-        body: JSON.stringify({ cityId: "city-1" }),
       })
       expect(result).toEqual(user)
     })

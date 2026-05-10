@@ -25,7 +25,6 @@ export interface CartItem {
 }
 
 interface PersistedCart {
-  cityId?: string
   clientId: string
   notes: string
   items: CartItem[]
@@ -64,7 +63,6 @@ function clearStoredCart(userId: string): void {
 
 interface SaleCartContextValue {
   items: CartItem[]
-  cityId: string | undefined
   clientId: string
   notes: string
 
@@ -72,7 +70,6 @@ interface SaleCartContextValue {
   updateQty: (productId: string, qty: number) => void
   removeItem: (productId: string) => void
   clearItems: () => void
-  setCityId: (cityId: string | undefined) => void
   setClientId: (clientId: string) => void
   setNotes: (notes: string) => void
   resetAll: () => void
@@ -98,7 +95,6 @@ export function SaleCartProvider({
   const userId = user?.id
 
   const [items, setItems] = useState<CartItem[]>([])
-  const [cityId, setCityIdState] = useState<string | undefined>(undefined)
   const [clientId, setClientIdState] = useState<string>("")
   const [notes, setNotes] = useState<string>("")
   const [isDrawerOpen, setIsDrawerOpen] = useState<boolean>(false)
@@ -110,7 +106,6 @@ export function SaleCartProvider({
     const saved = loadCart(userId)
     if (saved) {
       setItems(saved.items)
-      setCityIdState(saved.cityId)
       setClientIdState(saved.clientId)
       setNotes(saved.notes)
     }
@@ -118,8 +113,8 @@ export function SaleCartProvider({
 
   useEffect(() => {
     if (!userId || hydratedRef.current !== userId) return
-    saveCart(userId, { cityId, clientId, notes, items })
-  }, [userId, cityId, clientId, notes, items])
+    saveCart(userId, { clientId, notes, items })
+  }, [userId, clientId, notes, items])
 
   function addItem(
     product: Product | ProductOption,
@@ -167,11 +162,6 @@ export function SaleCartProvider({
     setNotes("")
   }
 
-  function setCityId(next: string | undefined): void {
-    if (next !== cityId && items.length > 0) setItems([])
-    setCityIdState(next)
-  }
-
   function setClientId(next: string): void {
     setClientIdState(next)
   }
@@ -179,7 +169,6 @@ export function SaleCartProvider({
   function resetAll(): void {
     setItems([])
     setNotes("")
-    setCityIdState(undefined)
     setClientIdState("")
     if (userId) clearStoredCart(userId)
   }
@@ -193,14 +182,12 @@ export function SaleCartProvider({
 
   const value: SaleCartContextValue = {
     items,
-    cityId,
     clientId,
     notes,
     addItem,
     updateQty,
     removeItem,
     clearItems,
-    setCityId,
     setClientId,
     setNotes,
     resetAll,

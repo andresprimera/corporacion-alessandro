@@ -30,8 +30,6 @@ export type SaleSoldBy = z.infer<typeof saleSoldBySchema>;
 export const saleSchema = z.object({
   id: z.string(),
   saleNumber: z.string(),
-  cityId: z.string(),
-  cityName: z.string(),
   clientId: z.string(),
   clientName: z.string(),
   notes: z.string().optional(),
@@ -53,7 +51,6 @@ const saleItemInputSchema = z.object({
 export type SaleItemInput = z.infer<typeof saleItemInputSchema>;
 
 export const createSaleSchema = z.object({
-  cityId: z.string().optional(),
   clientId: z.string().min(1, "Client is required"),
   notes: z.string().optional(),
   items: z.array(saleItemInputSchema).min(1, "At least one item is required"),

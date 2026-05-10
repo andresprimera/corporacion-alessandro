@@ -12,11 +12,9 @@ import {
   fetchUsersApi,
   updateUserRoleApi,
   updateUserStatusApi,
-  updateUserCityApi,
   updateUserCommissionApi,
   removeUserApi,
 } from "@/lib/users"
-import { fetchCityOptionsApi } from "@/lib/cities"
 import type { User } from "@base-dashboard/shared"
 import {
   Table,
@@ -124,11 +122,6 @@ export default function UsersPage() {
     placeholderData: keepPreviousData,
   })
 
-  const { data: cityOptions = [] } = useQuery({
-    queryKey: ["cities", "options"],
-    queryFn: fetchCityOptionsApi,
-  })
-
   const users = data?.data ?? []
   const meta = data?.meta
 
@@ -152,18 +145,6 @@ export default function UsersPage() {
     },
     onError: (error: Error) => {
       toast.error(t(error.message) || t("Failed to update status"))
-    },
-  })
-
-  const updateCityMutation = useMutation({
-    mutationFn: ({ userId, cityId }: { userId: string; cityId: string }) =>
-      updateUserCityApi(userId, cityId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["users"] })
-      toast.success(t("City updated"))
-    },
-    onError: (error: Error) => {
-      toast.error(t(error.message) || t("Failed to update city"))
     },
   })
 
@@ -197,10 +178,6 @@ export default function UsersPage() {
 
   function handleRoleChange(userId: string, role: string) {
     updateRoleMutation.mutate({ userId, role })
-  }
-
-  function handleCityChange(userId: string, cityId: string) {
-    updateCityMutation.mutate({ userId, cityId })
   }
 
   function handleDelete() {
@@ -239,7 +216,6 @@ export default function UsersPage() {
                 <TableHead>{t("Name")}</TableHead>
                 <TableHead>{t("Email")}</TableHead>
                 <TableHead>{t("Role")}</TableHead>
-                <TableHead>{t("City")}</TableHead>
                 <TableHead>{t("Commission %")}</TableHead>
                 <TableHead>{t("Status")}</TableHead>
                 <TableHead className="w-25">{t("Actions")}</TableHead>
@@ -257,9 +233,6 @@ export default function UsersPage() {
                     </TableCell>
                     <TableCell>
                       <Skeleton className="h-8 w-20" />
-                    </TableCell>
-                    <TableCell>
-                      <Skeleton className="h-8 w-24" />
                     </TableCell>
                     <TableCell>
                       <Skeleton className="h-8 w-20" />
@@ -329,7 +302,6 @@ export default function UsersPage() {
               <TableHead>{t("Name")}</TableHead>
               <TableHead>{t("Email")}</TableHead>
               <TableHead>{t("Role")}</TableHead>
-              <TableHead>{t("City")}</TableHead>
               <TableHead>{t("Commission %")}</TableHead>
               <TableHead>{t("Status")}</TableHead>
               <TableHead className="w-25">{t("Actions")}</TableHead>
@@ -338,7 +310,7 @@ export default function UsersPage() {
           <TableBody>
             {users.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="h-24 text-center">
+                <TableCell colSpan={6} className="h-24 text-center">
                   {t("No users found.")}
                 </TableCell>
               </TableRow>
@@ -377,33 +349,6 @@ export default function UsersPage() {
                             </SelectItem>
                           </SelectContent>
                         </Select>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {isSalesPerson ? (
-                        <Select
-                          value={u.cityId ?? ""}
-                          onValueChange={(val) =>
-                            val && handleCityChange(u.id, val)
-                          }
-                          disabled={isSelf}
-                          items={Object.fromEntries(
-                            cityOptions.map((c) => [c.id, c.name]),
-                          )}
-                        >
-                          <SelectTrigger size="sm">
-                            <SelectValue placeholder={t("Select a city")} />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {cityOptions.map((city) => (
-                              <SelectItem key={city.id} value={city.id}>
-                                {city.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      ) : (
-                        <span className="text-muted-foreground">—</span>
                       )}
                     </TableCell>
                     <TableCell>

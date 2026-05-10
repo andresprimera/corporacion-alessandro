@@ -3,12 +3,12 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { getModelToken } from '@nestjs/mongoose';
 import { CitiesService } from './cities.service';
 import { City } from './schemas/city.schema';
-import { WarehousesService } from '../warehouses/warehouses.service';
+import { ClientsService } from '../clients/clients.service';
 
 describe('CitiesService', () => {
   let service: CitiesService;
   let cityModel: Record<string, jest.Mock>;
-  let warehousesService: { existsByCity: jest.Mock };
+  let clientsService: { existsByCity: jest.Mock };
 
   const mockCity = {
     id: 'city-1',
@@ -25,13 +25,13 @@ describe('CitiesService', () => {
       findByIdAndUpdate: jest.fn(),
       findByIdAndDelete: jest.fn(),
     };
-    warehousesService = { existsByCity: jest.fn() };
+    clientsService = { existsByCity: jest.fn() };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         CitiesService,
         { provide: getModelToken(City.name), useValue: cityModel },
-        { provide: WarehousesService, useValue: warehousesService },
+        { provide: ClientsService, useValue: clientsService },
       ],
     }).compile();
 
@@ -135,18 +135,18 @@ describe('CitiesService', () => {
   });
 
   describe('remove', () => {
-    it('should delete when no warehouses reference the city', async () => {
-      warehousesService.existsByCity.mockResolvedValue(false);
+    it('deletes when no clients reference the city', async () => {
+      clientsService.existsByCity.mockResolvedValue(false);
       cityModel.findByIdAndDelete.mockResolvedValue(mockCity);
 
       await service.remove('city-1');
 
-      expect(warehousesService.existsByCity).toHaveBeenCalledWith('city-1');
+      expect(clientsService.existsByCity).toHaveBeenCalledWith('city-1');
       expect(cityModel.findByIdAndDelete).toHaveBeenCalledWith('city-1');
     });
 
-    it('should throw ConflictException when warehouses reference the city', async () => {
-      warehousesService.existsByCity.mockResolvedValue(true);
+    it('throws ConflictException when clients reference the city', async () => {
+      clientsService.existsByCity.mockResolvedValue(true);
 
       await expect(service.remove('city-1')).rejects.toThrow(
         ConflictException,

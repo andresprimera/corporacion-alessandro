@@ -9,23 +9,19 @@ import { ProductsService } from '../products/products.service';
 import { WarehousesService } from '../warehouses/warehouses.service';
 import { InventoryService } from '../inventory/inventory.service';
 import { ClientsService } from '../clients/clients.service';
-import { UsersService } from '../users/users.service';
-import { CitiesService } from '../cities/cities.service';
 
 describe('SalesService', () => {
   let service: SalesService;
   let saleModel: Record<string, jest.Mock>;
 
   const productsService = { findById: jest.fn() };
-  const warehousesService = { findActiveByCity: jest.fn() };
+  const warehousesService = { findAllActive: jest.fn() };
   const inventoryService = {
     create: jest.fn(),
     findAvailableStock: jest.fn(),
-    findCityStockForProduct: jest.fn(),
+    findTotalStockForProduct: jest.fn(),
   };
   const clientsService = { findById: jest.fn() };
-  const usersService = { findById: jest.fn() };
-  const citiesService = { findById: jest.fn() };
   const configService = {
     get: jest.fn(),
     getOrThrow: jest.fn(),
@@ -53,12 +49,10 @@ describe('SalesService', () => {
       _id: new Types.ObjectId(VALID_SALES_PERSON_ID),
       name: 'Sales User',
     },
-  };
-
-  const mockCity = {
-    id: VALID_CITY_ID,
-    name: 'Caracas',
-    isActive: true,
+    cityId: {
+      _id: new Types.ObjectId(VALID_CITY_ID),
+      name: 'Caracas',
+    },
   };
 
   beforeEach(async () => {
@@ -82,8 +76,6 @@ describe('SalesService', () => {
         { provide: WarehousesService, useValue: warehousesService },
         { provide: InventoryService, useValue: inventoryService },
         { provide: ClientsService, useValue: clientsService },
-        { provide: UsersService, useValue: usersService },
-        { provide: CitiesService, useValue: citiesService },
         { provide: ConfigService, useValue: configService },
       ],
     }).compile();
@@ -96,7 +88,6 @@ describe('SalesService', () => {
     });
 
     clientsService.findById.mockResolvedValue(mockClient);
-    citiesService.findById.mockResolvedValue(mockCity);
     productsService.findById.mockResolvedValue(mockProduct);
   });
 
@@ -105,12 +96,10 @@ describe('SalesService', () => {
     const adminActor = { role: 'admin' as const };
     const salesPersonActor = { role: 'salesPerson' as const };
 
-    function dto(overrides: Partial<{
-      cityId: string;
-      requestedQty: number;
-    }> = {}) {
+    function dto(
+      overrides: Partial<{ requestedQty: number }> = {},
+    ) {
       return {
-        cityId: overrides.cityId ?? VALID_CITY_ID,
         clientId: VALID_CLIENT_ID,
         items: [
           {
@@ -122,79 +111,27 @@ describe('SalesService', () => {
       };
     }
 
-    describe('city resolution — sales-person actor', () => {
-      it('uses the sales-person user.cityId', async () => {
-        usersService.findById.mockResolvedValue({
-          id: VALID_SALES_PERSON_ID,
-          cityId: new Types.ObjectId(VALID_CITY_ID),
-        });
-        warehousesService.findActiveByCity.mockResolvedValue([
-          { id: VALID_WAREHOUSE_A, name: 'A' },
-        ]);
-        inventoryService.findCityStockForProduct.mockResolvedValue(100);
-        inventoryService.findAvailableStock.mockResolvedValue(100);
-        saleModel.create.mockResolvedValue({ id: 'sale-1' });
-
-        await service.create(
-          { ...dto(), cityId: undefined },
-          soldBy,
-          salesPersonActor,
-        );
-
-        expect(usersService.findById).toHaveBeenCalledWith(
-          VALID_SALES_PERSON_ID,
-        );
-        expect(citiesService.findById).toHaveBeenCalledWith(VALID_CITY_ID);
-      });
-
-      it('throws BadRequestException when sales-person has no cityId', async () => {
-        usersService.findById.mockResolvedValue({
-          id: VALID_SALES_PERSON_ID,
-          cityId: undefined,
-        });
-
-        await expect(
-          service.create({ ...dto(), cityId: undefined }, soldBy, salesPersonActor),
-        ).rejects.toThrow(/no assigned city/);
-      });
-    });
-
-    describe('city resolution — admin actor', () => {
-      it('throws BadRequestException when dto.cityId is missing', async () => {
-        await expect(
-          service.create({ ...dto(), cityId: undefined }, soldBy, adminActor),
-        ).rejects.toThrow(/City is required/);
-      });
-
-      it('uses dto.cityId', async () => {
-        warehousesService.findActiveByCity.mockResolvedValue([
-          { id: VALID_WAREHOUSE_A, name: 'A' },
-        ]);
-        inventoryService.findCityStockForProduct.mockResolvedValue(100);
-        inventoryService.findAvailableStock.mockResolvedValue(100);
-        saleModel.create.mockResolvedValue({ id: 'sale-1' });
-
-        await service.create(dto(), soldBy, adminActor);
-
-        expect(usersService.findById).not.toHaveBeenCalled();
-        expect(citiesService.findById).toHaveBeenCalledWith(VALID_CITY_ID);
-      });
-    });
-
-    it('throws NotFoundException when city does not exist', async () => {
-      citiesService.findById.mockResolvedValue(null);
+    it('throws NotFoundException when client is missing', async () => {
+      clientsService.findById.mockResolvedValue(null);
 
       await expect(service.create(dto(), soldBy, adminActor)).rejects.toThrow(
         NotFoundException,
       );
     });
 
-    it('throws BadRequestException when city is inactive', async () => {
-      citiesService.findById.mockResolvedValue({ ...mockCity, isActive: false });
+    it("throws ForbiddenException when sales-person uses another sales person's client", async () => {
+      clientsService.findById.mockResolvedValue({
+        ...mockClient,
+        salesPersonId: {
+          _id: new Types.ObjectId(OTHER_SALES_PERSON_ID),
+          name: 'Other Sales User',
+        },
+      });
 
-      await expect(service.create(dto(), soldBy, adminActor)).rejects.toThrow(
-        /inactive/,
-      );
+      await expect(
+        service.create(dto(), soldBy, salesPersonActor),
+      ).rejects.toThrow(/another sales person/);
+      expect(saleModel.create).not.toHaveBeenCalled();
     });
 
     it('throws NotFoundException when product is missing', async () => {
@@ -205,20 +142,19 @@ describe('SalesService', () => {
       );
     });
 
-    it('throws BadRequestException with city name when city stock is insufficient', async () => {
-      inventoryService.findCityStockForProduct.mockResolvedValue(5);
+    it('throws BadRequestException when total stock is insufficient', async () => {
+      inventoryService.findTotalStockForProduct.mockResolvedValue(5);
 
       await expect(
         service.create(dto({ requestedQty: 10 }), soldBy, adminActor),
-      ).rejects.toThrow(/Insufficient stock.+Caracas/);
+      ).rejects.toThrow(/Insufficient stock/);
       expect(inventoryService.create).not.toHaveBeenCalled();
     });
 
     it('aggregates duplicate productIds across items before checking stock', async () => {
-      inventoryService.findCityStockForProduct.mockResolvedValue(50);
+      inventoryService.findTotalStockForProduct.mockResolvedValue(50);
 
       const reqDto = {
-        cityId: VALID_CITY_ID,
         clientId: VALID_CLIENT_ID,
         items: [
           { productId: VALID_PRODUCT_ID, requestedQty: 30, unitPrice: 1.5 },
@@ -232,13 +168,12 @@ describe('SalesService', () => {
     });
 
     it('auto-allocates by stock-desc, name-asc tiebreaker, depleting largest pocket first', async () => {
-      // Three warehouses: A=20, B=80, C=80. Order should be B,C,A. Request 90 → B(80) + C(10).
-      warehousesService.findActiveByCity.mockResolvedValue([
+      warehousesService.findAllActive.mockResolvedValue([
         { id: VALID_WAREHOUSE_A, name: 'C-Almacen' },
         { id: VALID_WAREHOUSE_B, name: 'A-Almacen' },
         { id: '507f1f77bcf86cd799439023', name: 'B-Almacen' },
       ]);
-      inventoryService.findCityStockForProduct.mockResolvedValue(180);
+      inventoryService.findTotalStockForProduct.mockResolvedValue(180);
       inventoryService.findAvailableStock.mockImplementation(
         async (_p: string, w: string) => {
           if (w === VALID_WAREHOUSE_A) return 20;
@@ -246,13 +181,15 @@ describe('SalesService', () => {
           return 80;
         },
       );
-      saleModel.create.mockResolvedValue({ id: 'sale-1', saleNumber: 'S-X-00001' });
+      saleModel.create.mockResolvedValue({
+        id: 'sale-1',
+        saleNumber: 'S-X-00001',
+      });
 
       await service.create(dto({ requestedQty: 90 }), soldBy, adminActor);
 
       const inserted = saleModel.create.mock.calls[0][0];
       const allocations = inserted.items[0].allocations;
-      // First taken from B-Almacen (80), then C-Almacen (10).
       expect(allocations).toHaveLength(2);
       expect(allocations[0].warehouseName).toBe('A-Almacen');
       expect(allocations[0].qty).toBe(80);
@@ -261,15 +198,18 @@ describe('SalesService', () => {
     });
 
     it('skips warehouses with zero stock during auto-allocation', async () => {
-      warehousesService.findActiveByCity.mockResolvedValue([
+      warehousesService.findAllActive.mockResolvedValue([
         { id: VALID_WAREHOUSE_A, name: 'A' },
         { id: VALID_WAREHOUSE_B, name: 'B' },
       ]);
-      inventoryService.findCityStockForProduct.mockResolvedValue(50);
+      inventoryService.findTotalStockForProduct.mockResolvedValue(50);
       inventoryService.findAvailableStock.mockImplementation(
         async (_p: string, w: string) => (w === VALID_WAREHOUSE_A ? 0 : 50),
       );
-      saleModel.create.mockResolvedValue({ id: 'sale-1', saleNumber: 'S-X-00001' });
+      saleModel.create.mockResolvedValue({
+        id: 'sale-1',
+        saleNumber: 'S-X-00001',
+      });
 
       await service.create(dto({ requestedQty: 30 }), soldBy, adminActor);
 
@@ -280,27 +220,29 @@ describe('SalesService', () => {
       expect(allocations[0].qty).toBe(30);
     });
 
-    it('persists cityId and cityName on the sale', async () => {
-      warehousesService.findActiveByCity.mockResolvedValue([
+    it('persists clientId and clientName on the sale (no city fields)', async () => {
+      warehousesService.findAllActive.mockResolvedValue([
         { id: VALID_WAREHOUSE_A, name: 'A' },
       ]);
-      inventoryService.findCityStockForProduct.mockResolvedValue(100);
+      inventoryService.findTotalStockForProduct.mockResolvedValue(100);
       inventoryService.findAvailableStock.mockResolvedValue(100);
       saleModel.create.mockResolvedValue({ id: 'sale-1' });
 
       await service.create(dto(), soldBy, adminActor);
 
       const inserted = saleModel.create.mock.calls[0][0];
-      expect(inserted.cityId.toString()).toBe(VALID_CITY_ID);
-      expect(inserted.cityName).toBe('Caracas');
+      expect(inserted.clientId.toString()).toBe(VALID_CLIENT_ID);
+      expect(inserted.clientName).toBe('Bodega Local');
+      expect(inserted.cityId).toBeUndefined();
+      expect(inserted.cityName).toBeUndefined();
     });
 
     it('emits one outbound transaction per allocation', async () => {
-      warehousesService.findActiveByCity.mockResolvedValue([
+      warehousesService.findAllActive.mockResolvedValue([
         { id: VALID_WAREHOUSE_A, name: 'A' },
         { id: VALID_WAREHOUSE_B, name: 'B' },
       ]);
-      inventoryService.findCityStockForProduct.mockResolvedValue(100);
+      inventoryService.findTotalStockForProduct.mockResolvedValue(100);
       inventoryService.findAvailableStock.mockImplementation(
         async (_p: string, w: string) => (w === VALID_WAREHOUSE_A ? 30 : 30),
       );
@@ -320,38 +262,11 @@ describe('SalesService', () => {
       expect(calls[0][2]).toEqual({ skipValidation: true });
     });
 
-    it('throws NotFoundException when client is missing', async () => {
-      clientsService.findById.mockResolvedValue(null);
-
-      await expect(service.create(dto(), soldBy, adminActor)).rejects.toThrow(
-        NotFoundException,
-      );
-    });
-
-    it("throws ForbiddenException when sales-person uses another sales person's client", async () => {
-      usersService.findById.mockResolvedValue({
-        id: VALID_SALES_PERSON_ID,
-        cityId: new Types.ObjectId(VALID_CITY_ID),
-      });
-      clientsService.findById.mockResolvedValue({
-        ...mockClient,
-        salesPersonId: {
-          _id: new Types.ObjectId(OTHER_SALES_PERSON_ID),
-          name: 'Other Sales User',
-        },
-      });
-
-      await expect(
-        service.create({ ...dto(), cityId: undefined }, soldBy, salesPersonActor),
-      ).rejects.toThrow(/another sales person/);
-      expect(saleModel.create).not.toHaveBeenCalled();
-    });
-
     it('retries the saleNumber generation on duplicate-key without re-running inventory writes', async () => {
-      warehousesService.findActiveByCity.mockResolvedValue([
+      warehousesService.findAllActive.mockResolvedValue([
         { id: VALID_WAREHOUSE_A, name: 'A' },
       ]);
-      inventoryService.findCityStockForProduct.mockResolvedValue(100);
+      inventoryService.findTotalStockForProduct.mockResolvedValue(100);
       inventoryService.findAvailableStock.mockResolvedValue(100);
 
       const dupErr = Object.assign(new Error('duplicate'), { code: 11000 });
@@ -371,10 +286,10 @@ describe('SalesService', () => {
         sort: jest.fn().mockReturnThis(),
         select: jest.fn().mockResolvedValue({ saleNumber: `S-${year}-00042` }),
       });
-      warehousesService.findActiveByCity.mockResolvedValue([
+      warehousesService.findAllActive.mockResolvedValue([
         { id: VALID_WAREHOUSE_A, name: 'A' },
       ]);
-      inventoryService.findCityStockForProduct.mockResolvedValue(100);
+      inventoryService.findTotalStockForProduct.mockResolvedValue(100);
       inventoryService.findAvailableStock.mockResolvedValue(100);
       saleModel.create.mockResolvedValue({ id: 'sale-1' });
 
@@ -409,8 +324,6 @@ describe('SalesService', () => {
       return {
         id: VALID_SALE_ID,
         saleNumber: 'S-2026-00001',
-        cityId: new Types.ObjectId(VALID_CITY_ID),
-        cityName: 'Caracas',
         clientId: new Types.ObjectId(VALID_CLIENT_ID),
         clientName: 'Bodega Local',
         notes: undefined,
@@ -508,6 +421,10 @@ describe('SalesService', () => {
         rif: '123.456.789-0',
         address: 'Av. Principal',
         phone: '0212-1234567',
+        cityId: {
+          _id: new Types.ObjectId(VALID_CITY_ID),
+          name: 'Caracas',
+        },
       };
 
       it('returns a PDF buffer for an admin', async () => {

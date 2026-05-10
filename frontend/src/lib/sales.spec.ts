@@ -71,19 +71,6 @@ describe("sales API", () => {
       expect(result).toEqual(sale)
     })
 
-    it("should include cityId when provided (admin path)", async () => {
-      vi.mocked(authFetch).mockResolvedValue(mockJsonResponse({ id: "s1" }))
-
-      const data = {
-        cityId: "city-1",
-        clientId: "c1",
-        items: [{ productId: "p1", requestedQty: 1, unitPrice: 1 }],
-      }
-      await createSaleApi(data)
-
-      const body = vi.mocked(authFetch).mock.calls[0][1]?.body as string
-      expect(JSON.parse(body)).toMatchObject({ cityId: "city-1" })
-    })
   })
 
   describe("updateSaleApi", () => {

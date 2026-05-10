@@ -225,15 +225,12 @@ describe('SeederService', () => {
       expect(citiesService.create).not.toHaveBeenCalled();
     });
 
-    it('should seed warehouses against existing cities', async () => {
+    it('should seed warehouses', async () => {
       enableDemo();
       citiesService.findAllPaginated.mockResolvedValue({ data: [], total: 1 });
       warehousesService.findAllPaginated.mockResolvedValue({ data: [], total: 0 });
       productsService.findAllPaginated.mockResolvedValue({ data: [], total: 1 });
       inventoryService.findAllPaginated.mockResolvedValue({ data: [], total: 1 });
-      citiesService.findActiveOptions.mockResolvedValue(
-        demoCities.map((c, i) => ({ id: `city-${i}`, name: c.name })),
-      );
 
       await service.onModuleInit();
 
@@ -241,26 +238,8 @@ describe('SeederService', () => {
       const firstCall = warehousesService.create.mock.calls[0][0];
       expect(firstCall).toMatchObject({
         name: 'Almacén Caracas Norte',
-        cityId: 'city-0',
         isActive: true,
       });
-    });
-
-    it('should skip warehouses whose city is missing', async () => {
-      enableDemo();
-      citiesService.findAllPaginated.mockResolvedValue({ data: [], total: 1 });
-      warehousesService.findAllPaginated.mockResolvedValue({ data: [], total: 0 });
-      productsService.findAllPaginated.mockResolvedValue({ data: [], total: 1 });
-      inventoryService.findAllPaginated.mockResolvedValue({ data: [], total: 1 });
-      citiesService.findActiveOptions.mockResolvedValue([
-        { id: 'city-0', name: 'Caracas' },
-      ]);
-
-      await service.onModuleInit();
-
-      // Only Caracas warehouses get created (2 of them)
-      const caracasOnly = demoWarehouses.filter((w) => w.cityName === 'Caracas');
-      expect(warehousesService.create).toHaveBeenCalledTimes(caracasOnly.length);
     });
 
     it('should seed products when none exist, resolving unit names to ids', async () => {

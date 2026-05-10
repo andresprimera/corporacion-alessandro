@@ -136,17 +136,6 @@ describe("useSaleCart", () => {
     expect(result.current.notes).toBe("")
   })
 
-  it("setCityId clears items when city changes and items is non-empty", () => {
-    const { result } = renderHook(() => useSaleCart(), { wrapper: wrap })
-
-    act(() => result.current.setCityId("city-a"))
-    act(() => result.current.addItem(liquor, 1))
-    act(() => result.current.setCityId("city-b"))
-
-    expect(result.current.cityId).toBe("city-b")
-    expect(result.current.items).toEqual([])
-  })
-
   it("setClientId preserves items when client changes", () => {
     const { result } = renderHook(() => useSaleCart(), { wrapper: wrap })
 
@@ -209,7 +198,6 @@ describe("useSaleCart", () => {
     localStorage.setItem(
       "sale-cart-v1:user-1",
       JSON.stringify({
-        cityId: "city-a",
         clientId: "client-a",
         notes: "old notes",
         items: [
@@ -229,7 +217,6 @@ describe("useSaleCart", () => {
 
     expect(result.current.items).toHaveLength(1)
     expect(result.current.items[0].requestedQty).toBe(4)
-    expect(result.current.cityId).toBe("city-a")
     expect(result.current.clientId).toBe("client-a")
     expect(result.current.notes).toBe("old notes")
   })
@@ -240,14 +227,12 @@ describe("useSaleCart", () => {
 
     act(() => result.current.addItem(liquor, 1))
     act(() => result.current.setNotes("hello"))
-    act(() => result.current.setCityId("city-a"))
     act(() => result.current.setClientId("client-a"))
 
     act(() => result.current.resetAll())
 
     expect(result.current.items).toEqual([])
     expect(result.current.notes).toBe("")
-    expect(result.current.cityId).toBeUndefined()
     expect(result.current.clientId).toBe("")
     expect(removeItemSpy).toHaveBeenCalledWith("sale-cart-v1:user-1")
   })

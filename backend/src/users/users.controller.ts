@@ -19,7 +19,6 @@ import {
 import * as bcrypt from 'bcrypt';
 import { UsersService } from './users.service';
 import { toUser } from './utils/to-user';
-import { CitiesService } from '../cities/cities.service';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
@@ -29,8 +28,6 @@ import {
   type UpdateUserRoleInput,
   updateUserStatusSchema,
   type UpdateUserStatusInput,
-  updateUserCitySchema,
-  type UpdateUserCityInput,
   updateUserCommissionSchema,
   type UpdateUserCommissionInput,
   type PaginatedResponse,
@@ -56,20 +53,7 @@ import {
 
 @Controller('users')
 export class UsersController {
-  constructor(
-    private usersService: UsersService,
-    private citiesService: CitiesService,
-  ) {}
-
-  private async assertActiveCity(cityId: string): Promise<void> {
-    const city = await this.citiesService.findById(cityId);
-    if (!city) {
-      throw new NotFoundException('City not found');
-    }
-    if (!city.isActive) {
-      throw new BadRequestException('City is inactive');
-    }
-  }
+  constructor(private usersService: UsersService) {}
 
   // --- Current user endpoints (all authenticated users) ---
 
@@ -131,9 +115,6 @@ export class UsersController {
     if (existingUser) {
       throw new ConflictException('Email already in use');
     }
-    if (dto.cityId) {
-      await this.assertActiveCity(dto.cityId);
-    }
     const hashedPassword = await bcrypt.hash(dto.password, 12);
     const user = await this.usersService.create({
       name: dto.name,
@@ -141,7 +122,6 @@ export class UsersController {
       role: dto.role,
       password: hashedPassword,
       status: dto.role === 'salesPerson' ? 'approved' : undefined,
-      cityId: dto.cityId,
     });
     return toUser(user);
   }
@@ -238,33 +218,6 @@ export class UsersController {
       throw new BadRequestException('User is not a sales person');
     }
     const user = await this.usersService.updateStatus(id, dto.status);
-    if (!user) {
-      throw new NotFoundException('User not found');
-    }
-    return toUser(user);
-  }
-
-  @Patch(':id/city')
-  @UseGuards(RolesGuard)
-  @Roles('admin')
-  async updateCity(
-    @Param('id') id: string,
-    @Body(new ZodValidationPipe(updateUserCitySchema))
-    dto: UpdateUserCityInput,
-    @CurrentUser('userId') currentUserId: string,
-  ): Promise<User> {
-    if (id === currentUserId) {
-      throw new ForbiddenException('Cannot change your own city');
-    }
-    const target = await this.usersService.findById(id);
-    if (!target) {
-      throw new NotFoundException('User not found');
-    }
-    if (target.role !== 'salesPerson') {
-      throw new BadRequestException('User is not a sales person');
-    }
-    await this.assertActiveCity(dto.cityId);
-    const user = await this.usersService.updateCity(id, dto.cityId);
     if (!user) {
       throw new NotFoundException('User not found');
     }

@@ -1,5 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { HydratedDocument, SchemaTypes, Types } from 'mongoose';
+import { HydratedDocument } from 'mongoose';
 
 export type WarehouseDocument = HydratedDocument<Warehouse>;
 
@@ -7,9 +7,6 @@ export type WarehouseDocument = HydratedDocument<Warehouse>;
 export class Warehouse {
   @Prop({ required: true, unique: true, trim: true })
   name: string;
-
-  @Prop({ type: SchemaTypes.ObjectId, ref: 'City', required: true })
-  cityId: Types.ObjectId;
 
   @Prop({ required: false, trim: true })
   address?: string;

@@ -4,6 +4,7 @@ import { useQuery, keepPreviousData } from "@tanstack/react-query"
 import {
   fetchStockAggregatedApi,
   fetchStockByWarehouseApi,
+  formatPackagedQty,
 } from "@/lib/inventory"
 import { fetchWarehouseOptionsApi } from "@/lib/warehouses"
 import type { ProductKind } from "@base-dashboard/shared"
@@ -131,7 +132,14 @@ function AggregatedTab() {
                       {kindLabel(row.productKind, t)}
                     </Badge>
                   </TableCell>
-                  <TableCell>{row.totalQty}</TableCell>
+                  <TableCell>
+                    {formatPackagedQty({
+                      qty: row.totalQty,
+                      basicUnit: row.productBasicUnit,
+                      packageUnit: row.productPackageUnit,
+                      unitsPerPackage: row.productUnitsPerPackage,
+                    })}
+                  </TableCell>
                 </TableRow>
               ))
             )}
@@ -207,12 +215,7 @@ function ByWarehouseTab() {
           }}
           items={{
             [ALL_WAREHOUSES]: t("All warehouses"),
-            ...Object.fromEntries(
-              warehouses.map((w) => [
-                w.id,
-                w.cityName ? `${w.name} — ${w.cityName}` : w.name,
-              ]),
-            ),
+            ...Object.fromEntries(warehouses.map((w) => [w.id, w.name])),
           }}
         >
           <SelectTrigger className="w-64">
@@ -224,7 +227,7 @@ function ByWarehouseTab() {
             </SelectItem>
             {warehouses.map((w) => (
               <SelectItem key={w.id} value={w.id}>
-                {w.cityName ? `${w.name} — ${w.cityName}` : w.name}
+                {w.name}
               </SelectItem>
             ))}
           </SelectContent>
@@ -302,7 +305,14 @@ function ByWarehouseTab() {
                         </Badge>
                       </TableCell>
                       <TableCell>{row.warehouseName}</TableCell>
-                      <TableCell>{row.totalQty}</TableCell>
+                      <TableCell>
+                        {formatPackagedQty({
+                          qty: row.totalQty,
+                          basicUnit: row.productBasicUnit,
+                          packageUnit: row.productPackageUnit,
+                          unitsPerPackage: row.productUnitsPerPackage,
+                        })}
+                      </TableCell>
                     </TableRow>
                   ))
                 )}

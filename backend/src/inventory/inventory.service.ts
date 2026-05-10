@@ -16,7 +16,6 @@ import { ProductsService } from '../products/products.service';
 import { WarehousesService } from '../warehouses/warehouses.service';
 import { readPopulatedRef } from '../common/utils/populated-ref';
 import type {
-  AggregatedCityStockEntry,
   CreateInventoryTransactionInput,
   InventoryTransactionCreatedBy,
   PaginationQuery,
@@ -149,7 +148,14 @@ export class InventoryService {
       createdBy,
     });
     await created.populate([
-      { path: 'productId', select: 'name kind' },
+      {
+        path: 'productId',
+        select: 'name kind basicUnitId packageUnitId unitsPerPackage',
+        populate: [
+          { path: 'basicUnitId', select: 'name abbreviation' },
+          { path: 'packageUnitId', select: 'name abbreviation' },
+        ],
+      },
       { path: 'warehouseId', select: 'name' },
       { path: 'enteredUnitId', select: 'name abbreviation' },
     ]);
@@ -167,7 +173,14 @@ export class InventoryService {
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit)
-        .populate('productId', 'name kind')
+        .populate({
+          path: 'productId',
+          select: 'name kind basicUnitId packageUnitId unitsPerPackage',
+          populate: [
+            { path: 'basicUnitId', select: 'name abbreviation' },
+            { path: 'packageUnitId', select: 'name abbreviation' },
+          ],
+        })
         .populate('warehouseId', 'name')
         .populate('enteredUnitId', 'name abbreviation'),
       this.inventoryModel.countDocuments(),
@@ -178,7 +191,14 @@ export class InventoryService {
   async findById(id: string): Promise<InventoryTransactionDocument | null> {
     return this.inventoryModel
       .findById(id)
-      .populate('productId', 'name kind')
+      .populate({
+        path: 'productId',
+        select: 'name kind basicUnitId packageUnitId unitsPerPackage',
+        populate: [
+          { path: 'basicUnitId', select: 'name abbreviation' },
+          { path: 'packageUnitId', select: 'name abbreviation' },
+        ],
+      })
       .populate('warehouseId', 'name')
       .populate('enteredUnitId', 'name abbreviation');
   }
@@ -267,7 +287,14 @@ export class InventoryService {
 
     return this.inventoryModel
       .findByIdAndUpdate(id, update, { new: true })
-      .populate('productId', 'name kind')
+      .populate({
+        path: 'productId',
+        select: 'name kind basicUnitId packageUnitId unitsPerPackage',
+        populate: [
+          { path: 'basicUnitId', select: 'name abbreviation' },
+          { path: 'packageUnitId', select: 'name abbreviation' },
+        ],
+      })
       .populate('warehouseId', 'name')
       .populate('enteredUnitId', 'name abbreviation');
   }
@@ -302,21 +329,11 @@ export class InventoryService {
     return result?.totalQty ?? 0;
   }
 
-  async findCityStockForProduct(
-    productId: string,
-    cityId: string,
-  ): Promise<number> {
-    const warehouses = await this.warehousesService.findActiveByCity(cityId);
-    if (warehouses.length === 0) return 0;
-    const warehouseIds = warehouses.map(
-      (w) => new Types.ObjectId(w.id as string),
-    );
-
+  async findTotalStockForProduct(productId: string): Promise<number> {
     const [result] = await this.inventoryModel.aggregate<{ totalQty: number }>([
       {
         $match: {
           productId: new Types.ObjectId(productId),
-          warehouseId: { $in: warehouseIds },
         },
       },
       {
@@ -327,33 +344,6 @@ export class InventoryService {
       },
     ]);
     return result?.totalQty ?? 0;
-  }
-
-  async findAggregatedCityStock(
-    cityId: string,
-  ): Promise<AggregatedCityStockEntry[]> {
-    const warehouses = await this.warehousesService.findActiveByCity(cityId);
-    if (warehouses.length === 0) return [];
-    const warehouseIds = warehouses.map(
-      (w) => new Types.ObjectId(w.id as string),
-    );
-
-    return this.inventoryModel.aggregate<AggregatedCityStockEntry>([
-      { $match: { warehouseId: { $in: warehouseIds } } },
-      {
-        $group: {
-          _id: '$productId',
-          totalQty: signedQtySum,
-        },
-      },
-      {
-        $project: {
-          _id: 0,
-          productId: { $toString: '$_id' },
-          totalQty: 1,
-        },
-      },
-    ]);
   }
 
   async findStockByWarehouse(
@@ -399,6 +389,22 @@ export class InventoryService {
       { $unwind: '$product' },
       { $unwind: '$warehouse' },
       {
+        $lookup: {
+          from: 'units',
+          localField: 'product.basicUnitId',
+          foreignField: '_id',
+          as: 'basicUnit',
+        },
+      },
+      {
+        $lookup: {
+          from: 'units',
+          localField: 'product.packageUnitId',
+          foreignField: '_id',
+          as: 'packageUnit',
+        },
+      },
+      {
         $project: {
           _id: 0,
           productId: { $toString: '$_id.productId' },
@@ -407,6 +413,9 @@ export class InventoryService {
           warehouseId: { $toString: '$_id.warehouseId' },
           warehouseName: '$warehouse.name',
           totalQty: 1,
+          basicUnitDoc: { $arrayElemAt: ['$basicUnit', 0] },
+          packageUnitDoc: { $arrayElemAt: ['$packageUnit', 0] },
+          unitsPerPackage: '$product.unitsPerPackage',
         },
       },
       { $sort: { productName: 1, warehouseName: 1 } },
@@ -419,11 +428,11 @@ export class InventoryService {
     ];
 
     const [result] = await this.inventoryModel.aggregate<
-      StockFacetResult<ProductStockByWarehouse>
+      StockFacetResult<RawStockRow & { warehouseId: string; warehouseName: string }>
     >(pipeline);
 
     return {
-      data: result?.data ?? [],
+      data: (result?.data ?? []).map(toProductStockByWarehouse),
       total: result?.total[0]?.count ?? 0,
     };
   }
@@ -450,12 +459,31 @@ export class InventoryService {
       },
       { $unwind: '$product' },
       {
+        $lookup: {
+          from: 'units',
+          localField: 'product.basicUnitId',
+          foreignField: '_id',
+          as: 'basicUnit',
+        },
+      },
+      {
+        $lookup: {
+          from: 'units',
+          localField: 'product.packageUnitId',
+          foreignField: '_id',
+          as: 'packageUnit',
+        },
+      },
+      {
         $project: {
           _id: 0,
           productId: { $toString: '$_id' },
           productName: '$product.name',
           productKind: '$product.kind',
           totalQty: 1,
+          basicUnitDoc: { $arrayElemAt: ['$basicUnit', 0] },
+          packageUnitDoc: { $arrayElemAt: ['$packageUnit', 0] },
+          unitsPerPackage: '$product.unitsPerPackage',
         },
       },
       { $sort: { productName: 1 } },
@@ -468,12 +496,69 @@ export class InventoryService {
     ];
 
     const [result] = await this.inventoryModel.aggregate<
-      StockFacetResult<ProductStockAggregated>
+      StockFacetResult<RawStockRow>
     >(pipeline);
 
     return {
-      data: result?.data ?? [],
+      data: (result?.data ?? []).map(toProductStockAggregated),
       total: result?.total[0]?.count ?? 0,
     };
   }
+}
+
+interface RawUnitDoc {
+  _id: Types.ObjectId;
+  name: string;
+  abbreviation: string;
+}
+
+interface RawStockRow {
+  productId: string;
+  productName: string;
+  productKind: string;
+  totalQty: number;
+  basicUnitDoc?: RawUnitDoc | null;
+  packageUnitDoc?: RawUnitDoc | null;
+  unitsPerPackage?: number | null;
+}
+
+function rawUnitToRef(
+  raw: RawUnitDoc | null | undefined,
+):
+  | { id: string; name: string; abbreviation: string }
+  | undefined {
+  if (!raw) return undefined;
+  return {
+    id: raw._id.toString(),
+    name: raw.name,
+    abbreviation: raw.abbreviation,
+  };
+}
+
+function toProductStockAggregated(row: RawStockRow): ProductStockAggregated {
+  return {
+    productId: row.productId,
+    productName: row.productName,
+    productKind: row.productKind as ProductStockAggregated['productKind'],
+    totalQty: row.totalQty,
+    productBasicUnit: rawUnitToRef(row.basicUnitDoc),
+    productPackageUnit: rawUnitToRef(row.packageUnitDoc),
+    productUnitsPerPackage: row.unitsPerPackage ?? undefined,
+  };
+}
+
+function toProductStockByWarehouse(
+  row: RawStockRow & { warehouseId: string; warehouseName: string },
+): ProductStockByWarehouse {
+  return {
+    productId: row.productId,
+    productName: row.productName,
+    productKind: row.productKind as ProductStockByWarehouse['productKind'],
+    warehouseId: row.warehouseId,
+    warehouseName: row.warehouseName,
+    totalQty: row.totalQty,
+    productBasicUnit: rawUnitToRef(row.basicUnitDoc),
+    productPackageUnit: rawUnitToRef(row.packageUnitDoc),
+    productUnitsPerPackage: row.unitsPerPackage ?? undefined,
+  };
 }

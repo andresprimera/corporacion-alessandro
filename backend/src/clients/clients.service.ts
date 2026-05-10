@@ -1,12 +1,16 @@
 import {
+  BadRequestException,
   ConflictException,
+  Inject,
   Injectable,
   NotFoundException,
+  forwardRef,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { FilterQuery, Model, Types, isValidObjectId } from 'mongoose';
 import { Client, ClientDocument } from './schemas/client.schema';
 import { UsersService } from '../users/users.service';
+import { CitiesService } from '../cities/cities.service';
 import { isDuplicateKeyError } from '../common/utils/mongo-errors';
 import type {
   ClientOption,
@@ -23,6 +27,8 @@ export class ClientsService {
   constructor(
     @InjectModel(Client.name) private clientModel: Model<Client>,
     private usersService: UsersService,
+    @Inject(forwardRef(() => CitiesService))
+    private citiesService: CitiesService,
   ) {}
 
   private async assertSalesPerson(salesPersonId: string): Promise<void> {
@@ -35,14 +41,29 @@ export class ClientsService {
     }
   }
 
+  private async assertActiveCity(cityId: string): Promise<void> {
+    const city = await this.citiesService.findById(cityId);
+    if (!city) {
+      throw new NotFoundException('City not found');
+    }
+    if (!city.isActive) {
+      throw new BadRequestException('City is inactive');
+    }
+  }
+
   async create(data: CreateClientData): Promise<ClientDocument> {
     await this.assertSalesPerson(data.salesPersonId);
+    await this.assertActiveCity(data.cityId);
     try {
       const created = await this.clientModel.create({
         ...data,
         salesPersonId: new Types.ObjectId(data.salesPersonId),
+        cityId: new Types.ObjectId(data.cityId),
       });
-      await created.populate('salesPersonId', 'name');
+      await created.populate([
+        { path: 'salesPersonId', select: 'name' },
+        { path: 'cityId', select: 'name' },
+      ]);
       return created;
     } catch (err) {
       if (isDuplicateKeyError(err)) {
@@ -57,12 +78,15 @@ export class ClientsService {
   async findAllPaginated(
     page: number,
     limit: number,
-    opts?: { salesPersonId?: string },
+    opts?: { salesPersonId?: string; cityId?: string },
   ): Promise<{ data: ClientDocument[]; total: number }> {
     const skip = (page - 1) * limit;
     const filter: FilterQuery<Client> = {};
     if (opts?.salesPersonId) {
       filter.salesPersonId = new Types.ObjectId(opts.salesPersonId);
+    }
+    if (opts?.cityId) {
+      filter.cityId = new Types.ObjectId(opts.cityId);
     }
     const [data, total] = await Promise.all([
       this.clientModel
@@ -70,7 +94,8 @@ export class ClientsService {
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit)
-        .populate('salesPersonId', 'name'),
+        .populate('salesPersonId', 'name')
+        .populate('cityId', 'name'),
       this.clientModel.countDocuments(filter),
     ]);
     return { data, total };
@@ -78,7 +103,10 @@ export class ClientsService {
 
   async findById(id: string): Promise<ClientDocument | null> {
     if (!isValidObjectId(id)) return null;
-    return this.clientModel.findById(id).populate('salesPersonId', 'name');
+    return this.clientModel
+      .findById(id)
+      .populate('salesPersonId', 'name')
+      .populate('cityId', 'name');
   }
 
   async update(
@@ -88,15 +116,22 @@ export class ClientsService {
     if (data.salesPersonId) {
       await this.assertSalesPerson(data.salesPersonId);
     }
-    const { salesPersonId, ...rest } = data;
+    if (data.cityId) {
+      await this.assertActiveCity(data.cityId);
+    }
+    const { salesPersonId, cityId, ...rest } = data;
     const update: Record<string, unknown> = { ...rest };
     if (salesPersonId !== undefined) {
       update.salesPersonId = new Types.ObjectId(salesPersonId);
     }
+    if (cityId !== undefined) {
+      update.cityId = new Types.ObjectId(cityId);
+    }
     try {
       return await this.clientModel
         .findByIdAndUpdate(id, update, { new: true })
-        .populate('salesPersonId', 'name');
+        .populate('salesPersonId', 'name')
+        .populate('cityId', 'name');
     } catch (err) {
       if (isDuplicateKeyError(err)) {
         throw new ConflictException(
@@ -122,5 +157,10 @@ export class ClientsService {
       .find(filter, { name: 1, rif: 1 })
       .sort({ name: 1 });
     return docs.map((d) => ({ id: d.id, name: d.name, rif: d.rif }));
+  }
+
+  async existsByCity(cityId: string): Promise<boolean> {
+    const result = await this.clientModel.exists({ cityId });
+    return result !== null;
   }
 }

@@ -18,10 +18,6 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe';
 import {
-  PopulatedRefBase,
-  readPopulatedRef,
-} from '../common/utils/populated-ref';
-import {
   type PaginatedResponse,
   type Warehouse,
   type WarehouseOption,
@@ -37,17 +33,10 @@ import {
   type UpdateWarehouseInput,
 } from './dto/update-warehouse.dto';
 
-interface PopulatedCity extends PopulatedRefBase {
-  name?: string;
-}
-
 function toWarehouse(doc: WarehouseDocument): Warehouse {
-  const city = readPopulatedRef<PopulatedCity>(doc.cityId);
   return {
     id: doc.id,
     name: doc.name,
-    cityId: city.id,
-    cityName: city.doc?.name,
     address: doc.address,
     isActive: doc.isActive,
     createdAt: doc.get('createdAt').toISOString(),

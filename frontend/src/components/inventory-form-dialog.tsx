@@ -281,10 +281,7 @@ export function InventoryFormDialog({
                     value={field.value || ""}
                     onValueChange={field.onChange}
                     items={Object.fromEntries(
-                      warehouses.map((w) => [
-                        w.id,
-                        w.cityName ? `${w.name} — ${w.cityName}` : w.name,
-                      ]),
+                      warehouses.map((w) => [w.id, w.name]),
                     )}
                   >
                     <SelectTrigger>
@@ -293,7 +290,7 @@ export function InventoryFormDialog({
                     <SelectContent>
                       {warehouses.map((w) => (
                         <SelectItem key={w.id} value={w.id}>
-                          {w.cityName ? `${w.name} — ${w.cityName}` : w.name}
+                          {w.name}
                         </SelectItem>
                       ))}
                     </SelectContent>

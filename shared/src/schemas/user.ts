@@ -12,8 +12,6 @@ export const userSchema = z.object({
   name: z.string(),
   role: roleEnum,
   status: userStatusEnum.optional(),
-  cityId: z.string().optional(),
-  cityName: z.string().optional(),
   commissionPercentage: z.number().min(0).max(100).optional(),
 });
 

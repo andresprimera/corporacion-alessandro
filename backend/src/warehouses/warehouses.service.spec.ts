@@ -1,36 +1,20 @@
-import {
-  BadRequestException,
-  ConflictException,
-  NotFoundException,
-} from '@nestjs/common';
+import { ConflictException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getModelToken } from '@nestjs/mongoose';
-import { Types } from 'mongoose';
 import { WarehousesService } from './warehouses.service';
 import { Warehouse } from './schemas/warehouse.schema';
-import { CitiesService } from '../cities/cities.service';
 import { InventoryService } from '../inventory/inventory.service';
 
 describe('WarehousesService', () => {
   let service: WarehousesService;
   let warehouseModel: Record<string, jest.Mock>;
-  let citiesService: { findById: jest.Mock };
   let inventoryService: { existsByWarehouse: jest.Mock };
 
-  const cityOid = new Types.ObjectId().toString();
   const mockWarehouse = {
     id: 'warehouse-1',
     name: 'Caracas Main',
-    cityId: cityOid,
     address: 'Av. Principal',
     isActive: true,
-  };
-  const populatedChain = (
-    resolved: unknown,
-  ): { populate: jest.Mock } => {
-    const chain: { populate: jest.Mock } = { populate: jest.fn() };
-    chain.populate.mockResolvedValue(resolved);
-    return chain;
   };
 
   beforeEach(async () => {
@@ -41,16 +25,13 @@ describe('WarehousesService', () => {
       findById: jest.fn(),
       findByIdAndUpdate: jest.fn(),
       findByIdAndDelete: jest.fn(),
-      exists: jest.fn(),
     };
-    citiesService = { findById: jest.fn() };
     inventoryService = { existsByWarehouse: jest.fn() };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         WarehousesService,
         { provide: getModelToken(Warehouse.name), useValue: warehouseModel },
-        { provide: CitiesService, useValue: citiesService },
         { provide: InventoryService, useValue: inventoryService },
       ],
     }).compile();
@@ -59,83 +40,35 @@ describe('WarehousesService', () => {
   });
 
   describe('create', () => {
-    it('should create a warehouse when the city is active', async () => {
-      citiesService.findById.mockResolvedValue({
-        id: cityOid,
-        isActive: true,
-      });
-      const populate = jest.fn().mockResolvedValue(undefined);
-      const created = { ...mockWarehouse, populate };
-      warehouseModel.create.mockResolvedValue(created);
+    it('creates a warehouse', async () => {
+      warehouseModel.create.mockResolvedValue(mockWarehouse);
 
       const data = {
         name: 'Caracas Main',
-        cityId: cityOid,
         address: 'Av. Principal',
         isActive: true,
       };
       const result = await service.create(data);
 
-      expect(citiesService.findById).toHaveBeenCalledWith(cityOid);
-      expect(warehouseModel.create).toHaveBeenCalledWith(
-        expect.objectContaining({ name: 'Caracas Main' }),
-      );
-      expect(populate).toHaveBeenCalledWith('cityId', 'name');
-      expect(result).toBe(created);
+      expect(warehouseModel.create).toHaveBeenCalledWith(data);
+      expect(result).toBe(mockWarehouse);
     });
 
-    it('should throw NotFoundException when city is missing', async () => {
-      citiesService.findById.mockResolvedValue(null);
-
-      await expect(
-        service.create({
-          name: 'X',
-          cityId: cityOid,
-          isActive: true,
-        }),
-      ).rejects.toThrow(NotFoundException);
-      expect(warehouseModel.create).not.toHaveBeenCalled();
-    });
-
-    it('should throw BadRequestException when city is inactive', async () => {
-      citiesService.findById.mockResolvedValue({
-        id: cityOid,
-        isActive: false,
-      });
-
-      await expect(
-        service.create({
-          name: 'X',
-          cityId: cityOid,
-          isActive: true,
-        }),
-      ).rejects.toThrow(BadRequestException);
-    });
-
-    it('should throw ConflictException on duplicate name', async () => {
-      citiesService.findById.mockResolvedValue({
-        id: cityOid,
-        isActive: true,
-      });
+    it('throws ConflictException on duplicate name', async () => {
       warehouseModel.create.mockRejectedValue({ code: 11000 });
 
       await expect(
-        service.create({
-          name: 'Caracas Main',
-          cityId: cityOid,
-          isActive: true,
-        }),
+        service.create({ name: 'Caracas Main', isActive: true }),
       ).rejects.toThrow(ConflictException);
     });
   });
 
   describe('findAllPaginated', () => {
-    it('should return paginated data populated with city', async () => {
+    it('returns paginated data', async () => {
       const chainable = {
         sort: jest.fn().mockReturnThis(),
         skip: jest.fn().mockReturnThis(),
-        limit: jest.fn().mockReturnThis(),
-        populate: jest.fn().mockResolvedValue([mockWarehouse]),
+        limit: jest.fn().mockResolvedValue([mockWarehouse]),
       };
       warehouseModel.find.mockReturnValue(chainable);
       warehouseModel.countDocuments.mockResolvedValue(1);
@@ -144,16 +77,14 @@ describe('WarehousesService', () => {
 
       expect(warehouseModel.find).toHaveBeenCalledWith({});
       expect(chainable.skip).toHaveBeenCalledWith(0);
-      expect(chainable.populate).toHaveBeenCalledWith('cityId', 'name');
       expect(result).toEqual({ data: [mockWarehouse], total: 1 });
     });
 
-    it('should apply onlyActive filter when requested', async () => {
+    it('applies onlyActive filter when requested', async () => {
       const chainable = {
         sort: jest.fn().mockReturnThis(),
         skip: jest.fn().mockReturnThis(),
-        limit: jest.fn().mockReturnThis(),
-        populate: jest.fn().mockResolvedValue([]),
+        limit: jest.fn().mockResolvedValue([]),
       };
       warehouseModel.find.mockReturnValue(chainable);
       warehouseModel.countDocuments.mockResolvedValue(0);
@@ -165,38 +96,34 @@ describe('WarehousesService', () => {
   });
 
   describe('findById', () => {
-    it('should populate city', async () => {
-      warehouseModel.findById.mockReturnValue(populatedChain(mockWarehouse));
+    it('returns the warehouse by id', async () => {
+      warehouseModel.findById.mockResolvedValue(mockWarehouse);
 
       const result = await service.findById('warehouse-1');
 
       expect(warehouseModel.findById).toHaveBeenCalledWith('warehouse-1');
-      expect(result).toEqual(mockWarehouse);
+      expect(result).toBe(mockWarehouse);
     });
   });
 
   describe('update', () => {
-    it('should update without re-checking city when cityId is unchanged', async () => {
+    it('updates the warehouse', async () => {
       const updated = { ...mockWarehouse, isActive: false };
-      warehouseModel.findByIdAndUpdate.mockReturnValue(populatedChain(updated));
+      warehouseModel.findByIdAndUpdate.mockResolvedValue(updated);
 
       const result = await service.update('warehouse-1', { isActive: false });
 
-      expect(citiesService.findById).not.toHaveBeenCalled();
-      expect(result).toEqual(updated);
-    });
-
-    it('should re-validate the city when cityId changes', async () => {
-      citiesService.findById.mockResolvedValue(null);
-
-      await expect(
-        service.update('warehouse-1', { cityId: cityOid }),
-      ).rejects.toThrow(NotFoundException);
+      expect(warehouseModel.findByIdAndUpdate).toHaveBeenCalledWith(
+        'warehouse-1',
+        { isActive: false },
+        { new: true },
+      );
+      expect(result).toBe(updated);
     });
   });
 
   describe('remove', () => {
-    it('should delete when no transactions exist', async () => {
+    it('deletes when no transactions exist', async () => {
       inventoryService.existsByWarehouse.mockResolvedValue(false);
       warehouseModel.findByIdAndDelete.mockResolvedValue(mockWarehouse);
 
@@ -210,7 +137,7 @@ describe('WarehousesService', () => {
       );
     });
 
-    it('should throw ConflictException when transactions reference the warehouse', async () => {
+    it('throws ConflictException when transactions reference the warehouse', async () => {
       inventoryService.existsByWarehouse.mockResolvedValue(true);
 
       await expect(service.remove('warehouse-1')).rejects.toThrow(
@@ -220,36 +147,16 @@ describe('WarehousesService', () => {
     });
   });
 
-  describe('existsByCity', () => {
-    it('should return true when at least one warehouse exists', async () => {
-      warehouseModel.exists.mockResolvedValue({ _id: 'w1' });
-
-      const result = await service.existsByCity('city-1');
-
-      expect(warehouseModel.exists).toHaveBeenCalledWith({ cityId: 'city-1' });
-      expect(result).toBe(true);
-    });
-
-    it('should return false when no warehouses exist', async () => {
-      warehouseModel.exists.mockResolvedValue(null);
-
-      expect(await service.existsByCity('city-1')).toBe(false);
-    });
-  });
-
-  describe('findActiveByCity', () => {
-    it('should filter by city ObjectId and isActive, sorted by name', async () => {
+  describe('findAllActive', () => {
+    it('returns all active warehouses sorted by name', async () => {
       const chainable = {
         sort: jest.fn().mockResolvedValue([mockWarehouse]),
       };
       warehouseModel.find.mockReturnValue(chainable);
 
-      const result = await service.findActiveByCity(cityOid);
+      const result = await service.findAllActive();
 
-      const call = warehouseModel.find.mock.calls[0][0];
-      expect(call.isActive).toBe(true);
-      expect(call.cityId).toBeInstanceOf(Types.ObjectId);
-      expect(call.cityId.toString()).toBe(cityOid);
+      expect(warehouseModel.find).toHaveBeenCalledWith({ isActive: true });
       expect(chainable.sort).toHaveBeenCalledWith({ name: 1 });
       expect(result).toEqual([mockWarehouse]);
     });

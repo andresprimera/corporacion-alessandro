@@ -12,23 +12,16 @@ export const signupSchema = z.object({
   name: z.string().min(1, "Name is required"),
   email: z.email("Please enter a valid email"),
   password: z.string().min(8, "Password must be at least 8 characters"),
-  cityId: z.string().min(1, "City is required"),
 });
 
 export type SignupInput = z.infer<typeof signupSchema>;
 
-export const createUserSchema = z
-  .object({
-    name: z.string().min(1, "Name is required"),
-    email: z.email("Please enter a valid email"),
-    password: z.string().min(8, "Password must be at least 8 characters"),
-    role: roleEnum,
-    cityId: z.string().optional(),
-  })
-  .refine((data) => data.role !== "salesPerson" || !!data.cityId, {
-    message: "City is required for sales people",
-    path: ["cityId"],
-  });
+export const createUserSchema = z.object({
+  name: z.string().min(1, "Name is required"),
+  email: z.email("Please enter a valid email"),
+  password: z.string().min(8, "Password must be at least 8 characters"),
+  role: roleEnum,
+});
 
 export type CreateUserInput = z.infer<typeof createUserSchema>;
 
@@ -51,12 +44,6 @@ export const updateUserStatusSchema = z.object({
 });
 
 export type UpdateUserStatusInput = z.infer<typeof updateUserStatusSchema>;
-
-export const updateUserCitySchema = z.object({
-  cityId: z.string().min(1, "City is required"),
-});
-
-export type UpdateUserCityInput = z.infer<typeof updateUserCitySchema>;
 
 export const updateUserCommissionSchema = z.object({
   commissionPercentage: z

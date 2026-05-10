@@ -2,14 +2,13 @@ import { useEffect } from "react"
 import { useTranslation } from "react-i18next"
 import { useForm, Controller } from "react-hook-form"
 import { standardSchemaResolver } from "@hookform/resolvers/standard-schema"
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { useMutation, useQueryClient } from "@tanstack/react-query"
 import {
   createWarehouseSchema,
   type CreateWarehouseInput,
   type Warehouse,
 } from "@base-dashboard/shared"
 import { createWarehouseApi, updateWarehouseApi } from "@/lib/warehouses"
-import { fetchCityOptionsApi } from "@/lib/cities"
 import { toast } from "sonner"
 import {
   Dialog,
@@ -27,18 +26,10 @@ import {
 } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { Button } from "@/components/ui/button"
 
 const defaultValues: CreateWarehouseInput = {
   name: "",
-  cityId: "",
   address: "",
   isActive: true,
 }
@@ -46,7 +37,6 @@ const defaultValues: CreateWarehouseInput = {
 function warehouseToFormValues(warehouse: Warehouse): CreateWarehouseInput {
   return {
     name: warehouse.name,
-    cityId: warehouse.cityId,
     address: warehouse.address ?? "",
     isActive: warehouse.isActive,
   }
@@ -64,14 +54,6 @@ export function WarehouseFormDialog({
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const isEdit = warehouse !== undefined
-
-  const citiesQuery = useQuery({
-    queryKey: ["cities", "options"],
-    queryFn: fetchCityOptionsApi,
-    enabled: open,
-  })
-
-  const cities = citiesQuery.data ?? []
 
   const {
     register,
@@ -136,38 +118,6 @@ export function WarehouseFormDialog({
               {errors.name && (
                 <FieldDescription className="text-destructive">
                   {t(errors.name.message ?? "")}
-                </FieldDescription>
-              )}
-            </Field>
-            <Field>
-              <FieldLabel>{t("City")}</FieldLabel>
-              <Controller
-                name="cityId"
-                control={control}
-                render={({ field }) => (
-                  <Select
-                    value={field.value || ""}
-                    onValueChange={field.onChange}
-                    items={Object.fromEntries(
-                      cities.map((c) => [c.id, c.name]),
-                    )}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder={t("Select city")} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {cities.map((c) => (
-                        <SelectItem key={c.id} value={c.id}>
-                          {c.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
-              />
-              {errors.cityId && (
-                <FieldDescription className="text-destructive">
-                  {t(errors.cityId.message ?? "")}
                 </FieldDescription>
               )}
             </Field>

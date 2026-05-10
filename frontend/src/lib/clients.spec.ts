@@ -59,6 +59,7 @@ describe("clients API", () => {
         rif: "J-12345678-9",
         address: "Av. Principal",
         phone: "0414-1234567",
+        cityId: "city-1",
       }
       const result = await createClientApi(data)
 

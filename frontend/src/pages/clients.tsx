@@ -179,7 +179,7 @@ export default function ClientsPage() {
     </div>
   )
 
-  const columnCount = isAdmin ? 6 : 5
+  const columnCount = isAdmin ? 7 : 6
 
   if (isLoading) {
     return (
@@ -193,6 +193,7 @@ export default function ClientsPage() {
                 <TableHead>{t("RIF")}</TableHead>
                 <TableHead>{t("Address")}</TableHead>
                 <TableHead>{t("Phone")}</TableHead>
+                <TableHead>{t("City")}</TableHead>
                 {isAdmin && <TableHead>{t("Sales Person")}</TableHead>}
                 <TableHead className="w-32">{t("Actions")}</TableHead>
               </TableRow>
@@ -263,6 +264,11 @@ export default function ClientsPage() {
                   <TableCell className="font-mono text-sm">{c.rif}</TableCell>
                   <TableCell>{c.address}</TableCell>
                   <TableCell>{c.phone}</TableCell>
+                  <TableCell>
+                    {c.cityName ?? (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </TableCell>
                   {isAdmin && (
                     <TableCell>
                       {c.salesPersonName ?? (

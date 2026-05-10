@@ -45,14 +45,21 @@ interface PopulatedSalesPerson extends PopulatedRefBase {
   name?: string;
 }
 
+interface PopulatedCity extends PopulatedRefBase {
+  name?: string;
+}
+
 function toClient(doc: ClientDocument): Client {
   const salesPerson = readPopulatedRef<PopulatedSalesPerson>(doc.salesPersonId);
+  const city = readPopulatedRef<PopulatedCity>(doc.cityId);
   return {
     id: doc.id,
     name: doc.name,
     rif: doc.rif,
     address: doc.address,
     phone: doc.phone,
+    cityId: city.id,
+    cityName: city.doc?.name,
     salesPersonId: salesPerson.id,
     salesPersonName: salesPerson.doc?.name,
     createdAt: doc.get('createdAt').toISOString(),
@@ -83,7 +90,7 @@ export class ClientsController {
     const { data, total } = await this.clientsService.findAllPaginated(
       query.page,
       query.limit,
-      { salesPersonId },
+      { salesPersonId, cityId: query.cityId },
     );
     return {
       data: data.map(toClient),
@@ -142,6 +149,7 @@ export class ClientsController {
       rif: dto.rif,
       address: dto.address,
       phone: dto.phone,
+      cityId: dto.cityId,
       salesPersonId,
     });
     return toClient(client);

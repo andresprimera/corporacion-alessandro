@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model, Types } from 'mongoose';
+import { Model } from 'mongoose';
 import {
   type Role,
   type SalesPersonOption,
@@ -14,7 +14,6 @@ export type CreateUserData = {
   password: string;
   role: Role;
   status?: UserStatus;
-  cityId?: string;
   commissionPercentage?: number;
 };
 
@@ -25,19 +24,16 @@ export class UsersService {
   constructor(@InjectModel(User.name) private userModel: Model<User>) {}
 
   async create(data: CreateUserData): Promise<UserDocument> {
-    const { cityId, commissionPercentage, role, ...rest } = data;
+    const { commissionPercentage, role, ...rest } = data;
     const commission =
       role === 'salesPerson'
         ? (commissionPercentage ?? DEFAULT_COMMISSION_PERCENTAGE)
         : undefined;
-    const created = await this.userModel.create({
+    return this.userModel.create({
       ...rest,
       role,
-      ...(cityId ? { cityId: new Types.ObjectId(cityId) } : {}),
       ...(commission !== undefined ? { commissionPercentage: commission } : {}),
     });
-    await created.populate('cityId', 'name');
-    return created;
   }
 
   async countUsers(): Promise<number> {
@@ -61,11 +57,7 @@ export class UsersService {
   ): Promise<{ data: UserDocument[]; total: number }> {
     const skip = (page - 1) * limit;
     const [data, total] = await Promise.all([
-      this.userModel
-        .find()
-        .skip(skip)
-        .limit(limit)
-        .populate('cityId', 'name'),
+      this.userModel.find().skip(skip).limit(limit),
       this.userModel.countDocuments(),
     ]);
     return { data, total };
@@ -89,7 +81,6 @@ export class UsersService {
     } else {
       const unset: Record<string, 1> = {};
       if (user.status !== undefined) unset.status = 1;
-      if (user.cityId) unset.cityId = 1;
       if (user.commissionPercentage !== undefined) {
         unset.commissionPercentage = 1;
       }
@@ -98,40 +89,25 @@ export class UsersService {
       }
     }
 
-    return this.userModel
-      .findByIdAndUpdate(userId, update, { new: true })
-      .populate('cityId', 'name');
+    return this.userModel.findByIdAndUpdate(userId, update, { new: true });
   }
 
   async updateCommission(
     userId: string,
     commissionPercentage: number,
   ): Promise<UserDocument | null> {
-    return this.userModel
-      .findByIdAndUpdate(userId, { commissionPercentage }, { new: true })
-      .populate('cityId', 'name');
+    return this.userModel.findByIdAndUpdate(
+      userId,
+      { commissionPercentage },
+      { new: true },
+    );
   }
 
   async updateStatus(
     userId: string,
     status: UserStatus,
   ): Promise<UserDocument | null> {
-    return this.userModel
-      .findByIdAndUpdate(userId, { status }, { new: true })
-      .populate('cityId', 'name');
-  }
-
-  async updateCity(
-    userId: string,
-    cityId: string,
-  ): Promise<UserDocument | null> {
-    return this.userModel
-      .findByIdAndUpdate(
-        userId,
-        { cityId: new Types.ObjectId(cityId) },
-        { new: true },
-      )
-      .populate('cityId', 'name');
+    return this.userModel.findByIdAndUpdate(userId, { status }, { new: true });
   }
 
   async remove(userId: string): Promise<void> {
@@ -143,14 +119,11 @@ export class UsersService {
   }
 
   async findByEmail(email: string): Promise<UserDocument | null> {
-    return this.userModel
-      .findOne({ email })
-      .select('+password')
-      .populate('cityId', 'name');
+    return this.userModel.findOne({ email }).select('+password');
   }
 
   async findById(id: string): Promise<UserDocument | null> {
-    return this.userModel.findById(id).populate('cityId', 'name');
+    return this.userModel.findById(id);
   }
 
   async updateRefreshToken(
@@ -161,10 +134,7 @@ export class UsersService {
   }
 
   async findByIdWithRefreshToken(id: string): Promise<UserDocument | null> {
-    return this.userModel
-      .findById(id)
-      .select('+hashedRefreshToken')
-      .populate('cityId', 'name');
+    return this.userModel.findById(id).select('+hashedRefreshToken');
   }
 
   async updatePasswordResetToken(
@@ -205,9 +175,7 @@ export class UsersService {
     userId: string,
     data: { name: string; email: string },
   ): Promise<UserDocument | null> {
-    return this.userModel
-      .findByIdAndUpdate(userId, data, { new: true })
-      .populate('cityId', 'name');
+    return this.userModel.findByIdAndUpdate(userId, data, { new: true });
   }
 
   async findByIdWithPassword(id: string): Promise<UserDocument | null> {

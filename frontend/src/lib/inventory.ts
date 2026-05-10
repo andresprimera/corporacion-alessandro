@@ -1,6 +1,4 @@
 import {
-  type AggregatedCityStockEntry,
-  type CityStock,
   type CreateInventoryTransactionInput,
   type InventoryTransaction,
   type PaginatedResponse,
@@ -19,6 +17,27 @@ const TRANSACTION_TYPE_LABEL_KEY: Record<TransactionType, string> = {
 
 export function transactionTypeLabelKey(value: TransactionType): string {
   return TRANSACTION_TYPE_LABEL_KEY[value]
+}
+
+export function formatPackagedQty(args: {
+  qty: number
+  basicUnit?: { name: string }
+  packageUnit?: { name: string }
+  unitsPerPackage?: number
+}): string {
+  const { qty, basicUnit, packageUnit, unitsPerPackage: upp } = args
+  const basicName = basicUnit?.name
+  const packageName = packageUnit?.name
+  if (!upp || upp < 2 || !packageName || !basicName) {
+    return basicName ? `${qty} ${basicName}` : String(qty)
+  }
+  const sign = qty < 0 ? "-" : ""
+  const abs = Math.abs(qty)
+  const packages = Math.floor(abs / upp)
+  const loose = abs % upp
+  if (packages === 0) return `${sign}${loose} ${basicName}`
+  if (loose === 0) return `${sign}${packages} ${packageName}`
+  return `${sign}${packages} ${packageName} + ${loose} ${basicName}`
 }
 
 export async function fetchInventoryTransactionsApi(
@@ -70,30 +89,6 @@ export async function fetchStockAggregatedApi(
   })
   const res = await authFetch(
     `/api/inventory-transactions/stock/aggregated?${params}`,
-  )
-  return res.json()
-}
-
-export async function fetchCityStockApi(args: {
-  productId: string
-  cityId: string
-}): Promise<CityStock> {
-  const params = new URLSearchParams({
-    productId: args.productId,
-    cityId: args.cityId,
-  })
-  const res = await authFetch(
-    `/api/inventory-transactions/stock/by-city?${params}`,
-  )
-  return res.json()
-}
-
-export async function fetchAggregatedCityStockApi(
-  cityId: string,
-): Promise<AggregatedCityStockEntry[]> {
-  const params = new URLSearchParams({ cityId })
-  const res = await authFetch(
-    `/api/inventory-transactions/stock/by-city/aggregated?${params}`,
   )
   return res.json()
 }

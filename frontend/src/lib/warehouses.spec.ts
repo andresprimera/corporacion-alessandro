@@ -17,8 +17,6 @@ const mockJsonResponse = (data: unknown): Response =>
 const mockWarehouse = {
   id: "w1",
   name: "Caracas Main",
-  cityId: "c1",
-  cityName: "Caracas",
   isActive: true,
   createdAt: "2026-04-28T00:00:00.000Z",
   updatedAt: "2026-04-28T00:00:00.000Z",
@@ -65,7 +63,6 @@ describe("warehouses API", () => {
 
       const data = {
         name: "Caracas Main",
-        cityId: "c1",
         isActive: true,
       }
       const result = await createWarehouseApi(data)
@@ -107,9 +104,7 @@ describe("warehouses API", () => {
 
   describe("fetchWarehouseOptionsApi", () => {
     it("should GET /api/warehouses/options", async () => {
-      const options = [
-        { id: "w1", name: "Caracas Main", cityName: "Caracas" },
-      ]
+      const options = [{ id: "w1", name: "Caracas Main" }]
       vi.mocked(authFetch).mockResolvedValue(mockJsonResponse(options))
 
       const result = await fetchWarehouseOptionsApi()

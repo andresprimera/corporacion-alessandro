@@ -5,9 +5,8 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query"
 import type { Product, ProductKind } from "@base-dashboard/shared"
 import { fetchProductsApi } from "@/lib/products"
 import { fetchLiquorTypeOptionsApi } from "@/lib/liquor-types"
-import { fetchAggregatedCityStockApi } from "@/lib/inventory"
+import { fetchStockAggregatedApi } from "@/lib/inventory"
 import { useSaleCart } from "@/hooks/use-sale-cart"
-import { useAuth } from "@/hooks/use-auth"
 import {
   Table,
   TableBody,
@@ -47,10 +46,7 @@ function formatPrice(value: number, currency: string): string {
 
 export default function CatalogPage() {
   const { t } = useTranslation()
-  const { user } = useAuth()
   const cart = useSaleCart()
-  const isAdmin = user?.role === "admin"
-  const stockCityId = isAdmin ? cart.cityId : user?.cityId
 
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
@@ -99,18 +95,16 @@ export default function CatalogPage() {
   const liquorTypes = liquorTypesQuery.data ?? []
 
   const stockQuery = useQuery({
-    queryKey: ["stock", "by-city", "aggregated", stockCityId],
-    queryFn: () => fetchAggregatedCityStockApi(stockCityId!),
-    enabled: !!stockCityId,
+    queryKey: ["stock", "aggregated", "all"],
+    queryFn: () => fetchStockAggregatedApi(1, 1000),
     staleTime: 30_000,
   })
 
   const stockMap = new Map<string, number>(
-    (stockQuery.data ?? []).map((e) => [e.productId, e.totalQty]),
+    (stockQuery.data?.data ?? []).map((e) => [e.productId, e.totalQty]),
   )
 
   function stockForProduct(productId: string): number | undefined {
-    if (!stockCityId) return undefined
     if (stockQuery.data === undefined) return undefined
     return stockMap.get(productId) ?? 0
   }

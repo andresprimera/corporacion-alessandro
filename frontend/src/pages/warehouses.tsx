@@ -103,7 +103,7 @@ export default function WarehousesPage() {
           {t("Warehouses")}
         </h2>
         <p className="text-muted-foreground">
-          {t("Manage warehouses across cities.")}
+          {t("Manage warehouses.")}
         </p>
       </div>
       <Button onClick={handleAdd}>
@@ -180,7 +180,6 @@ export default function WarehousesPage() {
           <TableHeader>
             <TableRow>
               <TableHead>{t("Name")}</TableHead>
-              <TableHead>{t("City")}</TableHead>
               <TableHead>{t("Address")}</TableHead>
               <TableHead>{t("Active")}</TableHead>
               <TableHead className="w-32">{t("Actions")}</TableHead>
@@ -189,7 +188,7 @@ export default function WarehousesPage() {
           <TableBody>
             {warehouses.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="h-24 text-center">
+                <TableCell colSpan={4} className="h-24 text-center">
                   {t("No warehouses found.")}
                 </TableCell>
               </TableRow>
@@ -197,11 +196,6 @@ export default function WarehousesPage() {
               warehouses.map((w) => (
                 <TableRow key={w.id}>
                   <TableCell className="font-medium">{w.name}</TableCell>
-                  <TableCell>
-                    {w.cityName ?? (
-                      <span className="text-muted-foreground">—</span>
-                    )}
-                  </TableCell>
                   <TableCell>
                     {w.address ?? (
                       <span className="text-muted-foreground">—</span>
