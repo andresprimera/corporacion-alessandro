@@ -16,6 +16,7 @@ import {
 } from "@/lib/sales"
 import { useAuth } from "@/hooks/use-auth"
 import { SaleFormDialog } from "@/components/sale-form-dialog"
+import { SaleNotesDialog } from "@/components/sale-notes-dialog"
 import {
   Table,
   TableBody,
@@ -40,6 +41,7 @@ import { DataPagination } from "@/components/data-pagination"
 import {
   AlertCircleIcon,
   FileTextIcon,
+  PencilIcon,
   PlusIcon,
   TrashIcon,
   TruckIcon,
@@ -65,6 +67,7 @@ export default function SalesPage() {
   const [pageSize, setPageSize] = useState(10)
   const [formOpen, setFormOpen] = useState(false)
   const [deleteId, setDeleteId] = useState<string | null>(null)
+  const [editSale, setEditSale] = useState<Sale | null>(null)
   const [downloadingId, setDownloadingId] = useState<string | null>(null)
 
   const deliveryOrderMutation = useMutation({
@@ -317,6 +320,16 @@ export default function SalesPage() {
                             <FileTextIcon className="size-4" />
                             <span className="sr-only">{t("Invoice")}</span>
                           </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => setEditSale(sale)}
+                          >
+                            <PencilIcon className="size-4" />
+                            <span className="sr-only">
+                              {t("Edit sale notes")}
+                            </span>
+                          </Button>
                         </>
                       )}
                       <Button
@@ -347,6 +360,7 @@ export default function SalesPage() {
         />
       )}
       <SaleFormDialog open={formOpen} onOpenChange={setFormOpen} />
+      <SaleNotesDialog sale={editSale} onClose={() => setEditSale(null)} />
       <AlertDialog
         open={deleteId !== null}
         onOpenChange={(open) => {

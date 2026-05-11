@@ -1,6 +1,7 @@
 import { useState, type ReactElement } from "react"
 import { useTranslation } from "react-i18next"
 import { useSaleCart } from "@/hooks/use-sale-cart"
+import { useStock } from "@/hooks/use-stock"
 import { useAuth } from "@/hooks/use-auth"
 import {
   Sheet,
@@ -32,6 +33,7 @@ export function SaleCartDrawer(): ReactElement | null {
   const { t } = useTranslation()
   const { user } = useAuth()
   const cart = useSaleCart()
+  const stock = useStock()
   const [checkoutOpen, setCheckoutOpen] = useState(false)
 
   const role = user?.role
@@ -73,6 +75,9 @@ export function SaleCartDrawer(): ReactElement | null {
                 {cart.items.map((item) => {
                   const isOne = item.requestedQty === 1
                   const subtotal = item.unitPrice * item.requestedQty
+                  const available = stock.getAvailable(item.productId)
+                  const atLimit =
+                    available !== undefined && item.requestedQty >= available
                   return (
                     <div key={item.productId} className="space-y-2 p-3">
                       <div className="flex items-start justify-between gap-3">
@@ -131,6 +136,7 @@ export function SaleCartDrawer(): ReactElement | null {
                               item.requestedQty + 1,
                             )
                           }
+                          disabled={atLimit}
                           aria-label={t("Increase quantity")}
                         >
                           <PlusIcon className="size-4" />

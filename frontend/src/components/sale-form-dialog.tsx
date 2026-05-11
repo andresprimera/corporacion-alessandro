@@ -4,6 +4,7 @@ import { type Currency } from "@base-dashboard/shared"
 import { fetchClientOptionsApi } from "@/lib/clients"
 import { createSaleApi } from "@/lib/sales"
 import { useSaleCart, type CartItem } from "@/hooks/use-sale-cart"
+import { useStock } from "@/hooks/use-stock"
 import { toast } from "sonner"
 import {
   Dialog,
@@ -35,15 +36,17 @@ function formatPrice(value: number, currency: Currency): string {
 
 interface CartRowProps {
   item: CartItem
+  available: number | undefined
   onQtyChange: (qty: number) => void
   onRemove: () => void
 }
 
-function CartRow({ item, onQtyChange, onRemove }: CartRowProps) {
+function CartRow({ item, available, onQtyChange, onRemove }: CartRowProps) {
   const { t } = useTranslation()
   const subtotal = item.unitPrice * item.requestedQty
 
   const isOne = item.requestedQty === 1
+  const atLimit = available !== undefined && item.requestedQty >= available
 
   return (
     <div className="space-y-2 p-3">
@@ -85,6 +88,7 @@ function CartRow({ item, onQtyChange, onRemove }: CartRowProps) {
           variant="outline"
           size="icon"
           onClick={() => onQtyChange(item.requestedQty + 1)}
+          disabled={atLimit}
           aria-label={t("Increase quantity")}
         >
           <PlusIcon className="size-4" />
@@ -104,6 +108,7 @@ export function SaleFormDialog({
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const cart = useSaleCart()
+  const stock = useStock()
 
   const { data: clientOptions = [] } = useQuery({
     queryKey: ["clients", "options"],
@@ -201,6 +206,7 @@ export function SaleFormDialog({
                     <CartRow
                       key={item.productId}
                       item={item}
+                      available={stock.getAvailable(item.productId)}
                       onQtyChange={(qty) =>
                         cart.updateQty(item.productId, qty)
                       }

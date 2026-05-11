@@ -54,6 +54,10 @@ vi.mock("@/hooks/use-sale-cart", () => ({
   useSaleCart: () => mockCart,
 }))
 
+vi.mock("@/hooks/use-stock", () => ({
+  useStock: () => ({ getAvailable: () => undefined }),
+}))
+
 vi.mock("@/components/sale-form-dialog", () => ({
   SaleFormDialog: ({ open }: { open: boolean }) =>
     open ? <div data-testid="sale-form-dialog" /> : null,

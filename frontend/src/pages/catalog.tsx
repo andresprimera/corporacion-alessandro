@@ -5,8 +5,8 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query"
 import type { Product, ProductKind } from "@base-dashboard/shared"
 import { fetchProductsApi } from "@/lib/products"
 import { fetchLiquorTypeOptionsApi } from "@/lib/liquor-types"
-import { fetchStockAggregatedApi } from "@/lib/inventory"
 import { useSaleCart } from "@/hooks/use-sale-cart"
+import { useStock } from "@/hooks/use-stock"
 import {
   Table,
   TableBody,
@@ -94,19 +94,10 @@ export default function CatalogPage() {
   })
   const liquorTypes = liquorTypesQuery.data ?? []
 
-  const stockQuery = useQuery({
-    queryKey: ["stock", "aggregated", "all"],
-    queryFn: () => fetchStockAggregatedApi(1, 1000),
-    staleTime: 30_000,
-  })
+  const stock = useStock()
 
-  const stockMap = new Map<string, number>(
-    (stockQuery.data?.data ?? []).map((e) => [e.productId, e.totalQty]),
-  )
-
-  function stockForProduct(productId: string): number | undefined {
-    if (stockQuery.data === undefined) return undefined
-    return stockMap.get(productId) ?? 0
+  function cartQtyFor(productId: string): number {
+    return cart.items.find((i) => i.productId === productId)?.requestedQty ?? 0
   }
 
   const products = data?.data ?? []
@@ -371,8 +362,11 @@ export default function CatalogPage() {
               </TableRow>
             ) : (
               products.map((p) => {
-                const available = stockForProduct(p.id)
+                const available = stock.getAvailable(p.id)
                 const outOfStock = available !== undefined && available <= 0
+                const inCart = cartQtyFor(p.id)
+                const cantAdd =
+                  available !== undefined && inCart >= available
                 return (
                   <TableRow key={p.id}>
                     <TableCell className="font-medium">
@@ -427,7 +421,7 @@ export default function CatalogPage() {
                       <Button
                         size="sm"
                         onClick={() => handleAddToCart(p)}
-                        disabled={outOfStock}
+                        disabled={cantAdd}
                       >
                         <PlusIcon className="size-4" />
                         <span className="hidden md:inline">
