@@ -89,6 +89,28 @@ export function SalePaymentDetailDialog({
                 </div>
                 <div>{formatDate(proof.paymentDate)}</div>
               </div>
+              <div>
+                <div className="text-muted-foreground">{t("Paid amount")}</div>
+                <div>
+                  {sale
+                    ? new Intl.NumberFormat(i18n.language, {
+                        style: "currency",
+                        currency: sale.currency,
+                      }).format(proof.paidAmount)
+                    : proof.paidAmount}
+                </div>
+              </div>
+              <div>
+                <div className="text-muted-foreground">{t("Sale total")}</div>
+                <div>
+                  {sale
+                    ? new Intl.NumberFormat(i18n.language, {
+                        style: "currency",
+                        currency: sale.currency,
+                      }).format(sale.totalAmount)
+                    : ""}
+                </div>
+              </div>
               <div className="col-span-2">
                 <div className="text-muted-foreground">
                   {t("Submitted at")}

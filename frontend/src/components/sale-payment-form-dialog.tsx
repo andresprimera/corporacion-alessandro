@@ -42,11 +42,12 @@ const ACCEPTED_TYPES = [
 ]
 const MAX_BYTES = 5 * 1024 * 1024
 
-const DEFAULT_VALUES: SubmitPaymentInput = {
+const EMPTY_VALUES: SubmitPaymentInput = {
   bank: "",
   paymentType: "pago_movil",
   paymentNumber: "",
   paymentDate: "",
+  paidAmount: 0,
 }
 
 export function SalePaymentFormDialog({
@@ -69,12 +70,12 @@ export function SalePaymentFormDialog({
     reset,
   } = useForm<SubmitPaymentInput>({
     resolver: standardSchemaResolver(submitPaymentSchema),
-    defaultValues: DEFAULT_VALUES,
+    defaultValues: EMPTY_VALUES,
   })
 
   useEffect(() => {
     if (sale) {
-      reset(DEFAULT_VALUES)
+      reset({ ...EMPTY_VALUES, paidAmount: sale.totalAmount })
       setFile(null)
       setFileError(null)
     }
@@ -89,6 +90,7 @@ export function SalePaymentFormDialog({
         paymentType: values.paymentType,
         paymentNumber: values.paymentNumber,
         paymentDate: values.paymentDate,
+        paidAmount: values.paidAmount,
       })
     },
     onSuccess: () => {
@@ -231,6 +233,32 @@ export function SalePaymentFormDialog({
               {errors.paymentDate && (
                 <FieldDescription className="text-destructive">
                   {t(errors.paymentDate.message ?? "")}
+                </FieldDescription>
+              )}
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="payment-paid-amount">
+                {t("Paid amount")}
+              </FieldLabel>
+              <Input
+                id="payment-paid-amount"
+                type="number"
+                step="0.01"
+                min="0"
+                {...register("paidAmount", { valueAsNumber: true })}
+              />
+              <FieldDescription>
+                {t("Sale total")}:{" "}
+                {sale
+                  ? new Intl.NumberFormat(undefined, {
+                      style: "currency",
+                      currency: sale.currency,
+                    }).format(sale.totalAmount)
+                  : ""}
+              </FieldDescription>
+              {errors.paidAmount && (
+                <FieldDescription className="text-destructive">
+                  {t(errors.paidAmount.message ?? "")}
                 </FieldDescription>
               )}
             </Field>

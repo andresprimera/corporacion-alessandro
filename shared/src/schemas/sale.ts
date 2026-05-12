@@ -49,6 +49,7 @@ export const paymentProofSchema = z.object({
   paymentType: paymentTypeEnum,
   paymentNumber: z.string(),
   paymentDate: z.string(),
+  paidAmount: z.number(),
   submittedAt: z.string(),
 });
 export type PaymentProof = z.infer<typeof paymentProofSchema>;
@@ -101,6 +102,7 @@ export const submitPaymentSchema = z.object({
   paymentType: paymentTypeEnum,
   paymentNumber: z.string().min(1, "Payment number is required"),
   paymentDate: z.string().min(1, "Payment date is required"),
+  paidAmount: z.number().positive("Paid amount must be greater than 0"),
 });
 export type SubmitPaymentInput = z.infer<typeof submitPaymentSchema>;
 

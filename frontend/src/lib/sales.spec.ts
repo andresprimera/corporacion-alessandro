@@ -133,6 +133,7 @@ describe("sales API", () => {
         paymentType: "pago_movil",
         paymentNumber: "TX-12345",
         paymentDate: "2026-05-11",
+        paidAmount: 100,
       })
 
       expect(authFetch).toHaveBeenCalledTimes(1)
@@ -147,6 +148,7 @@ describe("sales API", () => {
       expect(fd.get("paymentType")).toBe("pago_movil")
       expect(fd.get("paymentNumber")).toBe("TX-12345")
       expect(fd.get("paymentDate")).toBe("2026-05-11")
+      expect(fd.get("paidAmount")).toBe("100")
     })
   })
 

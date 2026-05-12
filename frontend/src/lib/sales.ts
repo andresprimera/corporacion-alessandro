@@ -72,6 +72,7 @@ export async function submitSalePaymentApi(
     paymentType: PaymentType
     paymentNumber: string
     paymentDate: string
+    paidAmount: number
   },
 ): Promise<Sale> {
   const formData = new FormData()
@@ -80,6 +81,7 @@ export async function submitSalePaymentApi(
   formData.append("paymentType", input.paymentType)
   formData.append("paymentNumber", input.paymentNumber)
   formData.append("paymentDate", input.paymentDate)
+  formData.append("paidAmount", String(input.paidAmount))
   const res = await authFetch(`/api/sales/${id}/payment`, {
     method: "POST",
     body: formData,

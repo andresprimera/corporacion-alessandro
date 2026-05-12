@@ -98,6 +98,9 @@ export class PaymentProof {
   paymentDate: Date;
 
   @Prop({ required: true })
+  paidAmount: number;
+
+  @Prop({ required: true })
   submittedAt: Date;
 }
 

@@ -673,6 +673,7 @@ describe('SalesService', () => {
       paymentType: 'pago_movil' as const,
       paymentNumber: 'TX-12345',
       paymentDate: '2026-05-11',
+      paidAmount: 100,
     };
 
     beforeEach(() => {
@@ -711,6 +712,9 @@ describe('SalesService', () => {
         (sale.paymentProof as { paymentNumber: string } | undefined)
           ?.paymentNumber,
       ).toBe('TX-12345');
+      expect(
+        (sale.paymentProof as { paidAmount: number } | undefined)?.paidAmount,
+      ).toBe(100);
       expect(sale.save).toHaveBeenCalledTimes(1);
       expect(result).toBe(sale);
     });
@@ -821,6 +825,7 @@ describe('SalesService', () => {
                 paymentType: 'pago_movil',
                 paymentNumber: 'TX-1',
                 paymentDate: new Date('2026-05-11'),
+                paidAmount: 100,
                 submittedAt: new Date('2026-05-11T10:00:00Z'),
               },
       };

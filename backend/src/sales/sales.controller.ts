@@ -28,6 +28,7 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe';
+import { CoerceNumberFieldsPipe } from '../common/pipes/coerce-number-fields.pipe';
 import {
   type Currency,
   type PaginatedResponse,
@@ -90,6 +91,7 @@ function toPaymentProof(raw: PaymentProofDoc): PaymentProof {
     paymentType: raw.paymentType as PaymentType,
     paymentNumber: raw.paymentNumber,
     paymentDate: raw.paymentDate.toISOString().slice(0, 10),
+    paidAmount: raw.paidAmount,
     submittedAt: raw.submittedAt.toISOString(),
   };
 }
@@ -203,7 +205,11 @@ export class SalesController {
         }),
     )
     file: Express.Multer.File,
-    @Body(new ZodValidationPipe(submitPaymentSchema)) dto: SubmitPaymentInput,
+    @Body(
+      new CoerceNumberFieldsPipe(['paidAmount']),
+      new ZodValidationPipe(submitPaymentSchema),
+    )
+    dto: SubmitPaymentInput,
     @CurrentUser() user: { userId: string },
   ): Promise<Sale> {
     const updated = await this.salesService.submitPayment(id, file, dto, {

@@ -736,6 +736,7 @@ export class SalesService {
       paymentType: dto.paymentType,
       paymentNumber: dto.paymentNumber,
       paymentDate: new Date(dto.paymentDate),
+      paidAmount: dto.paidAmount,
       submittedAt: new Date(),
     };
     sale.status = 'paid';
