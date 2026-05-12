@@ -158,6 +158,24 @@ describe("api", () => {
       expect(callHeaders?.["Authorization"]).toBeUndefined()
     })
 
+    it("should omit Content-Type when body is FormData", async () => {
+      api.storeTokens("my-token", "my-refresh")
+      vi.mocked(fetch).mockResolvedValue(mockResponse({ ok: true }))
+
+      const formData = new FormData()
+      formData.append("field", "value")
+      await api.authFetch("/api/upload", {
+        method: "POST",
+        body: formData,
+      })
+
+      const callHeaders = vi.mocked(fetch).mock.calls[0][1]?.headers as
+        | Record<string, string>
+        | undefined
+      expect(callHeaders?.["Content-Type"]).toBeUndefined()
+      expect(callHeaders?.["Authorization"]).toBe("Bearer my-token")
+    })
+
     it("should refresh token and retry on 401", async () => {
       api.storeTokens("expired-token", "valid-refresh")
 

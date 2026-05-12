@@ -14,6 +14,7 @@ import { ProductsService } from '../products/products.service';
 import { WarehousesService } from '../warehouses/warehouses.service';
 import { InventoryService } from '../inventory/inventory.service';
 import { ClientsService } from '../clients/clients.service';
+import { StorageService } from '../services/storage/storage.service';
 import { isDuplicateKeyError } from '../common/utils/mongo-errors';
 import {
   PopulatedRefBase,
@@ -23,6 +24,8 @@ import type {
   CreateSaleInput,
   Role,
   SaleSoldBy,
+  SaleStatus,
+  SubmitPaymentInput,
   UpdateSaleInput,
 } from '@base-dashboard/shared';
 
@@ -71,6 +74,7 @@ export class SalesService {
     private inventoryService: InventoryService,
     private clientsService: ClientsService,
     private configService: ConfigService,
+    private storageService: StorageService,
   ) {}
 
   async generateDeliveryOrderPdf(
@@ -666,10 +670,122 @@ export class SalesService {
     return this.saleModel.findByIdAndUpdate(id, dto, { new: true });
   }
 
+  async updateStatus(
+    id: string,
+    next: 'confirmed' | 'payment_rejected',
+  ): Promise<SaleDocument> {
+    const sale = await this.saleModel.findById(id);
+    if (!sale) {
+      throw new NotFoundException('Sale not found');
+    }
+    const current = sale.status as SaleStatus;
+    if (current !== 'paid') {
+      throw new BadRequestException(
+        `Cannot transition sale from ${current} to ${next}`,
+      );
+    }
+    sale.status = next;
+    await sale.save();
+    this.logger.log(`Sale ${sale.saleNumber} status changed paid → ${next}`);
+    return sale;
+  }
+
+  async submitPayment(
+    id: string,
+    file: Express.Multer.File,
+    dto: SubmitPaymentInput,
+    actor: { userId: string },
+  ): Promise<SaleDocument> {
+    const sale = await this.saleModel.findById(id);
+    if (!sale) {
+      throw new NotFoundException('Sale not found');
+    }
+    if (sale.soldBy.userId !== actor.userId) {
+      throw new ForbiddenException(
+        'Not allowed to submit payment for this sale',
+      );
+    }
+    const current = sale.status as SaleStatus;
+    if (current !== 'placed' && current !== 'payment_rejected') {
+      throw new BadRequestException(
+        `Cannot submit payment for a sale in status ${current}`,
+      );
+    }
+
+    if (sale.paymentProof?.imageKey) {
+      try {
+        await this.storageService.delete(sale.paymentProof.imageKey);
+      } catch (err) {
+        this.logger.warn(
+          `Failed to delete previous payment proof ${sale.paymentProof.imageKey}: ${(err as Error).message}`,
+        );
+      }
+    }
+
+    const extension = this.extensionFromMime(file.mimetype);
+    const uploadResult = await this.storageService.upload(file.buffer, {
+      folder: `sales/${sale.id}/payment-proofs`,
+      fileName: `${Date.now()}.${extension}`,
+      mimeType: file.mimetype,
+    });
+
+    sale.paymentProof = {
+      imageKey: uploadResult.key,
+      imageMimeType: file.mimetype,
+      bank: dto.bank,
+      paymentType: dto.paymentType,
+      paymentNumber: dto.paymentNumber,
+      paymentDate: new Date(dto.paymentDate),
+      submittedAt: new Date(),
+    };
+    sale.status = 'paid';
+    await sale.save();
+
+    this.logger.log(
+      `Sale ${sale.saleNumber} payment submitted by ${actor.userId} → paid`,
+    );
+    return sale;
+  }
+
+  async findPaymentProofStream(
+    id: string,
+    actor: { userId: string; role: Role },
+  ): Promise<{ buffer: Buffer; mimeType: string; fileName: string }> {
+    const sale = await this.saleModel.findById(id);
+    if (!sale) {
+      throw new NotFoundException('Sale not found');
+    }
+    if (!sale.paymentProof) {
+      throw new NotFoundException('Payment proof not found');
+    }
+    if (actor.role !== 'admin' && sale.soldBy.userId !== actor.userId) {
+      throw new ForbiddenException('Not allowed to view this payment proof');
+    }
+    const buffer = await this.storageService.download(
+      sale.paymentProof.imageKey,
+    );
+    return {
+      buffer,
+      mimeType: sale.paymentProof.imageMimeType,
+      fileName: `payment-proof-${sale.saleNumber}.${this.extensionFromMime(sale.paymentProof.imageMimeType)}`,
+    };
+  }
+
+  private extensionFromMime(mime: string): string {
+    if (mime === 'image/jpeg') return 'jpg';
+    if (mime === 'image/png') return 'png';
+    if (mime === 'image/webp') return 'webp';
+    if (mime === 'application/pdf') return 'pdf';
+    return 'bin';
+  }
+
   async remove(id: string): Promise<void> {
     const sale = await this.saleModel.findById(id);
     if (!sale) {
       throw new NotFoundException('Sale not found');
+    }
+    if (sale.status !== 'placed') {
+      throw new BadRequestException('Cannot delete a non-placed sale');
     }
 
     const reversalBatch = `SALE-REVERSAL-${sale.saleNumber}`;

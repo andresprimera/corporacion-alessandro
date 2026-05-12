@@ -13,6 +13,7 @@ import { ProductsService } from '../products/products.service';
 import { WarehousesService } from '../warehouses/warehouses.service';
 import { InventoryService } from '../inventory/inventory.service';
 import { ClientsService } from '../clients/clients.service';
+import { StorageService } from '../services/storage/storage.service';
 
 describe('SalesService', () => {
   let service: SalesService;
@@ -29,6 +30,11 @@ describe('SalesService', () => {
   const configService = {
     get: jest.fn(),
     getOrThrow: jest.fn(),
+  };
+  const storageService = {
+    upload: jest.fn(),
+    download: jest.fn(),
+    delete: jest.fn(),
   };
 
   const VALID_PRODUCT_ID = '507f1f77bcf86cd799439011';
@@ -94,6 +100,7 @@ describe('SalesService', () => {
         { provide: InventoryService, useValue: inventoryService },
         { provide: ClientsService, useValue: clientsService },
         { provide: ConfigService, useValue: configService },
+        { provide: StorageService, useValue: storageService },
       ],
     }).compile();
 
@@ -548,6 +555,344 @@ describe('SalesService', () => {
     });
   });
 
+  describe('updateStatus', () => {
+    const SALE_ID = '507f1f77bcf86cd799439061';
+
+    function buildSale(overrides: Partial<{ status: string }> = {}) {
+      return {
+        id: SALE_ID,
+        saleNumber: 'S-2026-00001',
+        status: overrides.status ?? 'paid',
+        save: jest.fn().mockImplementation(function (this: { status: string }) {
+          return Promise.resolve(this);
+        }),
+      };
+    }
+
+    it('transitions paid → confirmed', async () => {
+      const sale = buildSale({ status: 'paid' });
+      saleModel.findById.mockResolvedValue(sale);
+
+      await service.updateStatus(SALE_ID, 'confirmed');
+
+      expect(sale.status).toBe('confirmed');
+      expect(sale.save).toHaveBeenCalledTimes(1);
+    });
+
+    it('transitions paid → payment_rejected', async () => {
+      const sale = buildSale({ status: 'paid' });
+      saleModel.findById.mockResolvedValue(sale);
+
+      await service.updateStatus(SALE_ID, 'payment_rejected');
+
+      expect(sale.status).toBe('payment_rejected');
+    });
+
+    it('throws BadRequestException when current is placed', async () => {
+      const sale = buildSale({ status: 'placed' });
+      saleModel.findById.mockResolvedValue(sale);
+
+      await expect(
+        service.updateStatus(SALE_ID, 'confirmed'),
+      ).rejects.toThrow(BadRequestException);
+      expect(sale.save).not.toHaveBeenCalled();
+    });
+
+    it('throws BadRequestException when current is confirmed (terminal)', async () => {
+      const sale = buildSale({ status: 'confirmed' });
+      saleModel.findById.mockResolvedValue(sale);
+
+      await expect(
+        service.updateStatus(SALE_ID, 'payment_rejected'),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('throws BadRequestException when current is payment_rejected', async () => {
+      const sale = buildSale({ status: 'payment_rejected' });
+      saleModel.findById.mockResolvedValue(sale);
+
+      await expect(
+        service.updateStatus(SALE_ID, 'confirmed'),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('throws NotFoundException when the sale does not exist', async () => {
+      saleModel.findById.mockResolvedValue(null);
+
+      await expect(
+        service.updateStatus(SALE_ID, 'confirmed'),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('submitPayment', () => {
+    const SALE_ID = '507f1f77bcf86cd799439061';
+
+    function buildSale(
+      overrides: Partial<{
+        status: string;
+        soldByUserId: string;
+        paymentProof: { imageKey: string } | undefined;
+      }> = {},
+    ) {
+      return {
+        id: SALE_ID,
+        saleNumber: 'S-2026-00001',
+        status: overrides.status ?? 'placed',
+        soldBy: {
+          userId: overrides.soldByUserId ?? VALID_SALES_PERSON_ID,
+          name: 'Sales User',
+        },
+        paymentProof: overrides.paymentProof,
+        save: jest.fn().mockImplementation(function (this: unknown) {
+          return Promise.resolve(this);
+        }),
+      } as unknown as {
+        id: string;
+        saleNumber: string;
+        status: string;
+        soldBy: { userId: string; name: string };
+        paymentProof?: unknown;
+        save: jest.Mock;
+      };
+    }
+
+    function buildFile(
+      overrides: Partial<{ mimetype: string; size: number }> = {},
+    ): Express.Multer.File {
+      return {
+        buffer: Buffer.from('fake-bytes'),
+        mimetype: overrides.mimetype ?? 'image/png',
+        originalname: 'proof.png',
+        size: overrides.size ?? 1024,
+      } as Express.Multer.File;
+    }
+
+    const dto = {
+      bank: 'Banco de Venezuela',
+      paymentType: 'pago_movil' as const,
+      paymentNumber: 'TX-12345',
+      paymentDate: '2026-05-11',
+    };
+
+    beforeEach(() => {
+      storageService.upload.mockResolvedValue({
+        key: 'sales/abc/payment-proofs/uuid-123.png',
+        fileName: '123.png',
+        url: '/uploads/sales/abc/payment-proofs/uuid-123.png',
+        size: 1024,
+        mimeType: 'image/png',
+      });
+    });
+
+    it('uploads the proof and transitions placed → paid for the owner salesperson', async () => {
+      const sale = buildSale({ status: 'placed' });
+      saleModel.findById.mockResolvedValue(sale);
+
+      const result = await service.submitPayment(SALE_ID, buildFile(), dto, {
+        userId: VALID_SALES_PERSON_ID,
+      });
+
+      expect(storageService.upload).toHaveBeenCalledTimes(1);
+      const [, opts] = storageService.upload.mock.calls[0];
+      expect(opts.folder).toBe(`sales/${SALE_ID}/payment-proofs`);
+      expect(opts.mimeType).toBe('image/png');
+      expect(sale.status).toBe('paid');
+      expect(
+        (sale.paymentProof as { imageKey: string } | undefined)?.imageKey,
+      ).toBe('sales/abc/payment-proofs/uuid-123.png');
+      expect(
+        (sale.paymentProof as { bank: string } | undefined)?.bank,
+      ).toBe('Banco de Venezuela');
+      expect(
+        (sale.paymentProof as { paymentType: string } | undefined)?.paymentType,
+      ).toBe('pago_movil');
+      expect(
+        (sale.paymentProof as { paymentNumber: string } | undefined)
+          ?.paymentNumber,
+      ).toBe('TX-12345');
+      expect(sale.save).toHaveBeenCalledTimes(1);
+      expect(result).toBe(sale);
+    });
+
+    it('deletes the previous proof and re-uploads on payment_rejected → paid', async () => {
+      const sale = buildSale({
+        status: 'payment_rejected',
+        paymentProof: { imageKey: 'sales/abc/payment-proofs/old-key.png' },
+      });
+      saleModel.findById.mockResolvedValue(sale);
+
+      await service.submitPayment(SALE_ID, buildFile(), dto, {
+        userId: VALID_SALES_PERSON_ID,
+      });
+
+      expect(storageService.delete).toHaveBeenCalledWith(
+        'sales/abc/payment-proofs/old-key.png',
+      );
+      expect(storageService.upload).toHaveBeenCalledTimes(1);
+      expect(sale.status).toBe('paid');
+    });
+
+    it('swallows errors from the previous-proof delete but still uploads', async () => {
+      const sale = buildSale({
+        status: 'payment_rejected',
+        paymentProof: { imageKey: 'orphaned-key' },
+      });
+      saleModel.findById.mockResolvedValue(sale);
+      storageService.delete.mockRejectedValueOnce(new Error('not found'));
+
+      await service.submitPayment(SALE_ID, buildFile(), dto, {
+        userId: VALID_SALES_PERSON_ID,
+      });
+
+      expect(storageService.upload).toHaveBeenCalledTimes(1);
+      expect(sale.status).toBe('paid');
+    });
+
+    it('throws ForbiddenException when the actor is not the owner', async () => {
+      const sale = buildSale({ status: 'placed' });
+      saleModel.findById.mockResolvedValue(sale);
+
+      await expect(
+        service.submitPayment(SALE_ID, buildFile(), dto, {
+          userId: OTHER_SALES_PERSON_ID,
+        }),
+      ).rejects.toThrow(ForbiddenException);
+      expect(storageService.upload).not.toHaveBeenCalled();
+    });
+
+    it('throws BadRequestException when status is paid (already submitted)', async () => {
+      const sale = buildSale({ status: 'paid' });
+      saleModel.findById.mockResolvedValue(sale);
+
+      await expect(
+        service.submitPayment(SALE_ID, buildFile(), dto, {
+          userId: VALID_SALES_PERSON_ID,
+        }),
+      ).rejects.toThrow(BadRequestException);
+      expect(storageService.upload).not.toHaveBeenCalled();
+    });
+
+    it('throws BadRequestException when status is confirmed', async () => {
+      const sale = buildSale({ status: 'confirmed' });
+      saleModel.findById.mockResolvedValue(sale);
+
+      await expect(
+        service.submitPayment(SALE_ID, buildFile(), dto, {
+          userId: VALID_SALES_PERSON_ID,
+        }),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('throws NotFoundException when the sale does not exist', async () => {
+      saleModel.findById.mockResolvedValue(null);
+
+      await expect(
+        service.submitPayment(SALE_ID, buildFile(), dto, {
+          userId: VALID_SALES_PERSON_ID,
+        }),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('findPaymentProofStream', () => {
+    const SALE_ID = '507f1f77bcf86cd799439061';
+
+    function buildSale(
+      overrides: Partial<{
+        soldByUserId: string;
+        paymentProof: unknown;
+      }> = {},
+    ) {
+      return {
+        id: SALE_ID,
+        saleNumber: 'S-2026-00001',
+        soldBy: {
+          userId: overrides.soldByUserId ?? VALID_SALES_PERSON_ID,
+          name: 'Sales User',
+        },
+        paymentProof:
+          'paymentProof' in overrides
+            ? overrides.paymentProof
+            : {
+                imageKey: 'sales/abc/payment-proofs/key.png',
+                imageMimeType: 'image/png',
+                bank: 'Banco de Venezuela',
+                paymentType: 'pago_movil',
+                paymentNumber: 'TX-1',
+                paymentDate: new Date('2026-05-11'),
+                submittedAt: new Date('2026-05-11T10:00:00Z'),
+              },
+      };
+    }
+
+    beforeEach(() => {
+      storageService.download.mockResolvedValue(Buffer.from('image-bytes'));
+    });
+
+    it('returns the buffer + mime + filename for an admin', async () => {
+      saleModel.findById.mockResolvedValue(buildSale());
+
+      const result = await service.findPaymentProofStream(SALE_ID, {
+        userId: 'admin-id',
+        role: 'admin',
+      });
+
+      expect(storageService.download).toHaveBeenCalledWith(
+        'sales/abc/payment-proofs/key.png',
+      );
+      expect(result.mimeType).toBe('image/png');
+      expect(result.fileName).toBe('payment-proof-S-2026-00001.png');
+      expect(Buffer.isBuffer(result.buffer)).toBe(true);
+    });
+
+    it('returns the buffer for the owner salesperson', async () => {
+      saleModel.findById.mockResolvedValue(buildSale());
+
+      const result = await service.findPaymentProofStream(SALE_ID, {
+        userId: VALID_SALES_PERSON_ID,
+        role: 'salesPerson',
+      });
+
+      expect(Buffer.isBuffer(result.buffer)).toBe(true);
+    });
+
+    it('throws ForbiddenException when another salesperson tries', async () => {
+      saleModel.findById.mockResolvedValue(buildSale());
+
+      await expect(
+        service.findPaymentProofStream(SALE_ID, {
+          userId: OTHER_SALES_PERSON_ID,
+          role: 'salesPerson',
+        }),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('throws NotFoundException when the sale does not exist', async () => {
+      saleModel.findById.mockResolvedValue(null);
+
+      await expect(
+        service.findPaymentProofStream(SALE_ID, {
+          userId: 'admin-id',
+          role: 'admin',
+        }),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('throws NotFoundException when the sale has no paymentProof', async () => {
+      saleModel.findById.mockResolvedValue(
+        buildSale({ paymentProof: undefined as never }),
+      );
+
+      await expect(
+        service.findPaymentProofStream(SALE_ID, {
+          userId: 'admin-id',
+          role: 'admin',
+        }),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
   describe('remove', () => {
     it('throws NotFoundException when sale is missing', async () => {
       saleModel.findById.mockResolvedValue(null);
@@ -557,10 +902,30 @@ describe('SalesService', () => {
       );
     });
 
+    it.each(['paid', 'confirmed', 'payment_rejected'])(
+      'throws BadRequestException when the sale status is %s',
+      async (status) => {
+        saleModel.findById.mockResolvedValue({
+          id: 'sale-1',
+          saleNumber: 'S-2026-00001',
+          status,
+          soldBy: { userId: 'user-1', name: 'Sales User' },
+          items: [],
+        });
+
+        await expect(service.remove('sale-1')).rejects.toThrow(
+          BadRequestException,
+        );
+        expect(inventoryService.create).not.toHaveBeenCalled();
+        expect(saleModel.findByIdAndDelete).not.toHaveBeenCalled();
+      },
+    );
+
     it('creates inbound reversal transactions and deletes the sale', async () => {
       const sale = {
         id: 'sale-1',
         saleNumber: 'S-2026-00001',
+        status: 'placed',
         soldBy: { userId: 'user-1', name: 'Sales User' },
         items: [
           {

@@ -7,14 +7,19 @@ import {
   HttpStatus,
   NotFoundException,
   Param,
+  ParseFilePipeBuilder,
   Patch,
   Post,
   Query,
   StreamableFile,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { SalesService } from './sales.service';
 import {
+  PaymentProof as PaymentProofDoc,
   SaleDocument,
   SaleItem as SaleItemDoc,
   WarehouseAllocation as WarehouseAllocationDoc,
@@ -26,16 +31,27 @@ import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe';
 import {
   type Currency,
   type PaginatedResponse,
+  type PaymentProof,
+  type PaymentType,
   type ProductKind,
   type Role,
   type Sale,
   type SaleItem,
+  type SaleStatus,
   type WarehouseAllocation,
   saleListQuerySchema,
   type SaleListQuery,
 } from '@base-dashboard/shared';
 import { createSaleSchema, type CreateSaleInput } from './dto/create-sale.dto';
 import { updateSaleSchema, type UpdateSaleInput } from './dto/update-sale.dto';
+import {
+  updateSaleStatusSchema,
+  type UpdateSaleStatusInput,
+} from './dto/update-sale-status.dto';
+import {
+  submitPaymentSchema,
+  type SubmitPaymentInput,
+} from './dto/submit-payment.dto';
 
 function toAllocation(raw: WarehouseAllocationDoc): WarehouseAllocation {
   return {
@@ -66,6 +82,18 @@ function toItem(raw: SaleItemDoc): SaleItem {
   };
 }
 
+function toPaymentProof(raw: PaymentProofDoc): PaymentProof {
+  return {
+    imageKey: raw.imageKey,
+    imageMimeType: raw.imageMimeType,
+    bank: raw.bank,
+    paymentType: raw.paymentType as PaymentType,
+    paymentNumber: raw.paymentNumber,
+    paymentDate: raw.paymentDate.toISOString().slice(0, 10),
+    submittedAt: raw.submittedAt.toISOString(),
+  };
+}
+
 function toSale(doc: SaleDocument): Sale {
   return {
     id: doc.id,
@@ -77,6 +105,8 @@ function toSale(doc: SaleDocument): Sale {
     totalQty: doc.totalQty,
     totalAmount: doc.totalAmount,
     currency: doc.currency as Currency,
+    status: doc.status as SaleStatus,
+    paymentProof: doc.paymentProof ? toPaymentProof(doc.paymentProof) : undefined,
     soldBy: { userId: doc.soldBy.userId, name: doc.soldBy.name },
     createdAt: doc.get('createdAt').toISOString(),
     updatedAt: doc.get('updatedAt').toISOString(),
@@ -143,6 +173,45 @@ export class SalesController {
     return toSale(updated);
   }
 
+  @Patch(':id/status')
+  @UseGuards(RolesGuard)
+  @Roles('admin')
+  async updateStatus(
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(updateSaleStatusSchema))
+    dto: UpdateSaleStatusInput,
+  ): Promise<Sale> {
+    const updated = await this.salesService.updateStatus(id, dto.status);
+    return toSale(updated);
+  }
+
+  @Post(':id/payment')
+  @UseGuards(RolesGuard)
+  @Roles('salesPerson')
+  @UseInterceptors(FileInterceptor('image'))
+  async submitPayment(
+    @Param('id') id: string,
+    @UploadedFile(
+      new ParseFilePipeBuilder()
+        .addFileTypeValidator({
+          fileType: /^(image\/(jpeg|png|webp)|application\/pdf)$/,
+        })
+        .addMaxSizeValidator({ maxSize: 5 * 1024 * 1024 })
+        .build({
+          errorHttpStatusCode: HttpStatus.BAD_REQUEST,
+          fileIsRequired: true,
+        }),
+    )
+    file: Express.Multer.File,
+    @Body(new ZodValidationPipe(submitPaymentSchema)) dto: SubmitPaymentInput,
+    @CurrentUser() user: { userId: string },
+  ): Promise<Sale> {
+    const updated = await this.salesService.submitPayment(id, file, dto, {
+      userId: user.userId,
+    });
+    return toSale(updated);
+  }
+
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
   async remove(@Param('id') id: string): Promise<void> {
@@ -174,6 +243,19 @@ export class SalesController {
     return new StreamableFile(buffer, {
       type: 'application/pdf',
       disposition: `attachment; filename="${filename}"`,
+    });
+  }
+
+  @Get(':id/payment-proof')
+  async paymentProof(
+    @Param('id') id: string,
+    @CurrentUser() user: { userId: string; role: Role },
+  ): Promise<StreamableFile> {
+    const { buffer, mimeType, fileName } =
+      await this.salesService.findPaymentProofStream(id, user);
+    return new StreamableFile(buffer, {
+      type: mimeType,
+      disposition: `inline; filename="${fileName}"`,
     });
   }
 }

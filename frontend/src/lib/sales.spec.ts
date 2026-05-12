@@ -3,6 +3,9 @@ import {
   fetchSaleApi,
   createSaleApi,
   updateSaleApi,
+  updateSaleStatusApi,
+  submitSalePaymentApi,
+  downloadPaymentProofApi,
   removeSaleApi,
   downloadDeliveryOrderApi,
   downloadInvoiceApi,
@@ -85,6 +88,84 @@ describe("sales API", () => {
         method: "PATCH",
         body: JSON.stringify(data),
       })
+    })
+  })
+
+  describe("updateSaleStatusApi", () => {
+    it("should PATCH /api/sales/:id/status with confirmed", async () => {
+      vi.mocked(authFetch).mockResolvedValue(
+        mockJsonResponse({ id: "s1", status: "confirmed" }),
+      )
+
+      const result = await updateSaleStatusApi("s1", "confirmed")
+
+      expect(authFetch).toHaveBeenCalledWith("/api/sales/s1/status", {
+        method: "PATCH",
+        body: JSON.stringify({ status: "confirmed" }),
+      })
+      expect(result).toEqual({ id: "s1", status: "confirmed" })
+    })
+
+    it("should PATCH with payment_rejected", async () => {
+      vi.mocked(authFetch).mockResolvedValue(
+        mockJsonResponse({ id: "s1", status: "payment_rejected" }),
+      )
+
+      await updateSaleStatusApi("s1", "payment_rejected")
+
+      expect(authFetch).toHaveBeenCalledWith("/api/sales/s1/status", {
+        method: "PATCH",
+        body: JSON.stringify({ status: "payment_rejected" }),
+      })
+    })
+  })
+
+  describe("submitSalePaymentApi", () => {
+    it("POSTs FormData with image, bank, paymentType, paymentNumber, and paymentDate", async () => {
+      vi.mocked(authFetch).mockResolvedValue(
+        mockJsonResponse({ id: "s1", status: "paid" }),
+      )
+      const file = new File(["png-bytes"], "proof.png", { type: "image/png" })
+
+      await submitSalePaymentApi("s1", {
+        image: file,
+        bank: "Banco de Venezuela",
+        paymentType: "pago_movil",
+        paymentNumber: "TX-12345",
+        paymentDate: "2026-05-11",
+      })
+
+      expect(authFetch).toHaveBeenCalledTimes(1)
+      const [url, opts] = vi.mocked(authFetch).mock.calls[0]
+      expect(url).toBe("/api/sales/s1/payment")
+      expect(opts?.method).toBe("POST")
+      expect(opts?.body).toBeInstanceOf(FormData)
+
+      const fd = opts!.body as FormData
+      expect(fd.get("image")).toBe(file)
+      expect(fd.get("bank")).toBe("Banco de Venezuela")
+      expect(fd.get("paymentType")).toBe("pago_movil")
+      expect(fd.get("paymentNumber")).toBe("TX-12345")
+      expect(fd.get("paymentDate")).toBe("2026-05-11")
+    })
+  })
+
+  describe("downloadPaymentProofApi", () => {
+    it("GETs /api/sales/:id/payment-proof and returns the blob + mime type", async () => {
+      const blob = new Blob(["bytes"], { type: "image/png" })
+      vi.mocked(authFetch).mockResolvedValue({
+        blob: () => Promise.resolve(blob),
+        headers: {
+          get: (n: string) =>
+            n.toLowerCase() === "content-type" ? "image/png" : null,
+        },
+      } as unknown as Response)
+
+      const result = await downloadPaymentProofApi("s1")
+
+      expect(authFetch).toHaveBeenCalledWith("/api/sales/s1/payment-proof")
+      expect(result.blob).toBe(blob)
+      expect(result.mimeType).toBe("image/png")
     })
   })
 

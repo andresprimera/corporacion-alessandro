@@ -81,16 +81,26 @@ async function refreshTokens(): Promise<AuthResponse> {
 
 // --- Fetch helpers ---
 
+function buildHeaders(
+  options: RequestInit,
+  extras: Record<string, string> = {},
+): HeadersInit {
+  const isFormData =
+    typeof FormData !== "undefined" && options.body instanceof FormData
+  return {
+    ...(isFormData ? {} : { "Content-Type": "application/json" }),
+    ...options.headers,
+    ...extras,
+  }
+}
+
 export async function publicFetch(
   url: string,
   options: RequestInit = {},
 ): Promise<Response> {
   const res = await fetch(resolveUrl(url), {
     ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...options.headers,
-    },
+    headers: buildHeaders(options),
   })
   if (!res.ok) {
     await throwApiError(res)
@@ -107,11 +117,10 @@ export async function authFetch(
   const makeRequest = (token: string | null): Promise<Response> =>
     fetch(resolveUrl(url), {
       ...options,
-      headers: {
-        "Content-Type": "application/json",
-        ...options.headers,
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
+      headers: buildHeaders(
+        options,
+        token ? { Authorization: `Bearer ${token}` } : {},
+      ),
     })
 
   const res = await makeRequest(accessToken)

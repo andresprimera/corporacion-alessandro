@@ -4,6 +4,17 @@ import { paginationQuerySchema } from "./pagination";
 import { currencyEnum, productKindEnum } from "./product";
 import { unitRefSchema } from "./unit";
 
+export const saleStatusEnum = z.enum([
+  "placed",
+  "paid",
+  "confirmed",
+  "payment_rejected",
+]);
+export type SaleStatus = z.infer<typeof saleStatusEnum>;
+
+export const paymentTypeEnum = z.enum(["pago_movil", "bank_transfer"]);
+export type PaymentType = z.infer<typeof paymentTypeEnum>;
+
 export const warehouseAllocationSchema = z.object({
   warehouseId: z.string(),
   warehouseName: z.string(),
@@ -31,6 +42,17 @@ export const saleSoldBySchema = z.object({
 });
 export type SaleSoldBy = z.infer<typeof saleSoldBySchema>;
 
+export const paymentProofSchema = z.object({
+  imageKey: z.string(),
+  imageMimeType: z.string(),
+  bank: z.string(),
+  paymentType: paymentTypeEnum,
+  paymentNumber: z.string(),
+  paymentDate: z.string(),
+  submittedAt: z.string(),
+});
+export type PaymentProof = z.infer<typeof paymentProofSchema>;
+
 export const saleSchema = z.object({
   id: z.string(),
   saleNumber: z.string(),
@@ -41,6 +63,8 @@ export const saleSchema = z.object({
   totalQty: z.number(),
   totalAmount: z.number(),
   currency: currencyEnum,
+  status: saleStatusEnum,
+  paymentProof: paymentProofSchema.optional(),
   soldBy: saleSoldBySchema,
   createdAt: z.string(),
   updatedAt: z.string(),
@@ -66,6 +90,19 @@ export const updateSaleSchema = z.object({
   notes: z.string().optional(),
 });
 export type UpdateSaleInput = z.infer<typeof updateSaleSchema>;
+
+export const updateSaleStatusSchema = z.object({
+  status: z.enum(["confirmed", "payment_rejected"]),
+});
+export type UpdateSaleStatusInput = z.infer<typeof updateSaleStatusSchema>;
+
+export const submitPaymentSchema = z.object({
+  bank: z.string().min(1, "Bank is required"),
+  paymentType: paymentTypeEnum,
+  paymentNumber: z.string().min(1, "Payment number is required"),
+  paymentDate: z.string().min(1, "Payment date is required"),
+});
+export type SubmitPaymentInput = z.infer<typeof submitPaymentSchema>;
 
 export const saleListQuerySchema = paginationQuerySchema;
 export type SaleListQuery = z.infer<typeof saleListQuerySchema>;

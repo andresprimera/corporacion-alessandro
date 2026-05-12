@@ -7,6 +7,7 @@ import { ProductsModule } from '../products/products.module';
 import { WarehousesModule } from '../warehouses/warehouses.module';
 import { InventoryModule } from '../inventory/inventory.module';
 import { ClientsModule } from '../clients/clients.module';
+import { StorageModule } from '../services/storage/storage.module';
 
 @Module({
   imports: [
@@ -15,6 +16,7 @@ import { ClientsModule } from '../clients/clients.module';
     WarehousesModule,
     InventoryModule,
     ClientsModule,
+    StorageModule,
   ],
   controllers: [SalesController],
   providers: [SalesService],

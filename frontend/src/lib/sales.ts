@@ -1,6 +1,7 @@
 import {
   type CreateSaleInput,
   type PaginatedResponse,
+  type PaymentType,
   type Sale,
   type UpdateSaleInput,
 } from "@base-dashboard/shared"
@@ -50,6 +51,50 @@ export async function updateSaleApi(
     body: JSON.stringify(data),
   })
   return res.json()
+}
+
+export async function updateSaleStatusApi(
+  id: string,
+  status: "confirmed" | "payment_rejected",
+): Promise<Sale> {
+  const res = await authFetch(`/api/sales/${id}/status`, {
+    method: "PATCH",
+    body: JSON.stringify({ status }),
+  })
+  return res.json()
+}
+
+export async function submitSalePaymentApi(
+  id: string,
+  input: {
+    image: File
+    bank: string
+    paymentType: PaymentType
+    paymentNumber: string
+    paymentDate: string
+  },
+): Promise<Sale> {
+  const formData = new FormData()
+  formData.append("image", input.image)
+  formData.append("bank", input.bank)
+  formData.append("paymentType", input.paymentType)
+  formData.append("paymentNumber", input.paymentNumber)
+  formData.append("paymentDate", input.paymentDate)
+  const res = await authFetch(`/api/sales/${id}/payment`, {
+    method: "POST",
+    body: formData,
+  })
+  return res.json()
+}
+
+export async function downloadPaymentProofApi(
+  id: string,
+): Promise<{ blob: Blob; mimeType: string }> {
+  const res = await authFetch(`/api/sales/${id}/payment-proof`)
+  const blob = await res.blob()
+  const mimeType =
+    res.headers.get("content-type") ?? "application/octet-stream"
+  return { blob, mimeType }
 }
 
 export async function removeSaleApi(id: string): Promise<void> {

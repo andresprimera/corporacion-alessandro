@@ -77,6 +77,32 @@ export class SaleSoldBy {
 
 export const SaleSoldBySchema = SchemaFactory.createForClass(SaleSoldBy);
 
+@Schema({ _id: false })
+export class PaymentProof {
+  @Prop({ required: true })
+  imageKey: string;
+
+  @Prop({ required: true })
+  imageMimeType: string;
+
+  @Prop({ required: true })
+  bank: string;
+
+  @Prop({ required: true, enum: ['pago_movil', 'bank_transfer'] })
+  paymentType: string;
+
+  @Prop({ required: true })
+  paymentNumber: string;
+
+  @Prop({ required: true })
+  paymentDate: Date;
+
+  @Prop({ required: true })
+  submittedAt: Date;
+}
+
+export const PaymentProofSchema = SchemaFactory.createForClass(PaymentProof);
+
 export type SaleDocument = HydratedDocument<Sale>;
 
 @Schema({ timestamps: true })
@@ -104,6 +130,16 @@ export class Sale {
 
   @Prop({ required: true })
   currency: string;
+
+  @Prop({
+    required: true,
+    enum: ['placed', 'paid', 'confirmed', 'payment_rejected'],
+    default: 'placed',
+  })
+  status: string;
+
+  @Prop({ type: PaymentProofSchema, required: false })
+  paymentProof?: PaymentProof;
 
   @Prop({ type: SaleSoldBySchema, required: true })
   soldBy: SaleSoldBy;
