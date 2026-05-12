@@ -14,7 +14,7 @@ export interface UseStockResult {
 export function useStock(): UseStockResult {
   const query = useQuery({
     queryKey: ["stock", "aggregated", "all"],
-    queryFn: () => fetchStockAggregatedApi(1, 1000),
+    queryFn: () => fetchStockAggregatedApi(1, 100),
     staleTime: 30_000,
   })
 

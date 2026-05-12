@@ -17,6 +17,21 @@ export const WarehouseAllocationSchema =
   SchemaFactory.createForClass(WarehouseAllocation);
 
 @Schema({ _id: false })
+export class SaleEnteredUnit {
+  @Prop({ type: SchemaTypes.ObjectId, ref: 'Unit', required: true })
+  unitId: Types.ObjectId;
+
+  @Prop({ required: true })
+  name: string;
+
+  @Prop({ required: true })
+  abbreviation: string;
+}
+
+export const SaleEnteredUnitSchema =
+  SchemaFactory.createForClass(SaleEnteredUnit);
+
+@Schema({ _id: false })
 export class SaleItem {
   @Prop({ type: SchemaTypes.ObjectId, ref: 'Product', required: true })
   productId: Types.ObjectId;
@@ -35,6 +50,15 @@ export class SaleItem {
 
   @Prop({ required: true })
   currency: string;
+
+  @Prop({ required: false })
+  enteredQty?: number;
+
+  @Prop({ type: SaleEnteredUnitSchema, required: false })
+  enteredUnit?: SaleEnteredUnit;
+
+  @Prop({ required: false })
+  unitsPerPackageAtEntry?: number;
 
   @Prop({ type: [WarehouseAllocationSchema], required: true })
   allocations: WarehouseAllocation[];

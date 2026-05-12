@@ -14,12 +14,24 @@ import {
   type ProductOption,
 } from "@base-dashboard/shared"
 import { useAuth } from "@/hooks/use-auth"
+import { cartItemBasicQty } from "@/lib/sales"
+
+export interface CartItemUnit {
+  id: string
+  name: string
+  abbreviation: string
+}
 
 export interface CartItem {
   productId: string
   productName: string
   productKind: ProductKind
-  requestedQty: number
+  enteredQty: number
+  enteredUnit: CartItemUnit
+  isPackage: boolean
+  unitsPerPackage?: number
+  basicUnit?: CartItemUnit
+  packageUnit?: CartItemUnit
   unitPrice: number
   currency: Currency
 }
@@ -30,7 +42,7 @@ interface PersistedCart {
   items: CartItem[]
 }
 
-const STORAGE_KEY_PREFIX = "sale-cart-v1:"
+const STORAGE_KEY_PREFIX = "sale-cart-v2:"
 
 function loadCart(userId: string): PersistedCart | null {
   try {
@@ -61,14 +73,25 @@ function clearStoredCart(userId: string): void {
   }
 }
 
+export interface AddItemOptions {
+  qty: number
+  unit: CartItemUnit
+  isPackage: boolean
+  unitsPerPackage?: number
+  basicUnit?: CartItemUnit
+  packageUnit?: CartItemUnit
+}
+
+type CartProduct = Product | ProductOption
+
 interface SaleCartContextValue {
   items: CartItem[]
   clientId: string
   notes: string
 
-  addItem: (product: Product | ProductOption, qty?: number) => void
-  updateQty: (productId: string, qty: number) => void
-  removeItem: (productId: string) => void
+  addItem: (product: CartProduct, opts: AddItemOptions) => void
+  updateQty: (productId: string, unitId: string, qty: number) => void
+  removeItem: (productId: string, unitId: string) => void
   clearItems: () => void
   setClientId: (clientId: string) => void
   setNotes: (notes: string) => void
@@ -116,17 +139,16 @@ export function SaleCartProvider({
     saveCart(userId, { clientId, notes, items })
   }, [userId, clientId, notes, items])
 
-  function addItem(
-    product: Product | ProductOption,
-    qty: number = 1,
-  ): void {
-    if (qty < 1) return
+  function addItem(product: CartProduct, opts: AddItemOptions): void {
+    if (opts.qty < 1) return
     setItems((prev) => {
-      const existing = prev.find((i) => i.productId === product.id)
+      const existing = prev.find(
+        (i) => i.productId === product.id && i.enteredUnit.id === opts.unit.id,
+      )
       if (existing) {
         return prev.map((i) =>
-          i.productId === product.id
-            ? { ...i, requestedQty: i.requestedQty + qty }
+          i.productId === product.id && i.enteredUnit.id === opts.unit.id
+            ? { ...i, enteredQty: i.enteredQty + opts.qty }
             : i,
         )
       }
@@ -136,7 +158,12 @@ export function SaleCartProvider({
           productId: product.id,
           productName: product.name,
           productKind: product.kind,
-          requestedQty: qty,
+          enteredQty: opts.qty,
+          enteredUnit: opts.unit,
+          isPackage: opts.isPackage,
+          unitsPerPackage: opts.unitsPerPackage,
+          basicUnit: opts.basicUnit,
+          packageUnit: opts.packageUnit,
           unitPrice: product.price.value,
           currency: product.price.currency,
         },
@@ -144,17 +171,23 @@ export function SaleCartProvider({
     })
   }
 
-  function updateQty(productId: string, qty: number): void {
+  function updateQty(productId: string, unitId: string, qty: number): void {
     if (qty < 1) return
     setItems((prev) =>
       prev.map((i) =>
-        i.productId === productId ? { ...i, requestedQty: qty } : i,
+        i.productId === productId && i.enteredUnit.id === unitId
+          ? { ...i, enteredQty: qty }
+          : i,
       ),
     )
   }
 
-  function removeItem(productId: string): void {
-    setItems((prev) => prev.filter((i) => i.productId !== productId))
+  function removeItem(productId: string, unitId: string): void {
+    setItems((prev) =>
+      prev.filter(
+        (i) => !(i.productId === productId && i.enteredUnit.id === unitId),
+      ),
+    )
   }
 
   function clearItems(): void {
@@ -173,9 +206,9 @@ export function SaleCartProvider({
     if (userId) clearStoredCart(userId)
   }
 
-  const totalQty = items.reduce((s, i) => s + i.requestedQty, 0)
+  const totalQty = items.reduce((s, i) => s + cartItemBasicQty(i), 0)
   const totalAmount = items.reduce(
-    (s, i) => s + i.requestedQty * i.unitPrice,
+    (s, i) => s + cartItemBasicQty(i) * i.unitPrice,
     0,
   )
   const totalCurrency: Currency = items[0]?.currency ?? "USD"

@@ -1,7 +1,11 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getModelToken } from '@nestjs/mongoose';
 import { ConfigService } from '@nestjs/config';
-import { ForbiddenException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 import { Types } from 'mongoose';
 import { SalesService } from './sales.service';
 import { Sale } from './schemas/sale.schema';
@@ -34,12 +38,25 @@ describe('SalesService', () => {
   const VALID_SALES_PERSON_ID = '507f1f77bcf86cd799439041';
   const OTHER_SALES_PERSON_ID = '507f1f77bcf86cd799439042';
   const VALID_CITY_ID = '507f1f77bcf86cd799439051';
+  const BASIC_UNIT_ID = '507f1f77bcf86cd799439071';
+  const PACKAGE_UNIT_ID = '507f1f77bcf86cd799439072';
 
   const mockProduct = {
     id: VALID_PRODUCT_ID,
     name: 'Harina PAN 1kg',
     kind: 'groceries',
     price: { value: 1.5, currency: 'USD' },
+    basicUnitId: {
+      _id: new Types.ObjectId(BASIC_UNIT_ID),
+      name: 'Unidad',
+      abbreviation: 'und',
+    },
+    packageUnitId: {
+      _id: new Types.ObjectId(PACKAGE_UNIT_ID),
+      name: 'Caja',
+      abbreviation: 'cja',
+    },
+    unitsPerPackage: 12,
   };
 
   const mockClient = {
@@ -97,15 +114,20 @@ describe('SalesService', () => {
     const salesPersonActor = { role: 'salesPerson' as const };
 
     function dto(
-      overrides: Partial<{ requestedQty: number }> = {},
+      overrides: Partial<{
+        enteredQty: number;
+        enteredUnitId: string;
+        unitPrice: number;
+      }> = {},
     ) {
       return {
         clientId: VALID_CLIENT_ID,
         items: [
           {
             productId: VALID_PRODUCT_ID,
-            requestedQty: overrides.requestedQty ?? 10,
-            unitPrice: 2,
+            enteredQty: overrides.enteredQty ?? 10,
+            enteredUnitId: overrides.enteredUnitId ?? BASIC_UNIT_ID,
+            unitPrice: overrides.unitPrice ?? 2,
           },
         ],
       };
@@ -146,7 +168,7 @@ describe('SalesService', () => {
       inventoryService.findTotalStockForProduct.mockResolvedValue(5);
 
       await expect(
-        service.create(dto({ requestedQty: 10 }), soldBy, adminActor),
+        service.create(dto({ enteredQty: 10 }), soldBy, adminActor),
       ).rejects.toThrow(/Insufficient stock/);
       expect(inventoryService.create).not.toHaveBeenCalled();
     });
@@ -157,14 +179,74 @@ describe('SalesService', () => {
       const reqDto = {
         clientId: VALID_CLIENT_ID,
         items: [
-          { productId: VALID_PRODUCT_ID, requestedQty: 30, unitPrice: 1.5 },
-          { productId: VALID_PRODUCT_ID, requestedQty: 30, unitPrice: 1.5 },
+          {
+            productId: VALID_PRODUCT_ID,
+            enteredQty: 30,
+            enteredUnitId: BASIC_UNIT_ID,
+            unitPrice: 1.5,
+          },
+          {
+            productId: VALID_PRODUCT_ID,
+            enteredQty: 30,
+            enteredUnitId: BASIC_UNIT_ID,
+            unitPrice: 1.5,
+          },
         ],
       };
 
       await expect(service.create(reqDto, soldBy, adminActor)).rejects.toThrow(
         /Insufficient stock/,
       );
+    });
+
+    it('throws BadRequestException when enteredUnitId does not belong to the product', async () => {
+      await expect(
+        service.create(
+          dto({ enteredUnitId: '507f1f77bcf86cd799439099' }),
+          soldBy,
+          adminActor,
+        ),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('converts enteredQty in package units to basic-unit requestedQty', async () => {
+      warehousesService.findAllActive.mockResolvedValue([
+        { id: VALID_WAREHOUSE_A, name: 'A' },
+      ]);
+      inventoryService.findTotalStockForProduct.mockResolvedValue(100);
+      inventoryService.findAvailableStock.mockResolvedValue(100);
+      saleModel.create.mockResolvedValue({ id: 'sale-1' });
+
+      // 2 Caja × 12 = 24 basic units
+      await service.create(
+        dto({ enteredQty: 2, enteredUnitId: PACKAGE_UNIT_ID }),
+        soldBy,
+        adminActor,
+      );
+
+      const inserted = saleModel.create.mock.calls[0][0];
+      expect(inserted.items[0].requestedQty).toBe(24);
+      expect(inserted.items[0].enteredQty).toBe(2);
+      expect(inserted.items[0].enteredUnit.name).toBe('Caja');
+      expect(inserted.items[0].enteredUnit.abbreviation).toBe('cja');
+      expect(inserted.items[0].unitsPerPackageAtEntry).toBe(12);
+    });
+
+    it('snapshots the basic unit on the sale item when entered by basic unit', async () => {
+      warehousesService.findAllActive.mockResolvedValue([
+        { id: VALID_WAREHOUSE_A, name: 'A' },
+      ]);
+      inventoryService.findTotalStockForProduct.mockResolvedValue(100);
+      inventoryService.findAvailableStock.mockResolvedValue(100);
+      saleModel.create.mockResolvedValue({ id: 'sale-1' });
+
+      await service.create(dto({ enteredQty: 5 }), soldBy, adminActor);
+
+      const inserted = saleModel.create.mock.calls[0][0];
+      expect(inserted.items[0].requestedQty).toBe(5);
+      expect(inserted.items[0].enteredQty).toBe(5);
+      expect(inserted.items[0].enteredUnit.name).toBe('Unidad');
+      expect(inserted.items[0].unitsPerPackageAtEntry).toBeUndefined();
     });
 
     it('auto-allocates by stock-desc, name-asc tiebreaker, depleting largest pocket first', async () => {
@@ -186,7 +268,7 @@ describe('SalesService', () => {
         saleNumber: 'S-X-00001',
       });
 
-      await service.create(dto({ requestedQty: 90 }), soldBy, adminActor);
+      await service.create(dto({ enteredQty: 90 }), soldBy, adminActor);
 
       const inserted = saleModel.create.mock.calls[0][0];
       const allocations = inserted.items[0].allocations;
@@ -211,7 +293,7 @@ describe('SalesService', () => {
         saleNumber: 'S-X-00001',
       });
 
-      await service.create(dto({ requestedQty: 30 }), soldBy, adminActor);
+      await service.create(dto({ enteredQty: 30 }), soldBy, adminActor);
 
       const inserted = saleModel.create.mock.calls[0][0];
       const allocations = inserted.items[0].allocations;
@@ -251,7 +333,7 @@ describe('SalesService', () => {
         saleNumber: 'S-2026-00001',
       });
 
-      await service.create(dto({ requestedQty: 50 }), soldBy, adminActor);
+      await service.create(dto({ enteredQty: 50 }), soldBy, adminActor);
 
       expect(inventoryService.create).toHaveBeenCalledTimes(2);
       const calls = inventoryService.create.mock.calls;

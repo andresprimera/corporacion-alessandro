@@ -2,6 +2,7 @@ import { z } from "zod/v4";
 
 import { paginationQuerySchema } from "./pagination";
 import { currencyEnum, productKindEnum } from "./product";
+import { unitRefSchema } from "./unit";
 
 export const warehouseAllocationSchema = z.object({
   warehouseId: z.string(),
@@ -17,6 +18,9 @@ export const saleItemSchema = z.object({
   requestedQty: z.number().int().positive("Quantity must be positive"),
   unitPrice: z.number().nonnegative("Unit price must be zero or greater"),
   currency: currencyEnum,
+  enteredQty: z.number().int().positive().optional(),
+  enteredUnit: unitRefSchema.optional(),
+  unitsPerPackageAtEntry: z.number().int().optional(),
   allocations: z.array(warehouseAllocationSchema).min(1, "At least one warehouse is required"),
 });
 export type SaleItem = z.infer<typeof saleItemSchema>;
@@ -45,7 +49,8 @@ export type Sale = z.infer<typeof saleSchema>;
 
 const saleItemInputSchema = z.object({
   productId: z.string().min(1, "Product is required"),
-  requestedQty: z.number().int().positive("Quantity must be positive"),
+  enteredQty: z.number().int().positive("Quantity must be positive"),
+  enteredUnitId: z.string().min(1, "Unit is required"),
   unitPrice: z.number().nonnegative("Unit price must be zero or greater"),
 });
 export type SaleItemInput = z.infer<typeof saleItemInputSchema>;

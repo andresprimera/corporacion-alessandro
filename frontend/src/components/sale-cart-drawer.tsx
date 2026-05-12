@@ -14,7 +14,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { SaleFormDialog } from "@/components/sale-form-dialog"
 import { i18n } from "@/lib/i18n"
-import { cn } from "@/lib/utils"
+import { cartItemBasicQty } from "@/lib/sales"
 import {
   MinusIcon,
   PlusIcon,
@@ -73,21 +73,47 @@ export function SaleCartDrawer(): ReactElement | null {
             ) : (
               <div className="divide-y">
                 {cart.items.map((item) => {
-                  const isOne = item.requestedQty === 1
-                  const subtotal = item.unitPrice * item.requestedQty
+                  const isOne = item.enteredQty === 1
+                  const basicQty = cartItemBasicQty(item)
+                  const conversion =
+                    item.isPackage && item.unitsPerPackage
+                      ? item.unitsPerPackage
+                      : 1
+                  const displayPrice = item.unitPrice * conversion
+                  const subtotal = item.unitPrice * basicQty
                   const available = stock.getAvailable(item.productId)
                   const atLimit =
-                    available !== undefined && item.requestedQty >= available
+                    available !== undefined && basicQty + conversion > available
                   return (
-                    <div key={item.productId} className="space-y-2 p-3">
+                    <div
+                      key={`${item.productId}-${item.enteredUnit.id}`}
+                      className="space-y-2 p-3"
+                    >
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0 flex-1">
                           <div className="truncate text-sm font-medium">
                             {item.productName}
                           </div>
                           <div className="text-xs text-muted-foreground">
-                            {formatPrice(item.unitPrice, item.currency)}
+                            {formatPrice(displayPrice, item.currency)} /{" "}
+                            {item.enteredUnit.name}
                           </div>
+                          {available !== undefined && (
+                            <div
+                              className={
+                                available <= 0
+                                  ? "text-xs text-destructive"
+                                  : "text-xs text-muted-foreground"
+                              }
+                            >
+                              {available <= 0
+                                ? t("Out of stock")
+                                : t("In stock: {{qty}} {{unit}}", {
+                                    qty: Math.floor(available / conversion),
+                                    unit: item.enteredUnit.name,
+                                  })}
+                            </div>
+                          )}
                         </div>
                         <div className="text-base font-semibold tabular-nums">
                           {formatPrice(subtotal, item.currency)}
@@ -100,10 +126,14 @@ export function SaleCartDrawer(): ReactElement | null {
                           size="icon"
                           onClick={() =>
                             isOne
-                              ? cart.removeItem(item.productId)
+                              ? cart.removeItem(
+                                  item.productId,
+                                  item.enteredUnit.id,
+                                )
                               : cart.updateQty(
                                   item.productId,
-                                  item.requestedQty - 1,
+                                  item.enteredUnit.id,
+                                  item.enteredQty - 1,
                                 )
                           }
                           aria-label={
@@ -119,12 +149,13 @@ export function SaleCartDrawer(): ReactElement | null {
                           )}
                         </Button>
                         <div
-                          className={cn(
-                            "min-w-10 text-center text-base font-semibold tabular-nums",
-                          )}
+                          className="min-w-10 text-center text-base font-semibold tabular-nums"
                           aria-label={t("Qty")}
                         >
-                          {item.requestedQty}
+                          {item.enteredQty}
+                        </div>
+                        <div className="text-sm text-muted-foreground min-w-12">
+                          {item.enteredUnit.name}
                         </div>
                         <Button
                           type="button"
@@ -133,7 +164,8 @@ export function SaleCartDrawer(): ReactElement | null {
                           onClick={() =>
                             cart.updateQty(
                               item.productId,
-                              item.requestedQty + 1,
+                              item.enteredUnit.id,
+                              item.enteredQty + 1,
                             )
                           }
                           disabled={atLimit}

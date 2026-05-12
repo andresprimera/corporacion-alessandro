@@ -57,7 +57,8 @@ describe("sales API", () => {
         items: [
           {
             productId: "p1",
-            requestedQty: 10,
+            enteredQty: 10,
+            enteredUnitId: "u1",
             unitPrice: 1.5,
           },
         ],

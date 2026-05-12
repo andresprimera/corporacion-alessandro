@@ -3,6 +3,7 @@ import type { ReactNode } from "react"
 import {
   SaleCartProvider,
   useSaleCart,
+  type AddItemOptions,
 } from "@/hooks/use-sale-cart"
 import type { Product, ProductOption, User } from "@base-dashboard/shared"
 
@@ -20,6 +21,24 @@ vi.mock("@/hooks/use-auth", () => ({
   useAuth: () => ({ user: currentUser }),
 }))
 
+const BASIC_UNIT = {
+  id: "u-bottle",
+  name: "Botella",
+  abbreviation: "bta",
+}
+
+const PACKAGE_UNIT = {
+  id: "u-case",
+  name: "Caja",
+  abbreviation: "cja",
+}
+
+const GROCERY_UNIT = {
+  id: "u-unit",
+  name: "Unidad",
+  abbreviation: "und",
+}
+
 const liquor: Product = {
   id: "p-liquor",
   kind: "liquor",
@@ -29,7 +48,7 @@ const liquor: Product = {
   liquorType: { id: "lt-rum", name: "Ron", abbreviation: "ron" },
   presentationId: "pres-1l",
   presentation: { id: "pres-1l", name: "1 Litro", abbreviation: "1L" },
-  basicUnitId: "u-bottle",
+  basicUnitId: BASIC_UNIT.id,
 }
 
 const grocery: Product = {
@@ -37,7 +56,7 @@ const grocery: Product = {
   kind: "groceries",
   name: "Rice",
   price: { value: 5, currency: "USD" },
-  basicUnitId: "u-unit",
+  basicUnitId: GROCERY_UNIT.id,
 }
 
 const groceryOption: ProductOption = {
@@ -45,7 +64,26 @@ const groceryOption: ProductOption = {
   kind: "groceries",
   name: "Rice",
   price: { value: 5, currency: "USD" },
-  basicUnitId: "u-unit",
+  basicUnitId: GROCERY_UNIT.id,
+}
+
+const liquorBasicOpts: AddItemOptions = {
+  qty: 1,
+  unit: BASIC_UNIT,
+  isPackage: false,
+}
+
+const liquorPackageOpts: AddItemOptions = {
+  qty: 1,
+  unit: PACKAGE_UNIT,
+  isPackage: true,
+  unitsPerPackage: 12,
+}
+
+const groceryOpts: AddItemOptions = {
+  qty: 1,
+  unit: GROCERY_UNIT,
+  isPackage: false,
 }
 
 function wrap({ children }: { children: ReactNode }) {
@@ -70,56 +108,70 @@ describe("useSaleCart", () => {
   it("addItem adds a new line with stamped product fields", () => {
     const { result } = renderHook(() => useSaleCart(), { wrapper: wrap })
 
-    act(() => result.current.addItem(liquor, 2))
-
-    expect(result.current.items).toEqual([
-      {
-        productId: "p-liquor",
-        productName: "Bacardi",
-        productKind: "liquor",
-        requestedQty: 2,
-        unitPrice: 25,
-        currency: "USD",
-      },
-    ])
-  })
-
-  it("addItem on an existing product increments requestedQty", () => {
-    const { result } = renderHook(() => useSaleCart(), { wrapper: wrap })
-
-    act(() => result.current.addItem(liquor, 1))
-    act(() => result.current.addItem(liquor, 3))
+    act(() => result.current.addItem(liquor, { ...liquorBasicOpts, qty: 2 }))
 
     expect(result.current.items).toHaveLength(1)
-    expect(result.current.items[0].requestedQty).toBe(4)
+    expect(result.current.items[0]).toMatchObject({
+      productId: "p-liquor",
+      productName: "Bacardi",
+      productKind: "liquor",
+      enteredQty: 2,
+      enteredUnit: BASIC_UNIT,
+      isPackage: false,
+      unitPrice: 25,
+      currency: "USD",
+    })
+  })
+
+  it("addItem on the same product + unit increments enteredQty", () => {
+    const { result } = renderHook(() => useSaleCart(), { wrapper: wrap })
+
+    act(() => result.current.addItem(liquor, liquorBasicOpts))
+    act(() => result.current.addItem(liquor, { ...liquorBasicOpts, qty: 3 }))
+
+    expect(result.current.items).toHaveLength(1)
+    expect(result.current.items[0].enteredQty).toBe(4)
+  })
+
+  it("addItem with a different unit creates a separate cart line", () => {
+    const { result } = renderHook(() => useSaleCart(), { wrapper: wrap })
+
+    act(() => result.current.addItem(liquor, liquorBasicOpts))
+    act(() => result.current.addItem(liquor, liquorPackageOpts))
+
+    expect(result.current.items).toHaveLength(2)
+    expect(result.current.items[0].enteredUnit.id).toBe(BASIC_UNIT.id)
+    expect(result.current.items[1].enteredUnit.id).toBe(PACKAGE_UNIT.id)
   })
 
   it("addItem accepts a ProductOption", () => {
     const { result } = renderHook(() => useSaleCart(), { wrapper: wrap })
 
-    act(() => result.current.addItem(groceryOption, 2))
+    act(() =>
+      result.current.addItem(groceryOption, { ...groceryOpts, qty: 2 }),
+    )
 
     expect(result.current.items[0].productId).toBe("p-grocery")
-    expect(result.current.items[0].requestedQty).toBe(2)
+    expect(result.current.items[0].enteredQty).toBe(2)
   })
 
-  it("updateQty updates the matching line and ignores qty < 1", () => {
+  it("updateQty updates the matching line by (productId, unitId) and ignores qty < 1", () => {
     const { result } = renderHook(() => useSaleCart(), { wrapper: wrap })
 
-    act(() => result.current.addItem(liquor, 1))
-    act(() => result.current.updateQty("p-liquor", 7))
-    expect(result.current.items[0].requestedQty).toBe(7)
+    act(() => result.current.addItem(liquor, liquorBasicOpts))
+    act(() => result.current.updateQty("p-liquor", BASIC_UNIT.id, 7))
+    expect(result.current.items[0].enteredQty).toBe(7)
 
-    act(() => result.current.updateQty("p-liquor", 0))
-    expect(result.current.items[0].requestedQty).toBe(7)
+    act(() => result.current.updateQty("p-liquor", BASIC_UNIT.id, 0))
+    expect(result.current.items[0].enteredQty).toBe(7)
   })
 
   it("removeItem removes only the matching line", () => {
     const { result } = renderHook(() => useSaleCart(), { wrapper: wrap })
 
-    act(() => result.current.addItem(liquor, 1))
-    act(() => result.current.addItem(grocery, 1))
-    act(() => result.current.removeItem("p-liquor"))
+    act(() => result.current.addItem(liquor, liquorBasicOpts))
+    act(() => result.current.addItem(grocery, groceryOpts))
+    act(() => result.current.removeItem("p-liquor", BASIC_UNIT.id))
 
     expect(result.current.items).toHaveLength(1)
     expect(result.current.items[0].productId).toBe("p-grocery")
@@ -128,7 +180,7 @@ describe("useSaleCart", () => {
   it("clearItems empties items and notes", () => {
     const { result } = renderHook(() => useSaleCart(), { wrapper: wrap })
 
-    act(() => result.current.addItem(liquor, 1))
+    act(() => result.current.addItem(liquor, liquorBasicOpts))
     act(() => result.current.setNotes("hello"))
     act(() => result.current.clearItems())
 
@@ -140,7 +192,7 @@ describe("useSaleCart", () => {
     const { result } = renderHook(() => useSaleCart(), { wrapper: wrap })
 
     act(() => result.current.setClientId("client-a"))
-    act(() => result.current.addItem(liquor, 1))
+    act(() => result.current.addItem(liquor, liquorBasicOpts))
     act(() => result.current.setClientId("client-b"))
 
     expect(result.current.clientId).toBe("client-b")
@@ -148,14 +200,20 @@ describe("useSaleCart", () => {
     expect(result.current.items[0].productId).toBe(liquor.id)
   })
 
-  it("derives totalQty, totalAmount and totalCurrency from items", () => {
+  it("derives totalQty, totalAmount and totalCurrency from items (basic-unit math)", () => {
     const { result } = renderHook(() => useSaleCart(), { wrapper: wrap })
 
-    act(() => result.current.addItem(liquor, 2)) // 2 * 25 = 50
-    act(() => result.current.addItem(grocery, 3)) // 3 * 5 = 15
+    // 2 botellas × $25 = $50, qty 2 basic
+    act(() =>
+      result.current.addItem(liquor, { ...liquorBasicOpts, qty: 2 }),
+    )
+    // 3 cajas × 12 = 36 basic units × $25 = $900
+    act(() =>
+      result.current.addItem(liquor, { ...liquorPackageOpts, qty: 3 }),
+    )
 
-    expect(result.current.totalQty).toBe(5)
-    expect(result.current.totalAmount).toBe(65)
+    expect(result.current.totalQty).toBe(38)
+    expect(result.current.totalAmount).toBe(950)
     expect(result.current.totalCurrency).toBe("USD")
   })
 
@@ -179,24 +237,25 @@ describe("useSaleCart", () => {
     expect(result.current.isDrawerOpen).toBe(true)
   })
 
-  it("persists cart to localStorage under sale-cart-v1:<userId>", () => {
+  it("persists cart to localStorage under sale-cart-v2:<userId>", () => {
     const setItemSpy = vi.spyOn(Storage.prototype, "setItem")
     const { result } = renderHook(() => useSaleCart(), { wrapper: wrap })
 
-    act(() => result.current.addItem(liquor, 1))
+    act(() => result.current.addItem(liquor, liquorBasicOpts))
 
     const writes = setItemSpy.mock.calls.filter(
-      ([key]) => key === "sale-cart-v1:user-1",
+      ([key]) => key === "sale-cart-v2:user-1",
     )
     expect(writes.length).toBeGreaterThan(0)
     const lastPayload = JSON.parse(writes[writes.length - 1][1])
     expect(lastPayload.items).toHaveLength(1)
     expect(lastPayload.items[0].productId).toBe("p-liquor")
+    expect(lastPayload.items[0].enteredQty).toBe(1)
   })
 
-  it("hydrates from localStorage when a saved cart exists for the user", () => {
+  it("hydrates from localStorage when a v2 saved cart exists for the user", () => {
     localStorage.setItem(
-      "sale-cart-v1:user-1",
+      "sale-cart-v2:user-1",
       JSON.stringify({
         clientId: "client-a",
         notes: "old notes",
@@ -205,7 +264,9 @@ describe("useSaleCart", () => {
             productId: "p-liquor",
             productName: "Bacardi",
             productKind: "liquor",
-            requestedQty: 4,
+            enteredQty: 4,
+            enteredUnit: BASIC_UNIT,
+            isPackage: false,
             unitPrice: 25,
             currency: "USD",
           },
@@ -216,16 +277,34 @@ describe("useSaleCart", () => {
     const { result } = renderHook(() => useSaleCart(), { wrapper: wrap })
 
     expect(result.current.items).toHaveLength(1)
-    expect(result.current.items[0].requestedQty).toBe(4)
+    expect(result.current.items[0].enteredQty).toBe(4)
     expect(result.current.clientId).toBe("client-a")
     expect(result.current.notes).toBe("old notes")
+  })
+
+  it("ignores v1 carts and starts empty", () => {
+    localStorage.setItem(
+      "sale-cart-v1:user-1",
+      JSON.stringify({
+        clientId: "client-a",
+        notes: "v1",
+        items: [
+          { productId: "p-liquor", requestedQty: 1, unitPrice: 25 },
+        ],
+      }),
+    )
+
+    const { result } = renderHook(() => useSaleCart(), { wrapper: wrap })
+
+    expect(result.current.items).toEqual([])
+    expect(result.current.clientId).toBe("")
   })
 
   it("resetAll empties state and removes the localStorage entry", () => {
     const removeItemSpy = vi.spyOn(Storage.prototype, "removeItem")
     const { result } = renderHook(() => useSaleCart(), { wrapper: wrap })
 
-    act(() => result.current.addItem(liquor, 1))
+    act(() => result.current.addItem(liquor, liquorBasicOpts))
     act(() => result.current.setNotes("hello"))
     act(() => result.current.setClientId("client-a"))
 
@@ -234,6 +313,6 @@ describe("useSaleCart", () => {
     expect(result.current.items).toEqual([])
     expect(result.current.notes).toBe("")
     expect(result.current.clientId).toBe("")
-    expect(removeItemSpy).toHaveBeenCalledWith("sale-cart-v1:user-1")
+    expect(removeItemSpy).toHaveBeenCalledWith("sale-cart-v2:user-1")
   })
 })

@@ -6,6 +6,16 @@ import {
 } from "@base-dashboard/shared"
 import { authFetch } from "@/lib/api"
 
+export function cartItemBasicQty(item: {
+  enteredQty: number
+  isPackage: boolean
+  unitsPerPackage?: number
+}): number {
+  return item.isPackage && item.unitsPerPackage
+    ? item.enteredQty * item.unitsPerPackage
+    : item.enteredQty
+}
+
 export async function fetchSalesApi(
   page: number,
   limit: number,

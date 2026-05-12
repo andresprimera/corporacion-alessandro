@@ -19,6 +19,42 @@ export function transactionTypeLabelKey(value: TransactionType): string {
   return TRANSACTION_TYPE_LABEL_KEY[value]
 }
 
+export interface UnitChoice {
+  id: string
+  name: string
+  abbreviation: string
+  isPackage: boolean
+}
+
+interface ProductWithUnits {
+  basicUnit?: { id: string; name: string; abbreviation: string }
+  packageUnit?: { id: string; name: string; abbreviation: string }
+  unitsPerPackage?: number
+}
+
+export function buildUnitChoices(
+  product: ProductWithUnits | undefined,
+): UnitChoice[] {
+  if (!product?.basicUnit) return []
+  const choices: UnitChoice[] = [
+    {
+      id: product.basicUnit.id,
+      name: product.basicUnit.name,
+      abbreviation: product.basicUnit.abbreviation,
+      isPackage: false,
+    },
+  ]
+  if (product.packageUnit && product.unitsPerPackage) {
+    choices.push({
+      id: product.packageUnit.id,
+      name: product.packageUnit.name,
+      abbreviation: product.packageUnit.abbreviation,
+      isPackage: true,
+    })
+  }
+  return choices
+}
+
 export function formatPackagedQty(args: {
   qty: number
   basicUnit?: { name: string }

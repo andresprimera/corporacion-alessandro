@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { i18n } from "@/lib/i18n"
 import { keepPreviousData, useQuery } from "@tanstack/react-query"
@@ -7,16 +7,15 @@ import { fetchProductsApi } from "@/lib/products"
 import { fetchLiquorTypeOptionsApi } from "@/lib/liquor-types"
 import { useSaleCart } from "@/hooks/use-sale-cart"
 import { useStock } from "@/hooks/use-stock"
+import { buildUnitChoices, type UnitChoice } from "@/lib/inventory"
+import { cartItemBasicQty } from "@/lib/sales"
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
+  Card,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -42,6 +41,159 @@ function formatPrice(value: number, currency: string): string {
     style: "currency",
     currency,
   }).format(value)
+}
+
+interface CatalogCardProps {
+  product: Product
+  available: number | undefined
+  inCartBasicQty: number
+  onAdd: (product: Product, qty: number, unit: UnitChoice) => void
+}
+
+function CatalogCard({
+  product,
+  available,
+  inCartBasicQty,
+  onAdd,
+}: CatalogCardProps) {
+  const { t } = useTranslation()
+  const unitChoices = useMemo(() => buildUnitChoices(product), [product])
+  const defaultUnit = unitChoices[0]
+  const [selectedUnitId, setSelectedUnitId] = useState<string>(
+    defaultUnit?.id ?? "",
+  )
+  const [qtyStr, setQtyStr] = useState<string>("1")
+
+  const selectedUnit =
+    unitChoices.find((u) => u.id === selectedUnitId) ?? defaultUnit
+  const parsedQty = Number.parseInt(qtyStr, 10)
+  const qty = Number.isFinite(parsedQty) && parsedQty > 0 ? parsedQty : 0
+  const conversion =
+    selectedUnit?.isPackage && product.unitsPerPackage
+      ? product.unitsPerPackage
+      : 1
+  const addBasicQty = qty * conversion
+  const outOfStock = available !== undefined && available <= 0
+  const cantAdd =
+    !selectedUnit ||
+    qty <= 0 ||
+    (available !== undefined && inCartBasicQty + addBasicQty > available)
+
+  function handleAdd(): void {
+    if (!selectedUnit || qty <= 0) return
+    onAdd(product, qty, selectedUnit)
+    setQtyStr("1")
+  }
+
+  const metaParts: string[] = [
+    product.kind === "liquor" ? t("Liquor") : t("Groceries"),
+  ]
+  if (product.kind === "liquor") {
+    if (product.liquorType?.name) metaParts.push(product.liquorType.name)
+    if (product.presentation?.name) metaParts.push(product.presentation.name)
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0 flex-1">
+            <CardTitle className="text-base leading-snug wrap-break-word">
+              {product.name}
+            </CardTitle>
+            <div className="mt-1 text-xs text-muted-foreground">
+              {metaParts.join(" · ")}
+            </div>
+            {available !== undefined && (
+              <div
+                className={
+                  outOfStock
+                    ? "mt-1 text-xs text-destructive"
+                    : "mt-1 text-xs text-muted-foreground"
+                }
+              >
+                {outOfStock
+                  ? t("Out of stock")
+                  : t("In stock: {{qty}} {{unit}}", {
+                      qty: Math.floor(available / conversion),
+                      unit: selectedUnit?.name ?? "",
+                    })}
+              </div>
+            )}
+          </div>
+          <div className="shrink-0 text-right text-lg font-semibold tabular-nums">
+            {formatPrice(product.price.value, product.price.currency)}
+          </div>
+        </div>
+      </CardHeader>
+      <CardFooter className="flex-col items-stretch gap-2 border-t-0 bg-transparent">
+        <div className="flex items-center gap-2">
+          <Input
+            type="number"
+            min={1}
+            step={1}
+            value={qtyStr}
+            onChange={(e) => setQtyStr(e.target.value)}
+            className="w-20"
+            aria-label={t("Qty")}
+          />
+          {unitChoices.length > 1 ? (
+            <Select
+              value={selectedUnitId}
+              onValueChange={(v) => v && setSelectedUnitId(v)}
+              items={Object.fromEntries(
+                unitChoices.map((u) => [u.id, u.name]),
+              )}
+            >
+              <SelectTrigger className="flex-1">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {unitChoices.map((u) => (
+                  <SelectItem key={u.id} value={u.id}>
+                    {u.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : selectedUnit ? (
+            <div className="flex-1 text-sm text-muted-foreground">
+              {selectedUnit.name}
+            </div>
+          ) : null}
+        </div>
+        <Button
+          type="button"
+          onClick={handleAdd}
+          disabled={cantAdd}
+          className="w-full"
+        >
+          <PlusIcon className="size-4" />
+          {t("Add to cart")}
+        </Button>
+      </CardFooter>
+    </Card>
+  )
+}
+
+function CatalogCardSkeleton() {
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0 flex-1 space-y-1">
+            <Skeleton className="h-5 w-3/4" />
+            <Skeleton className="h-3 w-1/2" />
+          </div>
+          <Skeleton className="h-6 w-16 shrink-0" />
+        </div>
+      </CardHeader>
+      <CardFooter className="flex-col items-stretch gap-2 border-t-0 bg-transparent">
+        <Skeleton className="h-9 w-full" />
+        <Skeleton className="h-9 w-full" />
+      </CardFooter>
+    </Card>
+  )
 }
 
 export default function CatalogPage() {
@@ -96,8 +248,10 @@ export default function CatalogPage() {
 
   const stock = useStock()
 
-  function cartQtyFor(productId: string): number {
-    return cart.items.find((i) => i.productId === productId)?.requestedQty ?? 0
+  function cartBasicQtyFor(productId: string): number {
+    return cart.items
+      .filter((i) => i.productId === productId)
+      .reduce((sum, i) => sum + cartItemBasicQty(i), 0)
   }
 
   const products = data?.data ?? []
@@ -143,8 +297,19 @@ export default function CatalogPage() {
     setPage(1)
   }
 
-  function handleAddToCart(product: Product): void {
-    cart.addItem(product, 1)
+  function handleAddToCart(
+    product: Product,
+    qty: number,
+    unit: UnitChoice,
+  ): void {
+    cart.addItem(product, {
+      qty,
+      unit: { id: unit.id, name: unit.name, abbreviation: unit.abbreviation },
+      isPackage: unit.isPackage,
+      unitsPerPackage: product.unitsPerPackage,
+      basicUnit: product.basicUnit,
+      packageUnit: product.packageUnit,
+    })
   }
 
   const heading = (
@@ -260,48 +425,18 @@ export default function CatalogPage() {
     </div>
   )
 
+  const gridClass =
+    "grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
+
   if (isLoading) {
     return (
       <div className="space-y-4">
         {heading}
         {filters}
-        <div className="rounded-lg border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>{t("Name")}</TableHead>
-                <TableHead className="hidden md:table-cell">{t("Kind")}</TableHead>
-                <TableHead className="hidden md:table-cell">{t("Liquor type")}</TableHead>
-                <TableHead className="hidden md:table-cell">{t("Presentation")}</TableHead>
-                <TableHead>{t("Price")}</TableHead>
-                <TableHead className="md:w-32">{t("Actions")}</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {Array.from({ length: Math.min(pageSize, 5) }).map((_, i) => (
-                <TableRow key={i}>
-                  <TableCell>
-                    <Skeleton className="h-4 w-32" />
-                  </TableCell>
-                  <TableCell className="hidden md:table-cell">
-                    <Skeleton className="h-6 w-20" />
-                  </TableCell>
-                  <TableCell className="hidden md:table-cell">
-                    <Skeleton className="h-4 w-16" />
-                  </TableCell>
-                  <TableCell className="hidden md:table-cell">
-                    <Skeleton className="h-4 w-16" />
-                  </TableCell>
-                  <TableCell>
-                    <Skeleton className="h-4 w-20" />
-                  </TableCell>
-                  <TableCell>
-                    <Skeleton className="h-8 w-24" />
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+        <div className={gridClass}>
+          {Array.from({ length: Math.min(pageSize, 8) }).map((_, i) => (
+            <CatalogCardSkeleton key={i} />
+          ))}
         </div>
       </div>
     )
@@ -329,116 +464,29 @@ export default function CatalogPage() {
     <div className="space-y-4">
       {heading}
       {filters}
-      <div className="rounded-lg border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>{t("Name")}</TableHead>
-              <TableHead className="hidden md:table-cell">{t("Kind")}</TableHead>
-              <TableHead className="hidden md:table-cell">{t("Liquor type")}</TableHead>
-              <TableHead className="hidden md:table-cell">{t("Presentation")}</TableHead>
-              <TableHead>{t("Price")}</TableHead>
-              <TableHead className="md:w-32">{t("Actions")}</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {products.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={6} className="h-32">
-                  <div className="flex flex-col items-center justify-center gap-2 text-center">
-                    <ShoppingCartIcon className="size-8 text-muted-foreground" />
-                    <p className="text-sm text-muted-foreground">
-                      {t("No products match your filters.")}
-                    </p>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={handleResetFilters}
-                    >
-                      {t("Reset filters")}
-                    </Button>
-                  </div>
-                </TableCell>
-              </TableRow>
-            ) : (
-              products.map((p) => {
-                const available = stock.getAvailable(p.id)
-                const outOfStock = available !== undefined && available <= 0
-                const inCart = cartQtyFor(p.id)
-                const cantAdd =
-                  available !== undefined && inCart >= available
-                return (
-                  <TableRow key={p.id}>
-                    <TableCell className="font-medium">
-                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                        <span className="wrap-break-word">{p.name}</span>
-                        {outOfStock && (
-                          <Badge
-                            variant="outline"
-                            className="text-destructive border-destructive/40"
-                          >
-                            {t("Out of stock")}
-                          </Badge>
-                        )}
-                      </div>
-                      <div className="mt-0.5 flex flex-wrap gap-1 text-xs text-muted-foreground md:hidden">
-                        <span>
-                          {p.kind === "liquor" ? t("Liquor") : t("Groceries")}
-                        </span>
-                        {p.kind === "liquor" && (
-                          <>
-                            <span>·</span>
-                            <span>{p.liquorType?.name ?? "—"}</span>
-                            <span>·</span>
-                            <span>{p.presentation?.name ?? "—"}</span>
-                          </>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell className="hidden md:table-cell">
-                      <Badge variant="secondary">
-                        {p.kind === "liquor" ? t("Liquor") : t("Groceries")}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="hidden md:table-cell">
-                      {p.kind === "liquor" ? (
-                        (p.liquorType?.name ?? "—")
-                      ) : (
-                        <span className="text-muted-foreground">—</span>
-                      )}
-                    </TableCell>
-                    <TableCell className="hidden md:table-cell">
-                      {p.kind === "liquor" ? (
-                        (p.presentation?.name ?? "—")
-                      ) : (
-                        <span className="text-muted-foreground">—</span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {formatPrice(p.price.value, p.price.currency)}
-                    </TableCell>
-                    <TableCell>
-                      <Button
-                        size="sm"
-                        onClick={() => handleAddToCart(p)}
-                        disabled={cantAdd}
-                      >
-                        <PlusIcon className="size-4" />
-                        <span className="hidden md:inline">
-                          {t("Add to cart")}
-                        </span>
-                        <span className="sr-only md:hidden">
-                          {t("Add to cart")}
-                        </span>
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                )
-              })
-            )}
-          </TableBody>
-        </Table>
-      </div>
+      {products.length === 0 ? (
+        <div className="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed py-12 text-center">
+          <ShoppingCartIcon className="size-8 text-muted-foreground" />
+          <p className="text-sm text-muted-foreground">
+            {t("No products match your filters.")}
+          </p>
+          <Button variant="outline" size="sm" onClick={handleResetFilters}>
+            {t("Reset filters")}
+          </Button>
+        </div>
+      ) : (
+        <div className={gridClass}>
+          {products.map((p) => (
+            <CatalogCard
+              key={p.id}
+              product={p}
+              available={stock.getAvailable(p.id)}
+              inCartBasicQty={cartBasicQtyFor(p.id)}
+              onAdd={handleAddToCart}
+            />
+          ))}
+        </div>
+      )}
       {meta && (
         <DataPagination
           page={page}

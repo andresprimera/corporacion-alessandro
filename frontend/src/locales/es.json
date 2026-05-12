@@ -609,5 +609,8 @@
   "Entered unit does not belong to this product": "La unidad ingresada no pertenece a este producto",
   "Product has a package unit but no units per package": "El producto tiene una unidad de empaque pero no tiene unidades por empaque",
   "entered as: {{qty}} {{unit}}": "ingresado como: {{qty}} {{unit}}",
-  "= {{qty}} {{unit}}": "= {{qty}} {{unit}}"
+  "= {{qty}} {{unit}}": "= {{qty}} {{unit}}",
+  "basic units": "unidades básicas",
+  "In stock: {{qty}}": "En stock: {{qty}}",
+  "In stock: {{qty}} {{unit}}": "En stock: {{qty}} {{unit}}"
 }

@@ -53,6 +53,15 @@ function toItem(raw: SaleItemDoc): SaleItem {
     requestedQty: raw.requestedQty,
     unitPrice: raw.unitPrice,
     currency: raw.currency as Currency,
+    enteredQty: raw.enteredQty,
+    enteredUnit: raw.enteredUnit
+      ? {
+          id: raw.enteredUnit.unitId.toString(),
+          name: raw.enteredUnit.name,
+          abbreviation: raw.enteredUnit.abbreviation,
+        }
+      : undefined,
+    unitsPerPackageAtEntry: raw.unitsPerPackageAtEntry,
     allocations: raw.allocations.map(toAllocation),
   };
 }

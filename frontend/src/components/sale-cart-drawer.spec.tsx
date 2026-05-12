@@ -63,11 +63,16 @@ vi.mock("@/components/sale-form-dialog", () => ({
     open ? <div data-testid="sale-form-dialog" /> : null,
 }))
 
+const BOTELLA = { id: "u-bottle", name: "Botella", abbreviation: "bta" }
+const UNIDAD = { id: "u-unit", name: "Unidad", abbreviation: "und" }
+
 const liquor: CartItem = {
   productId: "p-liquor",
   productName: "Bacardi",
   productKind: "liquor",
-  requestedQty: 2,
+  enteredQty: 2,
+  enteredUnit: BOTELLA,
+  isPackage: false,
   unitPrice: 25,
   currency: "USD",
 }
@@ -76,7 +81,9 @@ const grocery: CartItem = {
   productId: "p-grocery",
   productName: "Rice",
   productKind: "groceries",
-  requestedQty: 1,
+  enteredQty: 1,
+  enteredUnit: UNIDAD,
+  isPackage: false,
   unitPrice: 5,
   currency: "USD",
 }
@@ -133,7 +140,11 @@ describe("SaleCartDrawer", () => {
 
     fireEvent.click(screen.getByLabelText("Decrease quantity"))
 
-    expect(mockCart.updateQty).toHaveBeenCalledWith("p-liquor", 1)
+    expect(mockCart.updateQty).toHaveBeenCalledWith(
+      "p-liquor",
+      BOTELLA.id,
+      1,
+    )
   })
 
   it("decrement on a single-qty row calls removeItem", () => {
@@ -142,7 +153,7 @@ describe("SaleCartDrawer", () => {
 
     fireEvent.click(screen.getByLabelText("Remove item"))
 
-    expect(mockCart.removeItem).toHaveBeenCalledWith("p-grocery")
+    expect(mockCart.removeItem).toHaveBeenCalledWith("p-grocery", UNIDAD.id)
   })
 
   it("increment calls updateQty with qty + 1", () => {
@@ -151,7 +162,11 @@ describe("SaleCartDrawer", () => {
 
     fireEvent.click(screen.getByLabelText("Increase quantity"))
 
-    expect(mockCart.updateQty).toHaveBeenCalledWith("p-liquor", 3)
+    expect(mockCart.updateQty).toHaveBeenCalledWith(
+      "p-liquor",
+      BOTELLA.id,
+      3,
+    )
   })
 
   it("Clear order calls clearItems", () => {

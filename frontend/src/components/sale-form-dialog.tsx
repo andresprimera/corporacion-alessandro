@@ -2,7 +2,7 @@ import { useTranslation } from "react-i18next"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { type Currency } from "@base-dashboard/shared"
 import { fetchClientOptionsApi } from "@/lib/clients"
-import { createSaleApi } from "@/lib/sales"
+import { cartItemBasicQty, createSaleApi } from "@/lib/sales"
 import { useSaleCart, type CartItem } from "@/hooks/use-sale-cart"
 import { useStock } from "@/hooks/use-stock"
 import { toast } from "sonner"
@@ -43,10 +43,13 @@ interface CartRowProps {
 
 function CartRow({ item, available, onQtyChange, onRemove }: CartRowProps) {
   const { t } = useTranslation()
-  const subtotal = item.unitPrice * item.requestedQty
+  const basicQty = cartItemBasicQty(item)
+  const conversion = item.isPackage && item.unitsPerPackage ? item.unitsPerPackage : 1
+  const displayPrice = item.unitPrice * conversion
+  const subtotal = item.unitPrice * basicQty
 
-  const isOne = item.requestedQty === 1
-  const atLimit = available !== undefined && item.requestedQty >= available
+  const isOne = item.enteredQty === 1
+  const atLimit = available !== undefined && basicQty + conversion > available
 
   return (
     <div className="space-y-2 p-3">
@@ -56,7 +59,7 @@ function CartRow({ item, available, onQtyChange, onRemove }: CartRowProps) {
             {item.productName}
           </div>
           <div className="text-xs text-muted-foreground">
-            {formatPrice(item.unitPrice, item.currency)}
+            {formatPrice(displayPrice, item.currency)} / {item.enteredUnit.name}
           </div>
         </div>
         <div className="text-base font-semibold tabular-nums whitespace-nowrap">
@@ -68,7 +71,7 @@ function CartRow({ item, available, onQtyChange, onRemove }: CartRowProps) {
           type="button"
           variant="outline"
           size="icon"
-          onClick={isOne ? onRemove : () => onQtyChange(item.requestedQty - 1)}
+          onClick={isOne ? onRemove : () => onQtyChange(item.enteredQty - 1)}
           aria-label={isOne ? t("Remove item") : t("Decrease quantity")}
         >
           {isOne ? (
@@ -81,19 +84,30 @@ function CartRow({ item, available, onQtyChange, onRemove }: CartRowProps) {
           className="min-w-10 text-center text-base font-semibold tabular-nums"
           aria-label={t("Qty")}
         >
-          {item.requestedQty}
+          {item.enteredQty}
+        </div>
+        <div className="text-sm text-muted-foreground min-w-12">
+          {item.enteredUnit.name}
         </div>
         <Button
           type="button"
           variant="outline"
           size="icon"
-          onClick={() => onQtyChange(item.requestedQty + 1)}
+          onClick={() => onQtyChange(item.enteredQty + 1)}
           disabled={atLimit}
           aria-label={t("Increase quantity")}
         >
           <PlusIcon className="size-4" />
         </Button>
       </div>
+      {item.isPackage && item.unitsPerPackage ? (
+        <div className="text-xs text-muted-foreground">
+          {t("= {{qty}} {{unit}}", {
+            qty: basicQty,
+            unit: t("basic units"),
+          })}
+        </div>
+      ) : null}
     </div>
   )
 }
@@ -143,7 +157,8 @@ export function SaleFormDialog({
       notes: cart.notes.trim() || undefined,
       items: cart.items.map((i) => ({
         productId: i.productId,
-        requestedQty: i.requestedQty,
+        enteredQty: i.enteredQty,
+        enteredUnitId: i.enteredUnit.id,
         unitPrice: i.unitPrice,
       })),
     })
@@ -204,13 +219,15 @@ export function SaleFormDialog({
                 <div className="rounded-lg border divide-y">
                   {cart.items.map((item) => (
                     <CartRow
-                      key={item.productId}
+                      key={`${item.productId}-${item.enteredUnit.id}`}
                       item={item}
                       available={stock.getAvailable(item.productId)}
                       onQtyChange={(qty) =>
-                        cart.updateQty(item.productId, qty)
+                        cart.updateQty(item.productId, item.enteredUnit.id, qty)
                       }
-                      onRemove={() => cart.removeItem(item.productId)}
+                      onRemove={() =>
+                        cart.removeItem(item.productId, item.enteredUnit.id)
+                      }
                     />
                   ))}
                 </div>

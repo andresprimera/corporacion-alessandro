@@ -8,11 +8,11 @@ import {
   transactionTypeEnum,
   type CreateInventoryTransactionInput,
   type InventoryTransaction,
-  type ProductOption,
 } from "@base-dashboard/shared"
 import { fetchProductOptionsApi } from "@/lib/products"
 import { fetchWarehouseOptionsApi } from "@/lib/warehouses"
 import {
+  buildUnitChoices,
   createInventoryTransactionApi,
   transactionTypeLabelKey,
   updateInventoryTransactionApi,
@@ -74,33 +74,6 @@ function trimToUndefined(value: string | undefined): string | undefined {
   return trimmed.length > 0 ? trimmed : undefined
 }
 
-interface UnitChoice {
-  id: string
-  name: string
-  abbreviation: string
-  isPackage: boolean
-}
-
-function buildUnitChoices(product: ProductOption | undefined): UnitChoice[] {
-  if (!product?.basicUnit) return []
-  const choices: UnitChoice[] = [
-    {
-      id: product.basicUnit.id,
-      name: product.basicUnit.name,
-      abbreviation: product.basicUnit.abbreviation,
-      isPackage: false,
-    },
-  ]
-  if (product.packageUnit && product.unitsPerPackage) {
-    choices.push({
-      id: product.packageUnit.id,
-      name: product.packageUnit.name,
-      abbreviation: product.packageUnit.abbreviation,
-      isPackage: true,
-    })
-  }
-  return choices
-}
 
 export function InventoryFormDialog({
   open,

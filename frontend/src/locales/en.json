@@ -610,5 +610,8 @@
   "Entered unit does not belong to this product": "Entered unit does not belong to this product",
   "Product has a package unit but no units per package": "Product has a package unit but no units per package",
   "entered as: {{qty}} {{unit}}": "entered as: {{qty}} {{unit}}",
-  "= {{qty}} {{unit}}": "= {{qty}} {{unit}}"
+  "= {{qty}} {{unit}}": "= {{qty}} {{unit}}",
+  "basic units": "basic units",
+  "In stock: {{qty}}": "In stock: {{qty}}",
+  "In stock: {{qty}} {{unit}}": "In stock: {{qty}} {{unit}}"
 }

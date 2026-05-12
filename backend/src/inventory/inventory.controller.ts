@@ -146,6 +146,7 @@ export class InventoryController {
   }
 
   @Get('stock/aggregated')
+  @Roles('admin', 'salesPerson')
   async findStockAggregated(
     @Query(new ZodValidationPipe(paginationQuerySchema))
     query: PaginationQuery,

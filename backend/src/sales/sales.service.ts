@@ -32,6 +32,12 @@ interface ResolvedAllocation {
   qty: number;
 }
 
+interface ResolvedEnteredUnit {
+  unitId: string;
+  name: string;
+  abbreviation: string;
+}
+
 interface ResolvedItem {
   productId: string;
   productName: string;
@@ -39,11 +45,19 @@ interface ResolvedItem {
   requestedQty: number;
   unitPrice: number;
   currency: string;
+  enteredQty: number;
+  enteredUnit: ResolvedEnteredUnit;
+  unitsPerPackageAtEntry?: number;
   allocations: ResolvedAllocation[];
 }
 
 interface PopulatedCity extends PopulatedRefBase {
   name?: string;
+}
+
+interface PopulatedUnit extends PopulatedRefBase {
+  name?: string;
+  abbreviation?: string;
 }
 
 @Injectable()
@@ -154,6 +168,20 @@ export class SalesService {
     }).format(amount);
   }
 
+  private displayQty(item: SaleDocument['items'][number]): string {
+    if (item.enteredQty != null && item.enteredUnit?.abbreviation) {
+      return `${item.enteredQty} ${item.enteredUnit.abbreviation}`;
+    }
+    return String(item.requestedQty);
+  }
+
+  private displayUnitPrice(item: SaleDocument['items'][number]): number {
+    if (item.unitsPerPackageAtEntry && item.unitsPerPackageAtEntry > 1) {
+      return item.unitPrice * item.unitsPerPackageAtEntry;
+    }
+    return item.unitPrice;
+  }
+
   private renderDeliveryOrder(
     doc: PDFKit.PDFDocument,
     sale: SaleDocument,
@@ -207,7 +235,7 @@ export class SalesService {
         .map((a) => `${a.warehouseName} (${a.qty})`)
         .join(', ');
       doc.text(item.productName, colProduct, y, { width: 260 });
-      doc.text(String(item.requestedQty), colQty, y);
+      doc.text(this.displayQty(item), colQty, y);
       doc.text(warehouses, colWarehouse, y, { width: 180 });
       y = doc.y + 8;
     }
@@ -292,12 +320,13 @@ export class SalesService {
     doc.font('Helvetica').fontSize(10);
     for (const item of sale.items) {
       const lineTotal = item.unitPrice * item.requestedQty;
+      const displayPrice = this.displayUnitPrice(item);
       doc.text(item.productName, colProduct, y, { width: 240 });
-      doc.text(String(item.requestedQty), colQty, y, {
+      doc.text(this.displayQty(item), colQty, y, {
         width: 50,
         align: 'right',
       });
-      doc.text(this.formatCurrency(item.unitPrice, item.currency), colPrice, y, {
+      doc.text(this.formatCurrency(displayPrice, item.currency), colPrice, y, {
         width: 100,
         align: 'right',
       });
@@ -355,13 +384,17 @@ export class SalesService {
         if (!product) {
           throw new NotFoundException(`Product not found: ${item.productId}`);
         }
+        const resolved = this.resolveItemUnit(product, item);
         return {
           productId: item.productId,
           productName: product.name,
           productKind: product.kind,
           currency: product.price.currency,
-          requestedQty: item.requestedQty,
+          requestedQty: resolved.requestedQty,
           unitPrice: item.unitPrice,
+          enteredQty: resolved.enteredQty,
+          enteredUnit: resolved.enteredUnit,
+          unitsPerPackageAtEntry: resolved.unitsPerPackageAtEntry,
         };
       }),
     );
@@ -419,6 +452,65 @@ export class SalesService {
       `Sale ${created.saleNumber} created by ${soldBy.name} (${totalQty} units, ${totalAmount} ${currency})`,
     );
     return created;
+  }
+
+  private resolveItemUnit(
+    product: import('../products/schemas/product.schema').ProductDocument,
+    item: { enteredQty: number; enteredUnitId: string },
+  ): {
+    requestedQty: number;
+    enteredQty: number;
+    enteredUnit: ResolvedEnteredUnit;
+    unitsPerPackageAtEntry?: number;
+  } {
+    const basic = readPopulatedRef<PopulatedUnit>(product.basicUnitId);
+    const pkg = product.packageUnitId
+      ? readPopulatedRef<PopulatedUnit>(product.packageUnitId)
+      : null;
+
+    if (item.enteredUnitId === basic.id) {
+      if (!basic.doc?.name || !basic.doc?.abbreviation) {
+        throw new BadRequestException(
+          `Product "${product.name}" is missing basic-unit metadata`,
+        );
+      }
+      return {
+        requestedQty: item.enteredQty,
+        enteredQty: item.enteredQty,
+        enteredUnit: {
+          unitId: basic.id,
+          name: basic.doc.name,
+          abbreviation: basic.doc.abbreviation,
+        },
+      };
+    }
+
+    if (pkg && item.enteredUnitId === pkg.id) {
+      if (!product.unitsPerPackage) {
+        throw new BadRequestException(
+          `Product "${product.name}" has no units-per-package configured`,
+        );
+      }
+      if (!pkg.doc?.name || !pkg.doc?.abbreviation) {
+        throw new BadRequestException(
+          `Product "${product.name}" is missing package-unit metadata`,
+        );
+      }
+      return {
+        requestedQty: item.enteredQty * product.unitsPerPackage,
+        enteredQty: item.enteredQty,
+        enteredUnit: {
+          unitId: pkg.id,
+          name: pkg.doc.name,
+          abbreviation: pkg.doc.abbreviation,
+        },
+        unitsPerPackageAtEntry: product.unitsPerPackage,
+      };
+    }
+
+    throw new BadRequestException(
+      `Entered unit does not belong to product "${product.name}"`,
+    );
   }
 
   private async assertSufficientStock(
@@ -516,6 +608,13 @@ export class SalesService {
           requestedQty: item.requestedQty,
           unitPrice: item.unitPrice,
           currency: item.currency,
+          enteredQty: item.enteredQty,
+          enteredUnit: {
+            unitId: new Types.ObjectId(item.enteredUnit.unitId),
+            name: item.enteredUnit.name,
+            abbreviation: item.enteredUnit.abbreviation,
+          },
+          unitsPerPackageAtEntry: item.unitsPerPackageAtEntry,
           allocations: item.allocations.map((a) => ({
             warehouseId: new Types.ObjectId(a.warehouseId),
             warehouseName: a.warehouseName,
