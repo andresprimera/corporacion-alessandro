@@ -4,6 +4,7 @@ import {
   createSaleApi,
   updateSaleApi,
   updateSaleStatusApi,
+  markSaleDeliveredApi,
   submitSalePaymentApi,
   downloadPaymentProofApi,
   removeSaleApi,
@@ -36,6 +37,34 @@ describe("sales API", () => {
       await fetchSalesApi(2, 10)
 
       expect(authFetch).toHaveBeenCalledWith("/api/sales?page=2&limit=10")
+    })
+
+    it("appends soldByUserId when provided", async () => {
+      vi.mocked(authFetch).mockResolvedValue(
+        mockJsonResponse({
+          data: [],
+          meta: { page: 1, limit: 10, total: 0, totalPages: 0 },
+        }),
+      )
+
+      await fetchSalesApi(1, 10, { soldByUserId: "u1" })
+
+      expect(authFetch).toHaveBeenCalledWith(
+        "/api/sales?page=1&limit=10&soldByUserId=u1",
+      )
+    })
+
+    it("omits soldByUserId when the value is undefined", async () => {
+      vi.mocked(authFetch).mockResolvedValue(
+        mockJsonResponse({
+          data: [],
+          meta: { page: 1, limit: 10, total: 0, totalPages: 0 },
+        }),
+      )
+
+      await fetchSalesApi(1, 10, { soldByUserId: undefined })
+
+      expect(authFetch).toHaveBeenCalledWith("/api/sales?page=1&limit=10")
     })
   })
 
@@ -117,6 +146,22 @@ describe("sales API", () => {
         method: "PATCH",
         body: JSON.stringify({ status: "payment_rejected" }),
       })
+    })
+  })
+
+  describe("markSaleDeliveredApi", () => {
+    it("should PATCH /api/sales/:id/delivery with delivered=true", async () => {
+      vi.mocked(authFetch).mockResolvedValue(
+        mockJsonResponse({ id: "s1", delivered: true }),
+      )
+
+      const result = await markSaleDeliveredApi("s1")
+
+      expect(authFetch).toHaveBeenCalledWith("/api/sales/s1/delivery", {
+        method: "PATCH",
+        body: JSON.stringify({ delivered: true }),
+      })
+      expect(result).toEqual({ id: "s1", delivered: true })
     })
   })
 

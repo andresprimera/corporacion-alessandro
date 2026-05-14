@@ -132,7 +132,11 @@ export function SaleFormDialog({
 
   const totalCurrency = cart.totalCurrency
 
-  const submitDisabled = cart.items.length === 0 || !cart.clientId
+  const selectedClient = clientOptions.find((c) => c.id === cart.clientId)
+  const submitDisabled =
+    cart.items.length === 0 ||
+    !cart.clientId ||
+    !!selectedClient?.hasPendingSale
 
   const mutation = useMutation({
     mutationFn: createSaleApi,
@@ -181,7 +185,12 @@ export function SaleFormDialog({
                 value={cart.clientId || ""}
                 onValueChange={(val) => val && cart.setClientId(val)}
                 items={Object.fromEntries(
-                  clientOptions.map((c) => [c.id, `${c.name} (${c.rif})`]),
+                  clientOptions.map((c) => [
+                    c.id,
+                    c.hasPendingSale
+                      ? `${c.name} (${c.rif}) — ${t("Pending Payment(s)")}`
+                      : `${c.name} (${c.rif})`,
+                  ]),
                 )}
               >
                 <SelectTrigger className="w-full">
@@ -189,8 +198,13 @@ export function SaleFormDialog({
                 </SelectTrigger>
                 <SelectContent>
                   {clientOptions.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
+                    <SelectItem
+                      key={c.id}
+                      value={c.id}
+                      disabled={c.hasPendingSale}
+                    >
                       {c.name} ({c.rif})
+                      {c.hasPendingSale ? ` — ${t("Pending Payment(s)")}` : ""}
                     </SelectItem>
                   ))}
                 </SelectContent>

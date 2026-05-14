@@ -9,6 +9,7 @@ import {
 import { InjectModel } from '@nestjs/mongoose';
 import { FilterQuery, Model, Types, isValidObjectId } from 'mongoose';
 import { Client, ClientDocument } from './schemas/client.schema';
+import { Sale } from '../sales/schemas/sale.schema';
 import { UsersService } from '../users/users.service';
 import { CitiesService } from '../cities/cities.service';
 import { isDuplicateKeyError } from '../common/utils/mongo-errors';
@@ -26,6 +27,7 @@ interface CreateClientData extends Omit<CreateClientInput, 'salesPersonId'> {
 export class ClientsService {
   constructor(
     @InjectModel(Client.name) private clientModel: Model<Client>,
+    @InjectModel(Sale.name) private saleModel: Model<Sale>,
     private usersService: UsersService,
     @Inject(forwardRef(() => CitiesService))
     private citiesService: CitiesService,
@@ -156,7 +158,20 @@ export class ClientsService {
     const docs = await this.clientModel
       .find(filter, { name: 1, rif: 1 })
       .sort({ name: 1 });
-    return docs.map((d) => ({ id: d.id, name: d.name, rif: d.rif }));
+
+    const clientIds = docs.map((d) => d._id);
+    const pendingIds = await this.saleModel.distinct('clientId', {
+      clientId: { $in: clientIds },
+      status: { $in: ['placed', 'paid'] },
+    });
+    const pendingSet = new Set(pendingIds.map((id) => String(id)));
+
+    return docs.map((d) => ({
+      id: d.id,
+      name: d.name,
+      rif: d.rif,
+      hasPendingSale: pendingSet.has(d.id),
+    }));
   }
 
   async existsByCity(cityId: string): Promise<boolean> {

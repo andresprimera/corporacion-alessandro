@@ -66,6 +66,7 @@ export const saleSchema = z.object({
   currency: currencyEnum,
   status: saleStatusEnum,
   paymentProof: paymentProofSchema.optional(),
+  delivered: z.boolean(),
   soldBy: saleSoldBySchema,
   createdAt: z.string(),
   updatedAt: z.string(),
@@ -97,6 +98,11 @@ export const updateSaleStatusSchema = z.object({
 });
 export type UpdateSaleStatusInput = z.infer<typeof updateSaleStatusSchema>;
 
+export const markSaleDeliveredSchema = z.object({
+  delivered: z.literal(true),
+});
+export type MarkSaleDeliveredInput = z.infer<typeof markSaleDeliveredSchema>;
+
 export const submitPaymentSchema = z.object({
   bank: z.string().min(1, "Bank is required"),
   paymentType: paymentTypeEnum,
@@ -106,5 +112,7 @@ export const submitPaymentSchema = z.object({
 });
 export type SubmitPaymentInput = z.infer<typeof submitPaymentSchema>;
 
-export const saleListQuerySchema = paginationQuerySchema;
+export const saleListQuerySchema = paginationQuerySchema.extend({
+  soldByUserId: z.string().optional(),
+});
 export type SaleListQuery = z.infer<typeof saleListQuerySchema>;

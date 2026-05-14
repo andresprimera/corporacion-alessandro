@@ -50,6 +50,10 @@ import {
   type UpdateSaleStatusInput,
 } from './dto/update-sale-status.dto';
 import {
+  markSaleDeliveredSchema,
+  type MarkSaleDeliveredInput,
+} from './dto/mark-sale-delivered.dto';
+import {
   submitPaymentSchema,
   type SubmitPaymentInput,
 } from './dto/submit-payment.dto';
@@ -109,6 +113,7 @@ function toSale(doc: SaleDocument): Sale {
     currency: doc.currency as Currency,
     status: doc.status as SaleStatus,
     paymentProof: doc.paymentProof ? toPaymentProof(doc.paymentProof) : undefined,
+    delivered: doc.delivered ?? false,
     soldBy: { userId: doc.soldBy.userId, name: doc.soldBy.name },
     createdAt: doc.get('createdAt').toISOString(),
     updatedAt: doc.get('updatedAt').toISOString(),
@@ -125,10 +130,17 @@ export class SalesController {
   async findAll(
     @Query(new ZodValidationPipe(saleListQuerySchema))
     query: SaleListQuery,
+    @CurrentUser() user: { userId: string; role: Role },
   ): Promise<PaginatedResponse<Sale>> {
+    const soldByUserId =
+      user.role === 'salesPerson' ? user.userId : query.soldByUserId;
     const { data, total } = await this.salesService.findAllPaginated(
       query.page,
       query.limit,
+      {
+        soldByUserId,
+        excludeDelivered: soldByUserId !== undefined,
+      },
     );
     return {
       data: data.map(toSale),
@@ -184,6 +196,18 @@ export class SalesController {
     dto: UpdateSaleStatusInput,
   ): Promise<Sale> {
     const updated = await this.salesService.updateStatus(id, dto.status);
+    return toSale(updated);
+  }
+
+  @Patch(':id/delivery')
+  @UseGuards(RolesGuard)
+  @Roles('admin')
+  async markDelivered(
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(markSaleDeliveredSchema))
+    dto: MarkSaleDeliveredInput,
+  ): Promise<Sale> {
+    const updated = await this.salesService.markDelivered(id, dto.delivered);
     return toSale(updated);
   }
 

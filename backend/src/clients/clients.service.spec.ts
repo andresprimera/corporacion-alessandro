@@ -8,12 +8,14 @@ import {
 import { Types } from 'mongoose';
 import { ClientsService } from './clients.service';
 import { Client } from './schemas/client.schema';
+import { Sale } from '../sales/schemas/sale.schema';
 import { UsersService } from '../users/users.service';
 import { CitiesService } from '../cities/cities.service';
 
 describe('ClientsService', () => {
   let service: ClientsService;
   let model: Record<string, jest.Mock>;
+  let saleModel: Record<string, jest.Mock>;
   const usersService = { findById: jest.fn() };
   const citiesService = { findById: jest.fn() };
 
@@ -47,10 +49,15 @@ describe('ClientsService', () => {
       exists: jest.fn(),
     };
 
+    saleModel = {
+      distinct: jest.fn().mockResolvedValue([]),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ClientsService,
         { provide: getModelToken(Client.name), useValue: model },
+        { provide: getModelToken(Sale.name), useValue: saleModel },
         { provide: UsersService, useValue: usersService },
         { provide: CitiesService, useValue: citiesService },
       ],
@@ -314,10 +321,17 @@ describe('ClientsService', () => {
   });
 
   describe('findOptions', () => {
-    it('filters by salesPersonId when provided and returns minimal projections', async () => {
+    const OTHER_CLIENT_ID = '507f1f77bcf86cd799439032';
+
+    it('filters by salesPersonId when provided and returns minimal projections with hasPendingSale=false by default', async () => {
       const chainable = {
         sort: jest.fn().mockResolvedValue([
-          { id: VALID_CLIENT_ID, name: 'Bodega Local', rif: 'J-12345678-9' },
+          {
+            id: VALID_CLIENT_ID,
+            _id: new Types.ObjectId(VALID_CLIENT_ID),
+            name: 'Bodega Local',
+            rif: 'J-12345678-9',
+          },
         ]),
       };
       model.find.mockReturnValue(chainable);
@@ -332,7 +346,56 @@ describe('ClientsService', () => {
       expect(projection).toEqual({ name: 1, rif: 1 });
       expect(chainable.sort).toHaveBeenCalledWith({ name: 1 });
       expect(result).toEqual([
-        { id: VALID_CLIENT_ID, name: 'Bodega Local', rif: 'J-12345678-9' },
+        {
+          id: VALID_CLIENT_ID,
+          name: 'Bodega Local',
+          rif: 'J-12345678-9',
+          hasPendingSale: false,
+        },
+      ]);
+    });
+
+    it('marks clients with placed or paid sales as hasPendingSale=true', async () => {
+      const pendingClientObjectId = new Types.ObjectId(VALID_CLIENT_ID);
+      const cleanClientObjectId = new Types.ObjectId(OTHER_CLIENT_ID);
+      const chainable = {
+        sort: jest.fn().mockResolvedValue([
+          {
+            id: VALID_CLIENT_ID,
+            _id: pendingClientObjectId,
+            name: 'With Pending',
+            rif: 'J-11111111-1',
+          },
+          {
+            id: OTHER_CLIENT_ID,
+            _id: cleanClientObjectId,
+            name: 'Settled',
+            rif: 'J-22222222-2',
+          },
+        ]),
+      };
+      model.find.mockReturnValue(chainable);
+      saleModel.distinct.mockResolvedValue([pendingClientObjectId]);
+
+      const result = await service.findOptions();
+
+      expect(saleModel.distinct).toHaveBeenCalledWith('clientId', {
+        clientId: { $in: [pendingClientObjectId, cleanClientObjectId] },
+        status: { $in: ['placed', 'paid'] },
+      });
+      expect(result).toEqual([
+        {
+          id: VALID_CLIENT_ID,
+          name: 'With Pending',
+          rif: 'J-11111111-1',
+          hasPendingSale: true,
+        },
+        {
+          id: OTHER_CLIENT_ID,
+          name: 'Settled',
+          rif: 'J-22222222-2',
+          hasPendingSale: false,
+        },
       ]);
     });
   });

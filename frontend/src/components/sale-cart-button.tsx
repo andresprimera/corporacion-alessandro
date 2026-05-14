@@ -26,7 +26,7 @@ export function SaleCartButton(): ReactElement | null {
       {totalQty > 0 && (
         <Badge
           variant="default"
-          className="absolute -right-1 -top-1 size-4 min-w-4 justify-center rounded-full p-0 text-[10px]"
+          className="absolute -right-2 -top-2 h-5 min-w-5 justify-center rounded-full px-1 text-[10px] font-semibold tabular-nums"
         >
           {totalQty > 99 ? "99+" : totalQty}
         </Badge>

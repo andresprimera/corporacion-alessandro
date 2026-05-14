@@ -50,5 +50,6 @@ export const clientOptionSchema = z.object({
   id: z.string(),
   name: z.string(),
   rif: z.string(),
+  hasPendingSale: z.boolean(),
 });
 export type ClientOption = z.infer<typeof clientOptionSchema>;

@@ -180,6 +180,8 @@ export {
   type UpdateSaleInput,
   updateSaleStatusSchema,
   type UpdateSaleStatusInput,
+  markSaleDeliveredSchema,
+  type MarkSaleDeliveredInput,
   submitPaymentSchema,
   type SubmitPaymentInput,
   saleListQuerySchema,

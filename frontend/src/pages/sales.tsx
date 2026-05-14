@@ -12,10 +12,15 @@ import {
   downloadDeliveryOrderApi,
   downloadInvoiceApi,
   fetchSalesApi,
+  markSaleDeliveredApi,
   removeSaleApi,
   updateSaleStatusApi,
 } from "@/lib/sales"
 import { useAuth } from "@/hooks/use-auth"
+import {
+  fetchSalesPersonOptionsApi,
+  salesPersonOptionsQueryKey,
+} from "@/lib/users"
 import { SaleFormDialog } from "@/components/sale-form-dialog"
 import { SaleNotesDialog } from "@/components/sale-notes-dialog"
 import { SalePaymentFormDialog } from "@/components/sale-payment-form-dialog"
@@ -29,6 +34,13 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -40,6 +52,13 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { Skeleton } from "@/components/ui/skeleton"
 import { DataPagination } from "@/components/data-pagination"
 import {
@@ -47,6 +66,8 @@ import {
   CheckCircle2Icon,
   EyeIcon,
   FileTextIcon,
+  MoreHorizontalIcon,
+  PackageCheckIcon,
   PencilIcon,
   PlusIcon,
   ReceiptIcon,
@@ -67,12 +88,18 @@ function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString(i18n.language)
 }
 
+const SALES_PERSON_FILTER_ALL = "__all__"
+
 export default function SalesPage() {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const { user } = useAuth()
+  const isAdmin = user?.role === "admin"
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
+  const [salesPersonFilter, setSalesPersonFilter] = useState<string>(
+    SALES_PERSON_FILTER_ALL,
+  )
   const [formOpen, setFormOpen] = useState(false)
   const [deleteId, setDeleteId] = useState<string | null>(null)
   const [editSale, setEditSale] = useState<Sale | null>(null)
@@ -82,6 +109,14 @@ export default function SalesPage() {
   >(null)
   const [paymentSale, setPaymentSale] = useState<Sale | null>(null)
   const [proofSale, setProofSale] = useState<Sale | null>(null)
+  const [pendingDeliveryId, setPendingDeliveryId] = useState<string | null>(
+    null,
+  )
+
+  const filterSoldByUserId =
+    isAdmin && salesPersonFilter !== SALES_PERSON_FILTER_ALL
+      ? salesPersonFilter
+      : undefined
 
   const deliveryOrderMutation = useMutation({
     mutationFn: downloadDeliveryOrderApi,
@@ -110,13 +145,21 @@ export default function SalesPage() {
   }
 
   const { data, isLoading, isError, error, refetch } = useQuery({
-    queryKey: ["sales", page, pageSize],
-    queryFn: () => fetchSalesApi(page, pageSize),
+    queryKey: ["sales", page, pageSize, filterSoldByUserId ?? null],
+    queryFn: () =>
+      fetchSalesApi(page, pageSize, { soldByUserId: filterSoldByUserId }),
     placeholderData: keepPreviousData,
+  })
+
+  const salesPersonsQuery = useQuery({
+    queryKey: salesPersonOptionsQueryKey,
+    queryFn: fetchSalesPersonOptionsApi,
+    enabled: isAdmin,
   })
 
   const sales = data?.data ?? []
   const meta = data?.meta
+  const salesPersons = salesPersonsQuery.data ?? []
 
   const deleteMutation = useMutation({
     mutationFn: removeSaleApi,
@@ -148,6 +191,17 @@ export default function SalesPage() {
     },
   })
 
+  const deliveryMutation = useMutation({
+    mutationFn: markSaleDeliveredApi,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["sales"] })
+      toast.success(t("Sale marked as delivered"))
+    },
+    onError: (err: Error) => {
+      toast.error(t(err.message) || t("Failed to mark sale as delivered"))
+    },
+  })
+
   function handleDelete() {
     if (!deleteId) return
     deleteMutation.mutate(deleteId, {
@@ -163,7 +217,13 @@ export default function SalesPage() {
     )
   }
 
-  const isAdmin = user?.role === "admin"
+  function handleDeliveryConfirm() {
+    if (!pendingDeliveryId) return
+    deliveryMutation.mutate(pendingDeliveryId, {
+      onSettled: () => setPendingDeliveryId(null),
+    })
+  }
+
   function isOwner(sale: Sale): boolean {
     return user?.id === sale.soldBy.userId
   }
@@ -184,6 +244,9 @@ export default function SalesPage() {
   }
   function canDelete(sale: Sale): boolean {
     return sale.status === "placed"
+  }
+  function canMarkDelivered(sale: Sale): boolean {
+    return isAdmin && !sale.delivered
   }
 
   function renderStatusBadge(status: SaleStatus) {
@@ -210,6 +273,11 @@ export default function SalesPage() {
     setPage(1)
   }
 
+  function handleSalesPersonFilterChange(value: string | null) {
+    setSalesPersonFilter(value ?? SALES_PERSON_FILTER_ALL)
+    setPage(1)
+  }
+
   const totalPages = meta?.totalPages ?? 1
 
   const header = (
@@ -220,13 +288,39 @@ export default function SalesPage() {
           {t("Record sales drawn from one or more warehouses.")}
         </p>
       </div>
-      <Button
-        className="w-full md:w-auto"
-        onClick={() => setFormOpen(true)}
-      >
-        <PlusIcon className="size-4" />
-        {t("New sale")}
-      </Button>
+      <div className="flex flex-col gap-2 md:flex-row md:items-center">
+        {isAdmin && (
+          <Select
+            value={salesPersonFilter}
+            onValueChange={handleSalesPersonFilterChange}
+            items={{
+              [SALES_PERSON_FILTER_ALL]: t("All sales people"),
+              ...Object.fromEntries(salesPersons.map((s) => [s.id, s.name])),
+            }}
+          >
+            <SelectTrigger className="w-full md:w-56">
+              <SelectValue placeholder={t("Filter by sales person")} />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={SALES_PERSON_FILTER_ALL}>
+                {t("All sales people")}
+              </SelectItem>
+              {salesPersons.map((s) => (
+                <SelectItem key={s.id} value={s.id}>
+                  {s.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+        <Button
+          className="w-full md:w-auto"
+          onClick={() => setFormOpen(true)}
+        >
+          <PlusIcon className="size-4" />
+          {t("New sale")}
+        </Button>
+      </div>
     </div>
   )
 
@@ -364,6 +458,9 @@ export default function SalesPage() {
                       <span>{sale.soldBy.name}</span>
                       <span>·</span>
                       {renderStatusBadge(sale.status)}
+                      {sale.delivered && (
+                        <Badge variant="outline">{t("Delivered")}</Badge>
+                      )}
                     </div>
                   </TableCell>
                   <TableCell className="hidden md:table-cell">
@@ -378,6 +475,11 @@ export default function SalesPage() {
                   </TableCell>
                   <TableCell className="hidden md:table-cell">
                     {renderStatusBadge(sale.status)}
+                    {sale.delivered && (
+                      <Badge variant="outline" className="ml-1">
+                        {t("Delivered")}
+                      </Badge>
+                    )}
                   </TableCell>
                   <TableCell className="hidden md:table-cell">
                     {sale.soldBy.name}
@@ -386,110 +488,111 @@ export default function SalesPage() {
                     {formatDate(sale.createdAt)}
                   </TableCell>
                   <TableCell className="align-top">
-                    <div className="flex flex-col items-end gap-1 md:flex-row md:items-center md:justify-start">
-                      {canPrint(sale) && (
-                        <>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            disabled={downloadingId === sale.id}
-                            onClick={() =>
-                              deliveryOrderMutation.mutate(sale.id)
-                            }
-                          >
-                            <TruckIcon className="size-4" />
-                            <span className="sr-only">
-                              {t("Delivery order")}
-                            </span>
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            disabled={downloadingId === sale.id}
-                            onClick={() => invoiceMutation.mutate(sale.id)}
-                          >
-                            <FileTextIcon className="size-4" />
-                            <span className="sr-only">{t("Invoice")}</span>
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => setEditSale(sale)}
-                          >
-                            <PencilIcon className="size-4" />
-                            <span className="sr-only">
-                              {t("Edit sale notes")}
-                            </span>
-                          </Button>
-                        </>
-                      )}
-                      {canSubmitPayment(sale) && (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => setPaymentSale(sale)}
+                    <div className="flex justify-end md:justify-start">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger
+                          render={<Button variant="ghost" size="icon" />}
                         >
-                          <ReceiptIcon className="size-4" />
-                          <span className="sr-only">
-                            {sale.status === "payment_rejected"
-                              ? t("Resubmit payment")
-                              : t("Submit payment")}
-                          </span>
-                        </Button>
-                      )}
-                      {canViewProof(sale) && (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => setProofSale(sale)}
+                          <MoreHorizontalIcon className="size-4" />
+                          <span className="sr-only">{t("Open menu")}</span>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent
+                          align="end"
+                          className="min-w-44 [&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:self-center"
                         >
-                          <EyeIcon className="size-4" />
-                          <span className="sr-only">
-                            {t("View payment proof")}
-                          </span>
-                        </Button>
-                      )}
-                      {canConfirmPayment(sale) && (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() =>
-                            setPendingStatus({ sale, next: "confirmed" })
-                          }
-                        >
-                          <CheckCircle2Icon className="size-4" />
-                          <span className="sr-only">
-                            {t("Confirm payment")}
-                          </span>
-                        </Button>
-                      )}
-                      {canRejectPayment(sale) && (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() =>
-                            setPendingStatus({
-                              sale,
-                              next: "payment_rejected",
-                            })
-                          }
-                        >
-                          <XCircleIcon className="size-4" />
-                          <span className="sr-only">
-                            {t("Reject payment")}
-                          </span>
-                        </Button>
-                      )}
-                      {canDelete(sale) && (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => setDeleteId(sale.id)}
-                        >
-                          <TrashIcon className="size-4" />
-                          <span className="sr-only">{t("Delete")}</span>
-                        </Button>
-                      )}
+                          {canPrint(sale) && (
+                            <>
+                              <DropdownMenuItem
+                                disabled={downloadingId === sale.id}
+                                onClick={() =>
+                                  deliveryOrderMutation.mutate(sale.id)
+                                }
+                              >
+                                <TruckIcon />
+                                <span>{t("Delivery order")}</span>
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                disabled={downloadingId === sale.id}
+                                onClick={() =>
+                                  invoiceMutation.mutate(sale.id)
+                                }
+                              >
+                                <FileTextIcon />
+                                <span>{t("Invoice")}</span>
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() => setEditSale(sale)}
+                              >
+                                <PencilIcon />
+                                <span>{t("Edit sale notes")}</span>
+                              </DropdownMenuItem>
+                            </>
+                          )}
+                          {canSubmitPayment(sale) && (
+                            <DropdownMenuItem
+                              onClick={() => setPaymentSale(sale)}
+                            >
+                              <ReceiptIcon />
+                              <span>
+                                {sale.status === "payment_rejected"
+                                  ? t("Resubmit payment")
+                                  : t("Submit payment")}
+                              </span>
+                            </DropdownMenuItem>
+                          )}
+                          {canViewProof(sale) && (
+                            <DropdownMenuItem
+                              onClick={() => setProofSale(sale)}
+                            >
+                              <EyeIcon />
+                              <span>{t("View payment proof")}</span>
+                            </DropdownMenuItem>
+                          )}
+                          {canConfirmPayment(sale) && (
+                            <DropdownMenuItem
+                              onClick={() =>
+                                setPendingStatus({ sale, next: "confirmed" })
+                              }
+                            >
+                              <CheckCircle2Icon />
+                              <span>{t("Confirm payment")}</span>
+                            </DropdownMenuItem>
+                          )}
+                          {canRejectPayment(sale) && (
+                            <DropdownMenuItem
+                              onClick={() =>
+                                setPendingStatus({
+                                  sale,
+                                  next: "payment_rejected",
+                                })
+                              }
+                            >
+                              <XCircleIcon />
+                              <span>{t("Reject payment")}</span>
+                            </DropdownMenuItem>
+                          )}
+                          {canMarkDelivered(sale) && (
+                            <DropdownMenuItem
+                              onClick={() => setPendingDeliveryId(sale.id)}
+                            >
+                              <PackageCheckIcon />
+                              <span>{t("Mark as delivered")}</span>
+                            </DropdownMenuItem>
+                          )}
+                          {canDelete(sale) && (
+                            <>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                variant="destructive"
+                                onClick={() => setDeleteId(sale.id)}
+                              >
+                                <TrashIcon />
+                                <span>{t("Delete")}</span>
+                              </DropdownMenuItem>
+                            </>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </div>
                   </TableCell>
                 </TableRow>
@@ -572,6 +675,32 @@ export default function SalesPage() {
               disabled={statusMutation.isPending}
             >
               {statusMutation.isPending ? t("Saving...") : t("Confirm")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      <AlertDialog
+        open={pendingDeliveryId !== null}
+        onOpenChange={(open) => {
+          if (!open) setPendingDeliveryId(null)
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("Mark as delivered")}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t(
+                "Mark this sale as delivered? This will hide it from the sales-person filter and cannot be undone.",
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t("Cancel")}</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeliveryConfirm}
+              disabled={deliveryMutation.isPending}
+            >
+              {deliveryMutation.isPending ? t("Saving...") : t("Confirm")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

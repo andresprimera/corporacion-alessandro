@@ -20,11 +20,15 @@ export function cartItemBasicQty(item: {
 export async function fetchSalesApi(
   page: number,
   limit: number,
+  opts?: { soldByUserId?: string },
 ): Promise<PaginatedResponse<Sale>> {
   const params = new URLSearchParams({
     page: String(page),
     limit: String(limit),
   })
+  if (opts?.soldByUserId) {
+    params.set("soldByUserId", opts.soldByUserId)
+  }
   const res = await authFetch(`/api/sales?${params}`)
   return res.json()
 }
@@ -60,6 +64,14 @@ export async function updateSaleStatusApi(
   const res = await authFetch(`/api/sales/${id}/status`, {
     method: "PATCH",
     body: JSON.stringify({ status }),
+  })
+  return res.json()
+}
+
+export async function markSaleDeliveredApi(id: string): Promise<Sale> {
+  const res = await authFetch(`/api/sales/${id}/delivery`, {
+    method: "PATCH",
+    body: JSON.stringify({ delivered: true }),
   })
   return res.json()
 }

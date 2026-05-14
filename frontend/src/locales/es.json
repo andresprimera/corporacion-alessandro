@@ -460,6 +460,12 @@
   "Select sales person": "Selecciona un vendedor",
   "Filter by sales person": "Filtrar por vendedor",
   "All sales people": "Todos los vendedores",
+  "Mark as delivered": "Marcar como entregado",
+  "Delivered": "Entregado",
+  "Sale marked as delivered": "Venta marcada como entregada",
+  "Failed to mark sale as delivered": "No se pudo marcar la venta como entregada",
+  "Mark this sale as delivered? This will hide it from the sales-person filter and cannot be undone.": "¿Marcar esta venta como entregada? Se ocultará del filtro por vendedor y no se puede deshacer.",
+  "Sale is already delivered": "La venta ya está marcada como entregada",
   "Cannot access client from another sales person": "No puedes acceder al cliente de otro vendedor",
   "Cannot modify client from another sales person": "No puedes modificar el cliente de otro vendedor",
   "Cannot delete client from another sales person": "No puedes eliminar el cliente de otro vendedor",
@@ -654,5 +660,7 @@
   "Payment number is required": "El número de pago es obligatorio",
   "Payment date is required": "La fecha de pago es obligatoria",
   "Bank is required": "El banco es obligatorio",
-  "Confirm": "Confirmar"
+  "Confirm": "Confirmar",
+  "Pending Payment(s)": "Pago(s) pendiente(s)",
+  "Client has a pending sale and cannot place a new order": "El cliente tiene una venta pendiente y no puede realizar un nuevo pedido"
 }

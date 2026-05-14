@@ -382,6 +382,16 @@ export class SalesService {
       );
     }
 
+    const pending = await this.saleModel.exists({
+      clientId: new Types.ObjectId(dto.clientId),
+      status: { $in: ['placed', 'paid'] },
+    });
+    if (pending) {
+      throw new BadRequestException(
+        'Client has a pending sale and cannot place a new order',
+      );
+    }
+
     const productInfos = await Promise.all(
       dto.items.map(async (item) => {
         const product = await this.productsService.findById(item.productId);
@@ -650,11 +660,23 @@ export class SalesService {
   async findAllPaginated(
     page: number,
     limit: number,
+    opts?: { soldByUserId?: string; excludeDelivered?: boolean },
   ): Promise<{ data: SaleDocument[]; total: number }> {
+    const filter: Record<string, unknown> = {};
+    if (opts?.soldByUserId) {
+      filter['soldBy.userId'] = opts.soldByUserId;
+    }
+    if (opts?.excludeDelivered) {
+      filter.delivered = { $ne: true };
+    }
     const skip = (page - 1) * limit;
     const [data, total] = await Promise.all([
-      this.saleModel.find().sort({ createdAt: -1 }).skip(skip).limit(limit),
-      this.saleModel.countDocuments(),
+      this.saleModel
+        .find(filter)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit),
+      this.saleModel.countDocuments(filter),
     ]);
     return { data, total };
   }
@@ -688,6 +710,26 @@ export class SalesService {
     await sale.save();
     this.logger.log(`Sale ${sale.saleNumber} status changed paid → ${next}`);
     return sale;
+  }
+
+  async markDelivered(id: string, delivered: true): Promise<SaleDocument> {
+    const sale = await this.saleModel.findById(id);
+    if (!sale) {
+      throw new NotFoundException('Sale not found');
+    }
+    if (sale.delivered) {
+      throw new BadRequestException('Sale is already delivered');
+    }
+    const updated = await this.saleModel.findByIdAndUpdate(
+      id,
+      { delivered },
+      { new: true },
+    );
+    if (!updated) {
+      throw new NotFoundException('Sale not found');
+    }
+    this.logger.log(`Sale ${updated.saleNumber} marked as delivered`);
+    return updated;
   }
 
   async submitPayment(

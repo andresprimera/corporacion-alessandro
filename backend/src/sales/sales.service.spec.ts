@@ -89,6 +89,7 @@ describe('SalesService', () => {
       findByIdAndDelete: jest.fn(),
       findOne: jest.fn(),
       countDocuments: jest.fn(),
+      exists: jest.fn().mockResolvedValue(null),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -161,6 +162,40 @@ describe('SalesService', () => {
         service.create(dto(), soldBy, salesPersonActor),
       ).rejects.toThrow(/another sales person/);
       expect(saleModel.create).not.toHaveBeenCalled();
+    });
+
+    it('throws BadRequestException when the client already has a pending sale', async () => {
+      saleModel.exists.mockResolvedValue({ _id: new Types.ObjectId() });
+
+      await expect(service.create(dto(), soldBy, adminActor)).rejects.toThrow(
+        BadRequestException,
+      );
+
+      const [pendingFilter] = saleModel.exists.mock.calls[0];
+      expect(pendingFilter.clientId).toBeInstanceOf(Types.ObjectId);
+      expect(String(pendingFilter.clientId)).toBe(VALID_CLIENT_ID);
+      expect(pendingFilter.status).toEqual({ $in: ['placed', 'paid'] });
+      expect(productsService.findById).not.toHaveBeenCalled();
+      expect(inventoryService.create).not.toHaveBeenCalled();
+      expect(saleModel.create).not.toHaveBeenCalled();
+    });
+
+    it('proceeds when the client has no pending sale', async () => {
+      saleModel.exists.mockResolvedValue(null);
+      warehousesService.findAllActive.mockResolvedValue([
+        { id: VALID_WAREHOUSE_A, name: 'A' },
+      ]);
+      inventoryService.findTotalStockForProduct.mockResolvedValue(100);
+      inventoryService.findAvailableStock.mockResolvedValue(100);
+      saleModel.create.mockResolvedValue({
+        id: 'sale-1',
+        saleNumber: 'S-2026-00001',
+      });
+
+      await service.create(dto(), soldBy, adminActor);
+
+      expect(saleModel.exists).toHaveBeenCalledTimes(1);
+      expect(saleModel.create).toHaveBeenCalledTimes(1);
     });
 
     it('throws NotFoundException when product is missing', async () => {
@@ -403,6 +438,123 @@ describe('SalesService', () => {
 
       expect(chainable.sort).toHaveBeenCalledWith({ createdAt: -1 });
       expect(result).toEqual({ data: [{ id: 'sale-1' }], total: 1 });
+    });
+
+    it('queries without a soldBy.userId filter when opts is absent', async () => {
+      const chainable = {
+        sort: jest.fn().mockReturnThis(),
+        skip: jest.fn().mockReturnThis(),
+        limit: jest.fn().mockResolvedValue([]),
+      };
+      saleModel.find.mockReturnValue(chainable);
+      saleModel.countDocuments.mockResolvedValue(0);
+
+      await service.findAllPaginated(1, 10);
+
+      expect(saleModel.find).toHaveBeenCalledWith({});
+      expect(saleModel.countDocuments).toHaveBeenCalledWith({});
+    });
+
+    it('applies soldBy.userId filter when opts.soldByUserId is provided', async () => {
+      const chainable = {
+        sort: jest.fn().mockReturnThis(),
+        skip: jest.fn().mockReturnThis(),
+        limit: jest.fn().mockResolvedValue([{ id: 'sale-1' }]),
+      };
+      saleModel.find.mockReturnValue(chainable);
+      saleModel.countDocuments.mockResolvedValue(1);
+
+      await service.findAllPaginated(1, 10, {
+        soldByUserId: VALID_SALES_PERSON_ID,
+      });
+
+      expect(saleModel.find).toHaveBeenCalledWith({
+        'soldBy.userId': VALID_SALES_PERSON_ID,
+      });
+      expect(saleModel.countDocuments).toHaveBeenCalledWith({
+        'soldBy.userId': VALID_SALES_PERSON_ID,
+      });
+    });
+
+    it('applies delivered: { $ne: true } when excludeDelivered is true', async () => {
+      const chainable = {
+        sort: jest.fn().mockReturnThis(),
+        skip: jest.fn().mockReturnThis(),
+        limit: jest.fn().mockResolvedValue([]),
+      };
+      saleModel.find.mockReturnValue(chainable);
+      saleModel.countDocuments.mockResolvedValue(0);
+
+      await service.findAllPaginated(1, 10, {
+        soldByUserId: VALID_SALES_PERSON_ID,
+        excludeDelivered: true,
+      });
+
+      expect(saleModel.find).toHaveBeenCalledWith({
+        'soldBy.userId': VALID_SALES_PERSON_ID,
+        delivered: { $ne: true },
+      });
+      expect(saleModel.countDocuments).toHaveBeenCalledWith({
+        'soldBy.userId': VALID_SALES_PERSON_ID,
+        delivered: { $ne: true },
+      });
+    });
+
+    it('does not apply delivered filter when excludeDelivered is false', async () => {
+      const chainable = {
+        sort: jest.fn().mockReturnThis(),
+        skip: jest.fn().mockReturnThis(),
+        limit: jest.fn().mockResolvedValue([]),
+      };
+      saleModel.find.mockReturnValue(chainable);
+      saleModel.countDocuments.mockResolvedValue(0);
+
+      await service.findAllPaginated(1, 10, { excludeDelivered: false });
+
+      expect(saleModel.find).toHaveBeenCalledWith({});
+      expect(saleModel.countDocuments).toHaveBeenCalledWith({});
+    });
+  });
+
+  describe('markDelivered', () => {
+    const VALID_SALE_ID = '507f1f77bcf86cd799439061';
+
+    it('throws NotFoundException when the sale does not exist', async () => {
+      saleModel.findById.mockResolvedValue(null);
+
+      await expect(service.markDelivered(VALID_SALE_ID, true)).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it('throws BadRequestException when the sale is already delivered', async () => {
+      saleModel.findById.mockResolvedValue({
+        saleNumber: 'S-2026-00001',
+        delivered: true,
+      });
+
+      await expect(service.markDelivered(VALID_SALE_ID, true)).rejects.toThrow(
+        BadRequestException,
+      );
+      expect(saleModel.findByIdAndUpdate).not.toHaveBeenCalled();
+    });
+
+    it('updates delivered=true via findByIdAndUpdate (skipping doc validation)', async () => {
+      saleModel.findById.mockResolvedValue({
+        saleNumber: 'S-2026-00001',
+        delivered: false,
+      });
+      const updated = { saleNumber: 'S-2026-00001', delivered: true };
+      saleModel.findByIdAndUpdate.mockResolvedValue(updated);
+
+      const result = await service.markDelivered(VALID_SALE_ID, true);
+
+      expect(saleModel.findByIdAndUpdate).toHaveBeenCalledWith(
+        VALID_SALE_ID,
+        { delivered: true },
+        { new: true },
+      );
+      expect(result).toBe(updated);
     });
   });
 

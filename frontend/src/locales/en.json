@@ -460,6 +460,12 @@
   "Select sales person": "Select sales person",
   "Filter by sales person": "Filter by sales person",
   "All sales people": "All sales people",
+  "Mark as delivered": "Mark as delivered",
+  "Delivered": "Delivered",
+  "Sale marked as delivered": "Sale marked as delivered",
+  "Failed to mark sale as delivered": "Failed to mark sale as delivered",
+  "Mark this sale as delivered? This will hide it from the sales-person filter and cannot be undone.": "Mark this sale as delivered? This will hide it from the sales-person filter and cannot be undone.",
+  "Sale is already delivered": "Sale is already delivered",
   "Cannot access client from another sales person": "Cannot access client from another sales person",
   "Cannot modify client from another sales person": "Cannot modify client from another sales person",
   "Cannot delete client from another sales person": "Cannot delete client from another sales person",
@@ -655,5 +661,7 @@
   "Payment number is required": "Payment number is required",
   "Payment date is required": "Payment date is required",
   "Bank is required": "Bank is required",
-  "Confirm": "Confirm"
+  "Confirm": "Confirm",
+  "Pending Payment(s)": "Pending Payment(s)",
+  "Client has a pending sale and cannot place a new order": "Client has a pending sale and cannot place a new order"
 }

@@ -144,6 +144,9 @@ export class Sale {
   @Prop({ type: PaymentProofSchema, required: false })
   paymentProof?: PaymentProof;
 
+  @Prop({ required: true, default: false })
+  delivered: boolean;
+
   @Prop({ type: SaleSoldBySchema, required: true })
   soldBy: SaleSoldBy;
 }
