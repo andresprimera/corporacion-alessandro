@@ -1,6 +1,7 @@
 import {
   fetchSalesApi,
   fetchSaleApi,
+  fetchDispatchSummaryApi,
   createSaleApi,
   updateSaleApi,
   updateSaleStatusApi,
@@ -76,6 +77,20 @@ describe("sales API", () => {
 
       expect(authFetch).toHaveBeenCalledWith("/api/sales/s1")
       expect(result).toEqual({ id: "s1" })
+    })
+  })
+
+  describe("fetchDispatchSummaryApi", () => {
+    it("should GET /api/sales/dispatch-summary with soldByUserId", async () => {
+      const payload = { items: [], saleCount: 0 }
+      vi.mocked(authFetch).mockResolvedValue(mockJsonResponse(payload))
+
+      const result = await fetchDispatchSummaryApi("u1")
+
+      expect(authFetch).toHaveBeenCalledWith(
+        "/api/sales/dispatch-summary?soldByUserId=u1",
+      )
+      expect(result).toEqual(payload)
     })
   })
 

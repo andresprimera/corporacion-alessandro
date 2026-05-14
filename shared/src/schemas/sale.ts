@@ -116,3 +116,27 @@ export const saleListQuerySchema = paginationQuerySchema.extend({
   soldByUserId: z.string().optional(),
 });
 export type SaleListQuery = z.infer<typeof saleListQuerySchema>;
+
+export const dispatchSummaryQuerySchema = z.object({
+  soldByUserId: z.string().min(1, "soldByUserId is required"),
+});
+export type DispatchSummaryQuery = z.infer<typeof dispatchSummaryQuerySchema>;
+
+export const dispatchSummaryItemSchema = z.object({
+  productId: z.string(),
+  productName: z.string(),
+  productKind: productKindEnum,
+  unitId: z.string().nullable(),
+  unitName: z.string().nullable(),
+  unitAbbreviation: z.string().nullable(),
+  totalQty: z.number(),
+});
+export type DispatchSummaryItem = z.infer<typeof dispatchSummaryItemSchema>;
+
+export const dispatchSummaryResponseSchema = z.object({
+  items: z.array(dispatchSummaryItemSchema),
+  saleCount: z.number(),
+});
+export type DispatchSummaryResponse = z.infer<
+  typeof dispatchSummaryResponseSchema
+>;

@@ -31,6 +31,8 @@ import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe';
 import { CoerceNumberFieldsPipe } from '../common/pipes/coerce-number-fields.pipe';
 import {
   type Currency,
+  type DispatchSummaryQuery,
+  type DispatchSummaryResponse,
   type PaginatedResponse,
   type PaymentProof,
   type PaymentType,
@@ -40,6 +42,7 @@ import {
   type SaleItem,
   type SaleStatus,
   type WarehouseAllocation,
+  dispatchSummaryQuerySchema,
   saleListQuerySchema,
   type SaleListQuery,
 } from '@base-dashboard/shared';
@@ -151,6 +154,16 @@ export class SalesController {
         totalPages: Math.ceil(total / query.limit) || 1,
       },
     };
+  }
+
+  @Get('dispatch-summary')
+  @UseGuards(RolesGuard)
+  @Roles('admin')
+  async dispatchSummary(
+    @Query(new ZodValidationPipe(dispatchSummaryQuerySchema))
+    query: DispatchSummaryQuery,
+  ): Promise<DispatchSummaryResponse> {
+    return this.salesService.findDispatchSummary(query.soldByUserId);
   }
 
   @Get(':id')

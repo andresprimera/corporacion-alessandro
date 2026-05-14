@@ -516,6 +516,130 @@ describe('SalesService', () => {
     });
   });
 
+  describe('findDispatchSummary', () => {
+    function chainable(data: unknown[]) {
+      return {
+        select: jest.fn().mockResolvedValue(data),
+      };
+    }
+
+    it('filters by soldBy.userId and excludes delivered sales', async () => {
+      const select = jest.fn().mockResolvedValue([]);
+      saleModel.find.mockReturnValue({ select });
+
+      await service.findDispatchSummary(VALID_SALES_PERSON_ID);
+
+      expect(saleModel.find).toHaveBeenCalledWith({
+        'soldBy.userId': VALID_SALES_PERSON_ID,
+        delivered: { $ne: true },
+      });
+      expect(select).toHaveBeenCalledWith('items');
+    });
+
+    it('aggregates totals per (product + entered unit), preferring entered units', async () => {
+      const productA = new Types.ObjectId(VALID_PRODUCT_ID);
+      const productB = new Types.ObjectId('507f1f77bcf86cd799439012');
+      const unitBasic = new Types.ObjectId(BASIC_UNIT_ID);
+      const unitPkg = new Types.ObjectId(PACKAGE_UNIT_ID);
+
+      saleModel.find.mockReturnValue(
+        chainable([
+          {
+            items: [
+              {
+                productId: productA,
+                productName: 'Harina PAN 1kg',
+                productKind: 'groceries',
+                requestedQty: 24,
+                enteredQty: 2,
+                enteredUnit: {
+                  unitId: unitPkg,
+                  name: 'Caja',
+                  abbreviation: 'cja',
+                },
+              },
+              {
+                productId: productA,
+                productName: 'Harina PAN 1kg',
+                productKind: 'groceries',
+                requestedQty: 5,
+                enteredQty: 5,
+                enteredUnit: {
+                  unitId: unitBasic,
+                  name: 'Unidad',
+                  abbreviation: 'und',
+                },
+              },
+            ],
+          },
+          {
+            items: [
+              {
+                productId: productA,
+                productName: 'Harina PAN 1kg',
+                productKind: 'groceries',
+                requestedQty: 36,
+                enteredQty: 3,
+                enteredUnit: {
+                  unitId: unitPkg,
+                  name: 'Caja',
+                  abbreviation: 'cja',
+                },
+              },
+              {
+                productId: productB,
+                productName: 'Arroz 1kg',
+                productKind: 'groceries',
+                requestedQty: 10,
+              },
+            ],
+          },
+        ]),
+      );
+
+      const result = await service.findDispatchSummary(VALID_SALES_PERSON_ID);
+
+      expect(result.saleCount).toBe(2);
+      expect(result.items).toHaveLength(3);
+      // sorted by productName asc: Arroz, Harina (Caja), Harina (Unidad)
+      expect(result.items[0]).toEqual({
+        productId: productB.toString(),
+        productName: 'Arroz 1kg',
+        productKind: 'groceries',
+        unitId: null,
+        unitName: null,
+        unitAbbreviation: null,
+        totalQty: 10,
+      });
+      expect(result.items[1]).toEqual({
+        productId: productA.toString(),
+        productName: 'Harina PAN 1kg',
+        productKind: 'groceries',
+        unitId: unitPkg.toString(),
+        unitName: 'Caja',
+        unitAbbreviation: 'cja',
+        totalQty: 5,
+      });
+      expect(result.items[2]).toEqual({
+        productId: productA.toString(),
+        productName: 'Harina PAN 1kg',
+        productKind: 'groceries',
+        unitId: unitBasic.toString(),
+        unitName: 'Unidad',
+        unitAbbreviation: 'und',
+        totalQty: 5,
+      });
+    });
+
+    it('returns empty items and saleCount 0 when there are no matching sales', async () => {
+      saleModel.find.mockReturnValue(chainable([]));
+
+      const result = await service.findDispatchSummary(VALID_SALES_PERSON_ID);
+
+      expect(result).toEqual({ items: [], saleCount: 0 });
+    });
+  });
+
   describe('markDelivered', () => {
     const VALID_SALE_ID = '507f1f77bcf86cd799439061';
 
@@ -715,29 +839,38 @@ describe('SalesService', () => {
         id: SALE_ID,
         saleNumber: 'S-2026-00001',
         status: overrides.status ?? 'paid',
-        save: jest.fn().mockImplementation(function (this: { status: string }) {
-          return Promise.resolve(this);
-        }),
       };
     }
 
     it('transitions paid → confirmed', async () => {
       const sale = buildSale({ status: 'paid' });
       saleModel.findById.mockResolvedValue(sale);
+      saleModel.findByIdAndUpdate.mockResolvedValue({
+        ...sale,
+        status: 'confirmed',
+      });
 
-      await service.updateStatus(SALE_ID, 'confirmed');
+      const result = await service.updateStatus(SALE_ID, 'confirmed');
 
-      expect(sale.status).toBe('confirmed');
-      expect(sale.save).toHaveBeenCalledTimes(1);
+      expect(saleModel.findByIdAndUpdate).toHaveBeenCalledWith(
+        SALE_ID,
+        { status: 'confirmed' },
+        { new: true },
+      );
+      expect(result.status).toBe('confirmed');
     });
 
     it('transitions paid → payment_rejected', async () => {
       const sale = buildSale({ status: 'paid' });
       saleModel.findById.mockResolvedValue(sale);
+      saleModel.findByIdAndUpdate.mockResolvedValue({
+        ...sale,
+        status: 'payment_rejected',
+      });
 
-      await service.updateStatus(SALE_ID, 'payment_rejected');
+      const result = await service.updateStatus(SALE_ID, 'payment_rejected');
 
-      expect(sale.status).toBe('payment_rejected');
+      expect(result.status).toBe('payment_rejected');
     });
 
     it('throws BadRequestException when current is placed', async () => {
@@ -747,7 +880,7 @@ describe('SalesService', () => {
       await expect(
         service.updateStatus(SALE_ID, 'confirmed'),
       ).rejects.toThrow(BadRequestException);
-      expect(sale.save).not.toHaveBeenCalled();
+      expect(saleModel.findByIdAndUpdate).not.toHaveBeenCalled();
     });
 
     it('throws BadRequestException when current is confirmed (terminal)', async () => {

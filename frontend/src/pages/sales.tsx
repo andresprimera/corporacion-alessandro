@@ -25,6 +25,7 @@ import { SaleFormDialog } from "@/components/sale-form-dialog"
 import { SaleNotesDialog } from "@/components/sale-notes-dialog"
 import { SalePaymentFormDialog } from "@/components/sale-payment-form-dialog"
 import { SalePaymentDetailDialog } from "@/components/sale-payment-detail-dialog"
+import { SalesDispatchSummaryDialog } from "@/components/sales-dispatch-summary-dialog"
 import {
   Table,
   TableBody,
@@ -53,6 +54,14 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
+  Card,
+  CardAction,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -64,6 +73,7 @@ import { DataPagination } from "@/components/data-pagination"
 import {
   AlertCircleIcon,
   CheckCircle2Icon,
+  ClipboardListIcon,
   EyeIcon,
   FileTextIcon,
   MoreHorizontalIcon,
@@ -112,6 +122,7 @@ export default function SalesPage() {
   const [pendingDeliveryId, setPendingDeliveryId] = useState<string | null>(
     null,
   )
+  const [summaryOpen, setSummaryOpen] = useState(false)
 
   const filterSoldByUserId =
     isAdmin && salesPersonFilter !== SALES_PERSON_FILTER_ALL
@@ -280,6 +291,134 @@ export default function SalesPage() {
 
   const totalPages = meta?.totalPages ?? 1
 
+  function renderActions(sale: Sale) {
+    return (
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          render={<Button variant="ghost" size="icon" />}
+        >
+          <MoreHorizontalIcon className="size-4" />
+          <span className="sr-only">{t("Open menu")}</span>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent
+          align="end"
+          className="w-auto [&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:self-center *:data-[slot=dropdown-menu-item]:whitespace-nowrap"
+        >
+          {canPrint(sale) && (
+            <>
+              <DropdownMenuItem
+                disabled={downloadingId === sale.id}
+                onClick={() => deliveryOrderMutation.mutate(sale.id)}
+              >
+                <TruckIcon />
+                <span>{t("Delivery order")}</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                disabled={downloadingId === sale.id}
+                onClick={() => invoiceMutation.mutate(sale.id)}
+              >
+                <FileTextIcon />
+                <span>{t("Invoice")}</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setEditSale(sale)}>
+                <PencilIcon />
+                <span>{t("Edit sale notes")}</span>
+              </DropdownMenuItem>
+            </>
+          )}
+          {canSubmitPayment(sale) && (
+            <DropdownMenuItem onClick={() => setPaymentSale(sale)}>
+              <ReceiptIcon />
+              <span>
+                {sale.status === "payment_rejected"
+                  ? t("Resubmit payment")
+                  : t("Submit payment")}
+              </span>
+            </DropdownMenuItem>
+          )}
+          {canViewProof(sale) && (
+            <DropdownMenuItem onClick={() => setProofSale(sale)}>
+              <EyeIcon />
+              <span>{t("View payment proof")}</span>
+            </DropdownMenuItem>
+          )}
+          {canConfirmPayment(sale) && (
+            <DropdownMenuItem
+              onClick={() => setPendingStatus({ sale, next: "confirmed" })}
+            >
+              <CheckCircle2Icon />
+              <span>{t("Confirm payment")}</span>
+            </DropdownMenuItem>
+          )}
+          {canRejectPayment(sale) && (
+            <DropdownMenuItem
+              onClick={() =>
+                setPendingStatus({ sale, next: "payment_rejected" })
+              }
+            >
+              <XCircleIcon />
+              <span>{t("Reject payment")}</span>
+            </DropdownMenuItem>
+          )}
+          {canMarkDelivered(sale) && (
+            <DropdownMenuItem onClick={() => setPendingDeliveryId(sale.id)}>
+              <PackageCheckIcon />
+              <span>{t("Mark as delivered")}</span>
+            </DropdownMenuItem>
+          )}
+          {canDelete(sale) && (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                variant="destructive"
+                onClick={() => setDeleteId(sale.id)}
+              >
+                <TrashIcon />
+                <span>{t("Delete")}</span>
+              </DropdownMenuItem>
+            </>
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    )
+  }
+
+  function renderSaleCard(sale: Sale) {
+    return (
+      <Card key={sale.id} size="sm">
+        <CardHeader>
+          <CardTitle className="wrap-break-word">{sale.clientName}</CardTitle>
+          <CardDescription className="font-mono text-xs">
+            {sale.saleNumber}
+          </CardDescription>
+          <CardAction>{renderActions(sale)}</CardAction>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          <div className="flex items-start justify-between gap-2">
+            <div className="space-y-0.5 text-xs text-muted-foreground">
+              <div>
+                {t("{{count}} item", { count: sale.items.length })} ·{" "}
+                {sale.totalQty} {t("units")}
+              </div>
+              <div>
+                {sale.soldBy.name} · {formatDate(sale.createdAt)}
+              </div>
+            </div>
+            <div className="text-base font-semibold tabular-nums whitespace-nowrap">
+              {formatAmount(sale.totalAmount, sale.currency)}
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-1.5">
+            {renderStatusBadge(sale.status)}
+            {sale.delivered && (
+              <Badge variant="outline">{t("Delivered")}</Badge>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
+
   const header = (
     <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
       <div>
@@ -313,6 +452,16 @@ export default function SalesPage() {
             </SelectContent>
           </Select>
         )}
+        {isAdmin && filterSoldByUserId && (
+          <Button
+            variant="outline"
+            className="w-full md:w-auto"
+            onClick={() => setSummaryOpen(true)}
+          >
+            <ClipboardListIcon className="size-4" />
+            {t("Dispatch summary")}
+          </Button>
+        )}
         <Button
           className="w-full md:w-auto"
           onClick={() => setFormOpen(true)}
@@ -324,56 +473,78 @@ export default function SalesPage() {
     </div>
   )
 
+  const selectedSalesPersonName = salesPersons.find(
+    (s) => s.id === filterSoldByUserId,
+  )?.name
+
+  const summaryDialog = (
+    <SalesDispatchSummaryDialog
+      open={summaryOpen}
+      onOpenChange={setSummaryOpen}
+      soldByUserId={filterSoldByUserId ?? null}
+      salesPersonName={selectedSalesPersonName}
+    />
+  )
+
   if (isLoading) {
+    const skeletonCount = Math.min(pageSize, 5)
     return (
       <div className="space-y-4">
         {header}
-        <div className="rounded-lg border">
+        <div className="space-y-3 md:hidden">
+          {Array.from({ length: skeletonCount }).map((_, i) => (
+            <Card key={i} size="sm">
+              <CardHeader>
+                <Skeleton className="h-5 w-3/4" />
+                <Skeleton className="h-3 w-1/3" />
+              </CardHeader>
+              <CardContent className="space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <Skeleton className="h-5 w-16" />
+                  <Skeleton className="h-5 w-20" />
+                </div>
+                <Skeleton className="h-3 w-2/3" />
+                <Skeleton className="h-3 w-1/2" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+        <div className="hidden rounded-lg border md:block">
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="hidden md:table-cell">
-                  {t("Sale #")}
-                </TableHead>
+                <TableHead>{t("Sale #")}</TableHead>
                 <TableHead>{t("Client")}</TableHead>
-                <TableHead className="hidden md:table-cell">
-                  {t("Items")}
-                </TableHead>
+                <TableHead>{t("Items")}</TableHead>
                 <TableHead>{t("Total")}</TableHead>
-                <TableHead className="hidden md:table-cell">
-                  {t("Status")}
-                </TableHead>
-                <TableHead className="hidden md:table-cell">
-                  {t("Sold by")}
-                </TableHead>
-                <TableHead className="hidden md:table-cell">
-                  {t("Date")}
-                </TableHead>
-                <TableHead className="md:w-36">{t("Actions")}</TableHead>
+                <TableHead>{t("Status")}</TableHead>
+                <TableHead>{t("Sold by")}</TableHead>
+                <TableHead>{t("Date")}</TableHead>
+                <TableHead className="w-36">{t("Actions")}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {Array.from({ length: Math.min(pageSize, 5) }).map((_, i) => (
+              {Array.from({ length: skeletonCount }).map((_, i) => (
                 <TableRow key={i}>
-                  <TableCell className="hidden md:table-cell">
+                  <TableCell>
                     <Skeleton className="h-4 w-20" />
                   </TableCell>
                   <TableCell>
                     <Skeleton className="h-4 w-24" />
                   </TableCell>
-                  <TableCell className="hidden md:table-cell">
+                  <TableCell>
                     <Skeleton className="h-4 w-20" />
                   </TableCell>
                   <TableCell>
                     <Skeleton className="h-4 w-16" />
                   </TableCell>
-                  <TableCell className="hidden md:table-cell">
+                  <TableCell>
                     <Skeleton className="h-4 w-16" />
                   </TableCell>
-                  <TableCell className="hidden md:table-cell">
+                  <TableCell>
                     <Skeleton className="h-4 w-20" />
                   </TableCell>
-                  <TableCell className="hidden md:table-cell">
+                  <TableCell>
                     <Skeleton className="h-4 w-20" />
                   </TableCell>
                   <TableCell>
@@ -408,199 +579,68 @@ export default function SalesPage() {
   return (
     <div className="space-y-4">
       {header}
-      <div className="rounded-lg border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="hidden md:table-cell">
-                {t("Sale #")}
-              </TableHead>
-              <TableHead>{t("Client")}</TableHead>
-              <TableHead className="hidden md:table-cell">
-                {t("Items")}
-              </TableHead>
-              <TableHead>{t("Total")}</TableHead>
-              <TableHead className="hidden md:table-cell">
-                {t("Sold by")}
-              </TableHead>
-              <TableHead className="hidden md:table-cell">
-                {t("Date")}
-              </TableHead>
-              <TableHead className="md:w-36">{t("Actions")}</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {sales.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={8} className="h-24 text-center">
-                  {t("No sales found.")}
-                </TableCell>
-              </TableRow>
-            ) : (
-              sales.map((sale: Sale) => (
-                <TableRow key={sale.id}>
-                  <TableCell className="hidden md:table-cell font-mono text-sm align-top whitespace-nowrap">
-                    {sale.saleNumber}
-                  </TableCell>
-                  <TableCell className="align-top">
-                    <div className="font-mono text-xs text-muted-foreground md:hidden">
+      {sales.length === 0 ? (
+        <div className="rounded-lg border p-8 text-center text-sm text-muted-foreground">
+          {t("No sales found.")}
+        </div>
+      ) : (
+        <>
+          <div className="space-y-3 md:hidden">
+            {sales.map((sale: Sale) => renderSaleCard(sale))}
+          </div>
+          <div className="hidden rounded-lg border md:block">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>{t("Sale #")}</TableHead>
+                  <TableHead>{t("Client")}</TableHead>
+                  <TableHead>{t("Items")}</TableHead>
+                  <TableHead>{t("Total")}</TableHead>
+                  <TableHead>{t("Status")}</TableHead>
+                  <TableHead>{t("Sold by")}</TableHead>
+                  <TableHead>{t("Date")}</TableHead>
+                  <TableHead className="w-36">{t("Actions")}</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {sales.map((sale: Sale) => (
+                  <TableRow key={sale.id}>
+                    <TableCell className="align-top font-mono text-sm whitespace-nowrap">
                       {sale.saleNumber}
-                    </div>
-                    <div className="wrap-break-word">{sale.clientName}</div>
-                    <div className="mt-0.5 flex flex-wrap items-center gap-x-1 text-xs text-muted-foreground md:hidden">
-                      <span>
-                        {t("{{count}} item", { count: sale.items.length })}{" "}
+                    </TableCell>
+                    <TableCell className="align-top">
+                      <div className="wrap-break-word">{sale.clientName}</div>
+                    </TableCell>
+                    <TableCell>
+                      {t("{{count}} item", { count: sale.items.length })}
+                      <span className="text-muted-foreground">
+                        {" "}
                         ({sale.totalQty} {t("units")})
                       </span>
-                      <span>·</span>
-                      <span>{formatDate(sale.createdAt)}</span>
-                      <span>·</span>
-                      <span>{sale.soldBy.name}</span>
-                      <span>·</span>
+                    </TableCell>
+                    <TableCell className="align-top whitespace-nowrap">
+                      {formatAmount(sale.totalAmount, sale.currency)}
+                    </TableCell>
+                    <TableCell>
                       {renderStatusBadge(sale.status)}
                       {sale.delivered && (
-                        <Badge variant="outline">{t("Delivered")}</Badge>
+                        <Badge variant="outline" className="ml-1">
+                          {t("Delivered")}
+                        </Badge>
                       )}
-                    </div>
-                  </TableCell>
-                  <TableCell className="hidden md:table-cell">
-                    {t("{{count}} item", { count: sale.items.length })}
-                    <span className="text-muted-foreground">
-                      {" "}
-                      ({sale.totalQty} {t("units")})
-                    </span>
-                  </TableCell>
-                  <TableCell className="align-top whitespace-nowrap">
-                    {formatAmount(sale.totalAmount, sale.currency)}
-                  </TableCell>
-                  <TableCell className="hidden md:table-cell">
-                    {renderStatusBadge(sale.status)}
-                    {sale.delivered && (
-                      <Badge variant="outline" className="ml-1">
-                        {t("Delivered")}
-                      </Badge>
-                    )}
-                  </TableCell>
-                  <TableCell className="hidden md:table-cell">
-                    {sale.soldBy.name}
-                  </TableCell>
-                  <TableCell className="hidden md:table-cell">
-                    {formatDate(sale.createdAt)}
-                  </TableCell>
-                  <TableCell className="align-top">
-                    <div className="flex justify-end md:justify-start">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger
-                          render={<Button variant="ghost" size="icon" />}
-                        >
-                          <MoreHorizontalIcon className="size-4" />
-                          <span className="sr-only">{t("Open menu")}</span>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent
-                          align="end"
-                          className="min-w-44 [&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:self-center"
-                        >
-                          {canPrint(sale) && (
-                            <>
-                              <DropdownMenuItem
-                                disabled={downloadingId === sale.id}
-                                onClick={() =>
-                                  deliveryOrderMutation.mutate(sale.id)
-                                }
-                              >
-                                <TruckIcon />
-                                <span>{t("Delivery order")}</span>
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                disabled={downloadingId === sale.id}
-                                onClick={() =>
-                                  invoiceMutation.mutate(sale.id)
-                                }
-                              >
-                                <FileTextIcon />
-                                <span>{t("Invoice")}</span>
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                onClick={() => setEditSale(sale)}
-                              >
-                                <PencilIcon />
-                                <span>{t("Edit sale notes")}</span>
-                              </DropdownMenuItem>
-                            </>
-                          )}
-                          {canSubmitPayment(sale) && (
-                            <DropdownMenuItem
-                              onClick={() => setPaymentSale(sale)}
-                            >
-                              <ReceiptIcon />
-                              <span>
-                                {sale.status === "payment_rejected"
-                                  ? t("Resubmit payment")
-                                  : t("Submit payment")}
-                              </span>
-                            </DropdownMenuItem>
-                          )}
-                          {canViewProof(sale) && (
-                            <DropdownMenuItem
-                              onClick={() => setProofSale(sale)}
-                            >
-                              <EyeIcon />
-                              <span>{t("View payment proof")}</span>
-                            </DropdownMenuItem>
-                          )}
-                          {canConfirmPayment(sale) && (
-                            <DropdownMenuItem
-                              onClick={() =>
-                                setPendingStatus({ sale, next: "confirmed" })
-                              }
-                            >
-                              <CheckCircle2Icon />
-                              <span>{t("Confirm payment")}</span>
-                            </DropdownMenuItem>
-                          )}
-                          {canRejectPayment(sale) && (
-                            <DropdownMenuItem
-                              onClick={() =>
-                                setPendingStatus({
-                                  sale,
-                                  next: "payment_rejected",
-                                })
-                              }
-                            >
-                              <XCircleIcon />
-                              <span>{t("Reject payment")}</span>
-                            </DropdownMenuItem>
-                          )}
-                          {canMarkDelivered(sale) && (
-                            <DropdownMenuItem
-                              onClick={() => setPendingDeliveryId(sale.id)}
-                            >
-                              <PackageCheckIcon />
-                              <span>{t("Mark as delivered")}</span>
-                            </DropdownMenuItem>
-                          )}
-                          {canDelete(sale) && (
-                            <>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem
-                                variant="destructive"
-                                onClick={() => setDeleteId(sale.id)}
-                              >
-                                <TrashIcon />
-                                <span>{t("Delete")}</span>
-                              </DropdownMenuItem>
-                            </>
-                          )}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </div>
+                    </TableCell>
+                    <TableCell>{sale.soldBy.name}</TableCell>
+                    <TableCell>{formatDate(sale.createdAt)}</TableCell>
+                    <TableCell className="align-top">
+                      {renderActions(sale)}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </>
+      )}
       {meta && (
         <DataPagination
           page={page}
@@ -612,6 +652,7 @@ export default function SalesPage() {
           onPageSizeChange={handlePageSizeChange}
         />
       )}
+      {summaryDialog}
       <SaleFormDialog open={formOpen} onOpenChange={setFormOpen} />
       <SaleNotesDialog sale={editSale} onClose={() => setEditSale(null)} />
       <SalePaymentFormDialog

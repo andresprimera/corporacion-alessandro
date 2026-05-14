@@ -1,5 +1,6 @@
 import {
   type CreateSaleInput,
+  type DispatchSummaryResponse,
   type PaginatedResponse,
   type PaymentType,
   type Sale,
@@ -35,6 +36,14 @@ export async function fetchSalesApi(
 
 export async function fetchSaleApi(id: string): Promise<Sale> {
   const res = await authFetch(`/api/sales/${id}`)
+  return res.json()
+}
+
+export async function fetchDispatchSummaryApi(
+  soldByUserId: string,
+): Promise<DispatchSummaryResponse> {
+  const params = new URLSearchParams({ soldByUserId })
+  const res = await authFetch(`/api/sales/dispatch-summary?${params}`)
   return res.json()
 }
 

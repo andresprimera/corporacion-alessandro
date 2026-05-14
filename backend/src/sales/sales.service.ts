@@ -22,6 +22,9 @@ import {
 } from '../common/utils/populated-ref';
 import type {
   CreateSaleInput,
+  DispatchSummaryItem,
+  DispatchSummaryResponse,
+  ProductKind,
   Role,
   SaleSoldBy,
   SaleStatus,
@@ -685,6 +688,50 @@ export class SalesService {
     return this.saleModel.findById(id);
   }
 
+  async findDispatchSummary(
+    soldByUserId: string,
+  ): Promise<DispatchSummaryResponse> {
+    const sales = await this.saleModel
+      .find({
+        'soldBy.userId': soldByUserId,
+        delivered: { $ne: true },
+      })
+      .select('items');
+
+    const buckets = new Map<string, DispatchSummaryItem>();
+    for (const sale of sales) {
+      for (const item of sale.items) {
+        const useEntered = item.enteredQty != null && item.enteredUnit != null;
+        const unitId = useEntered
+          ? item.enteredUnit!.unitId.toString()
+          : null;
+        const key = `${item.productId.toString()}::${unitId ?? 'base'}`;
+        const qty = useEntered ? item.enteredQty! : item.requestedQty;
+        const existing = buckets.get(key);
+        if (existing) {
+          existing.totalQty += qty;
+        } else {
+          buckets.set(key, {
+            productId: item.productId.toString(),
+            productName: item.productName,
+            productKind: item.productKind as ProductKind,
+            unitId,
+            unitName: useEntered ? item.enteredUnit!.name : null,
+            unitAbbreviation: useEntered
+              ? item.enteredUnit!.abbreviation
+              : null,
+            totalQty: qty,
+          });
+        }
+      }
+    }
+
+    const items = Array.from(buckets.values()).sort((a, b) =>
+      a.productName.localeCompare(b.productName),
+    );
+    return { items, saleCount: sales.length };
+  }
+
   async update(
     id: string,
     dto: UpdateSaleInput,
@@ -706,10 +753,16 @@ export class SalesService {
         `Cannot transition sale from ${current} to ${next}`,
       );
     }
-    sale.status = next;
-    await sale.save();
-    this.logger.log(`Sale ${sale.saleNumber} status changed paid → ${next}`);
-    return sale;
+    const updated = await this.saleModel.findByIdAndUpdate(
+      id,
+      { status: next },
+      { new: true },
+    );
+    if (!updated) {
+      throw new NotFoundException('Sale not found');
+    }
+    this.logger.log(`Sale ${updated.saleNumber} status changed paid → ${next}`);
+    return updated;
   }
 
   async markDelivered(id: string, delivered: true): Promise<SaleDocument> {
