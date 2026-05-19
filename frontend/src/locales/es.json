@@ -669,5 +669,22 @@
   "Bank is required": "El banco es obligatorio",
   "Confirm": "Confirmar",
   "Pending Payment(s)": "Pago(s) pendiente(s)",
-  "Client has a pending sale and cannot place a new order": "El cliente tiene una venta pendiente y no puede realizar un nuevo pedido"
+  "Client has a pending sale and cannot place a new order": "El cliente tiene una venta pendiente y no puede realizar un nuevo pedido",
+  "Exchange Rates": "Tasas de cambio",
+  "Record the official daily exchange rate.": "Registra la tasa de cambio oficial del día.",
+  "Add today's rate": "Agregar tasa de hoy",
+  "Add exchange rate": "Agregar tasa de cambio",
+  "Record the official rate for today.": "Registra la tasa oficial para el día de hoy.",
+  "Rate (Bs./USD)": "Tasa (Bs./USD)",
+  "Exchange rate added": "Tasa de cambio agregada",
+  "A rate already exists for that date": "Ya existe una tasa para esa fecha",
+  "Failed to add exchange rate": "No se pudo agregar la tasa de cambio",
+  "No exchange rates yet.": "Aún no hay tasas de cambio.",
+  "Failed to load exchange rates": "No se pudieron cargar las tasas de cambio",
+  "Value must be greater than zero": "El valor debe ser mayor que cero",
+  "Date must be YYYY-MM-DD": "La fecha debe tener el formato AAAA-MM-DD",
+  "rateDate cannot be in the past": "La fecha no puede ser en el pasado",
+  "Rate for this date already exists": "Ya existe una tasa para esa fecha",
+  "{{count}} rate total_one": "{{count}} tasa en total",
+  "{{count}} rate total_other": "{{count}} tasas en total"
 }

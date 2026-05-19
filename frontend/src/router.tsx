@@ -10,6 +10,7 @@ import InventoryPage from "@/pages/inventory"
 import StockPage from "@/pages/stock"
 import SalesPage from "@/pages/sales"
 import CommissionsPage from "@/pages/commissions"
+import ExchangeRatesPage from "@/pages/exchange-rates"
 import ClientsPage from "@/pages/clients"
 import CatalogPage from "@/pages/catalog"
 import LoginPage from "@/pages/login"
@@ -125,6 +126,14 @@ export const router = createBrowserRouter([
           <RoleRoute allowed={["admin", "salesPerson"]}>
             <CommissionsPage />
           </RoleRoute>
+        ),
+      },
+      {
+        path: "exchange-rates",
+        element: (
+          <AdminRoute>
+            <ExchangeRatesPage />
+          </AdminRoute>
         ),
       },
       {

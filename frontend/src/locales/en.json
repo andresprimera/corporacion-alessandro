@@ -670,5 +670,22 @@
   "Bank is required": "Bank is required",
   "Confirm": "Confirm",
   "Pending Payment(s)": "Pending Payment(s)",
-  "Client has a pending sale and cannot place a new order": "Client has a pending sale and cannot place a new order"
+  "Client has a pending sale and cannot place a new order": "Client has a pending sale and cannot place a new order",
+  "Exchange Rates": "Exchange Rates",
+  "Record the official daily exchange rate.": "Record the official daily exchange rate.",
+  "Add today's rate": "Add today's rate",
+  "Add exchange rate": "Add exchange rate",
+  "Record the official rate for today.": "Record the official rate for today.",
+  "Rate (Bs./USD)": "Rate (Bs./USD)",
+  "Exchange rate added": "Exchange rate added",
+  "A rate already exists for that date": "A rate already exists for that date",
+  "Failed to add exchange rate": "Failed to add exchange rate",
+  "No exchange rates yet.": "No exchange rates yet.",
+  "Failed to load exchange rates": "Failed to load exchange rates",
+  "Value must be greater than zero": "Value must be greater than zero",
+  "Date must be YYYY-MM-DD": "Date must be YYYY-MM-DD",
+  "rateDate cannot be in the past": "Date cannot be in the past",
+  "Rate for this date already exists": "A rate already exists for that date",
+  "{{count}} rate total_one": "{{count}} rate total",
+  "{{count}} rate total_other": "{{count}} rates total"
 }

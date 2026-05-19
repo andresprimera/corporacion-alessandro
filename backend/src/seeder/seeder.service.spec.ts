@@ -208,7 +208,7 @@ describe('SeederService', () => {
 
       expect(citiesService.create).toHaveBeenCalledTimes(demoCities.length);
       expect(citiesService.create).toHaveBeenCalledWith({
-        name: 'Caracas',
+        name: 'Maracay',
         isActive: true,
       });
     });

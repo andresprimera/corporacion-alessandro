@@ -59,6 +59,12 @@ export interface DemoSalesPersonSeed {
   commissionPercentage: number;
 }
 
+export interface DemoAdminSeed {
+  name: string;
+  email: string;
+  password: string;
+}
+
 export interface DemoClientSeed {
   name: string;
   rif: string;
@@ -70,14 +76,15 @@ export interface DemoClientSeed {
 
 export const DEMO_SALES_PERSON_PASSWORD = 'Test@123';
 
-export const demoCities: DemoCitySeed[] = [
-  { name: 'Caracas' },
-  { name: 'Maracaibo' },
-  { name: 'Valencia' },
-  { name: 'Barquisimeto' },
-  { name: 'Maracay' },
-  { name: 'Ciudad Guayana' },
+export const demoAdmins: DemoAdminSeed[] = [
+  {
+    name: 'Andres Primera',
+    email: 'andresprimera@gmail.com',
+    password: 'Test@123',
+  },
 ];
+
+export const demoCities: DemoCitySeed[] = [{ name: 'Maracay' }];
 
 export const demoWarehouses: DemoWarehouseSeed[] = [
   {
@@ -267,7 +274,7 @@ export const demoClients: DemoClientSeed[] = [
     rif: 'J-30112233-4',
     address: 'Av. Principal La Castellana, Caracas',
     phone: '+58-212-2611001',
-    cityName: 'Caracas',
+    cityName: 'Maracay',
     salesPersonEmail: 'maria.gonzalez@alessandro.demo',
   },
   {
@@ -275,7 +282,7 @@ export const demoClients: DemoClientSeed[] = [
     rif: 'J-30445566-7',
     address: 'Plaza Altamira Sur, Caracas',
     phone: '+58-212-2632002',
-    cityName: 'Caracas',
+    cityName: 'Maracay',
     salesPersonEmail: 'maria.gonzalez@alessandro.demo',
   },
   {
@@ -283,7 +290,7 @@ export const demoClients: DemoClientSeed[] = [
     rif: 'J-30778899-0',
     address: 'Av. Francisco de Miranda, Chacao',
     phone: '+58-212-2643003',
-    cityName: 'Caracas',
+    cityName: 'Maracay',
     salesPersonEmail: 'maria.gonzalez@alessandro.demo',
   },
   // Carlos Rodríguez — Caracas
@@ -292,7 +299,7 @@ export const demoClients: DemoClientSeed[] = [
     rif: 'J-31112233-4',
     address: 'Av. Intercomunal El Valle, Caracas',
     phone: '+58-212-6814004',
-    cityName: 'Caracas',
+    cityName: 'Maracay',
     salesPersonEmail: 'carlos.rodriguez@alessandro.demo',
   },
   {
@@ -300,7 +307,7 @@ export const demoClients: DemoClientSeed[] = [
     rif: 'J-31445566-7',
     address: 'Av. Sucre, Catia, Caracas',
     phone: '+58-212-8625005',
-    cityName: 'Caracas',
+    cityName: 'Maracay',
     salesPersonEmail: 'carlos.rodriguez@alessandro.demo',
   },
   {
@@ -308,7 +315,7 @@ export const demoClients: DemoClientSeed[] = [
     rif: 'J-31778899-0',
     address: 'Casco Histórico de Petare, Caracas',
     phone: '+58-212-2716006',
-    cityName: 'Caracas',
+    cityName: 'Maracay',
     salesPersonEmail: 'carlos.rodriguez@alessandro.demo',
   },
   // José Pérez — Maracaibo
@@ -317,7 +324,7 @@ export const demoClients: DemoClientSeed[] = [
     rif: 'J-32112233-4',
     address: 'Av. 5 de Julio, Maracaibo',
     phone: '+58-261-7917007',
-    cityName: 'Maracaibo',
+    cityName: 'Maracay',
     salesPersonEmail: 'jose.perez@alessandro.demo',
   },
   {
@@ -325,7 +332,7 @@ export const demoClients: DemoClientSeed[] = [
     rif: 'J-32445566-7',
     address: 'Av. Bella Vista, Maracaibo',
     phone: '+58-261-7928008',
-    cityName: 'Maracaibo',
+    cityName: 'Maracay',
     salesPersonEmail: 'jose.perez@alessandro.demo',
   },
   {
@@ -333,7 +340,7 @@ export const demoClients: DemoClientSeed[] = [
     rif: 'J-32778899-0',
     address: 'C.C. Sambil Maracaibo',
     phone: '+58-261-7939009',
-    cityName: 'Maracaibo',
+    cityName: 'Maracay',
     salesPersonEmail: 'jose.perez@alessandro.demo',
   },
   // Ana Martínez — Valencia
@@ -342,7 +349,7 @@ export const demoClients: DemoClientSeed[] = [
     rif: 'J-33112233-4',
     address: 'Av. Universidad, Naguanagua',
     phone: '+58-241-8410010',
-    cityName: 'Valencia',
+    cityName: 'Maracay',
     salesPersonEmail: 'ana.martinez@alessandro.demo',
   },
   {
@@ -350,7 +357,7 @@ export const demoClients: DemoClientSeed[] = [
     rif: 'J-33445566-7',
     address: 'Zona Industrial, Valencia',
     phone: '+58-241-8421011',
-    cityName: 'Valencia',
+    cityName: 'Maracay',
     salesPersonEmail: 'ana.martinez@alessandro.demo',
   },
   {
@@ -358,7 +365,7 @@ export const demoClients: DemoClientSeed[] = [
     rif: 'J-33778899-0',
     address: 'Av. Don Julio Centeno, San Diego',
     phone: '+58-241-8432012',
-    cityName: 'Valencia',
+    cityName: 'Maracay',
     salesPersonEmail: 'ana.martinez@alessandro.demo',
   },
   // Luis Sánchez — Barquisimeto
@@ -367,7 +374,7 @@ export const demoClients: DemoClientSeed[] = [
     rif: 'J-34112233-4',
     address: 'C.C. Las Trinitarias, Barquisimeto',
     phone: '+58-251-2543013',
-    cityName: 'Barquisimeto',
+    cityName: 'Maracay',
     salesPersonEmail: 'luis.sanchez@alessandro.demo',
   },
   {
@@ -375,7 +382,7 @@ export const demoClients: DemoClientSeed[] = [
     rif: 'J-34445566-7',
     address: 'Av. Libertador, Cabudare',
     phone: '+58-251-2554014',
-    cityName: 'Barquisimeto',
+    cityName: 'Maracay',
     salesPersonEmail: 'luis.sanchez@alessandro.demo',
   },
   {
@@ -383,7 +390,7 @@ export const demoClients: DemoClientSeed[] = [
     rif: 'J-34778899-0',
     address: 'Av. Lara, Barquisimeto',
     phone: '+58-251-2565015',
-    cityName: 'Barquisimeto',
+    cityName: 'Maracay',
     salesPersonEmail: 'luis.sanchez@alessandro.demo',
   },
   // Patricia López — Maracay

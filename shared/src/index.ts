@@ -219,6 +219,13 @@ export {
 } from "./schemas/client";
 
 export {
+  exchangeRateSchema,
+  type ExchangeRate,
+  createExchangeRateSchema,
+  type CreateExchangeRateInput,
+} from "./schemas/exchange-rate";
+
+export {
   dashboardRangeEnum,
   type DashboardRange,
   dashboardSalesTimeseriesQuerySchema,

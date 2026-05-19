@@ -29,6 +29,7 @@ import {
   ContactIcon,
   ShoppingCartIcon,
   PercentIcon,
+  DollarSignIcon,
 } from "lucide-react"
 import { useAuth } from "@/hooks/use-auth"
 import { Link } from "react-router"
@@ -57,6 +58,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     { title: t("Catalog"), url: "/dashboard/catalog", icon: <ShoppingCartIcon /> },
     { title: t("Sales"), url: "/dashboard/sales", icon: <ReceiptIcon /> },
     { title: t("Commissions"), url: "/dashboard/commissions", icon: <PercentIcon /> },
+    { title: t("Exchange Rates"), url: "/dashboard/exchange-rates", icon: <DollarSignIcon /> },
   ]
 
   const salesPersonNavMain = [

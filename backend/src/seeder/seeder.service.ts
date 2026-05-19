@@ -12,6 +12,7 @@ import { InventoryService } from '../inventory/inventory.service';
 import { ClientsService } from '../clients/clients.service';
 import {
   DEMO_SALES_PERSON_PASSWORD,
+  demoAdmins,
   demoCities,
   demoClients,
   demoInventory,
@@ -43,7 +44,23 @@ export class SeederService implements OnModuleInit {
   async onModuleInit(): Promise<void> {
     await this.seedAdminUser();
     if (this.configService.get<string>('SEED_DEMO_DATA') === 'true') {
+      await this.seedDemoAdmins();
       await this.seedDemoData();
+    }
+  }
+
+  private async seedDemoAdmins(): Promise<void> {
+    for (const admin of demoAdmins) {
+      const exists = await this.usersService.findByEmailExists(admin.email);
+      if (exists) continue;
+      const hashedPassword = await bcrypt.hash(admin.password, 12);
+      await this.usersService.create({
+        name: admin.name,
+        email: admin.email,
+        password: hashedPassword,
+        role: 'admin',
+      });
+      this.logger.log(`Seeded demo admin user: ${admin.email}`);
     }
   }
 

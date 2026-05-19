@@ -19,6 +19,7 @@ import { SalesModule } from './sales/sales.module';
 import { CommissionsModule } from './commissions/commissions.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { ClientsModule } from './clients/clients.module';
+import { ExchangeRatesModule } from './exchange-rates/exchange-rates.module';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 import { SeederModule } from './seeder/seeder.module';
 
@@ -51,6 +52,7 @@ import { SeederModule } from './seeder/seeder.module';
     CommissionsModule,
     DashboardModule,
     ClientsModule,
+    ExchangeRatesModule,
     SeederModule,
   ],
   controllers: [AppController],
